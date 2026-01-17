@@ -232,9 +232,9 @@ fn golden_table_wide() {
 fn golden_tree_simple() {
     init_test_logging();
     let tree = Tree::new(TreeNode::new("Root"))
-        .with_child(TreeNode::new("Child 1"))
-        .with_child(TreeNode::new("Child 2"))
-        .with_child(TreeNode::new("Child 3"));
+        .child(TreeNode::new("Child 1"))
+        .child(TreeNode::new("Child 2"))
+        .child(TreeNode::new("Child 3"));
 
     let output = segments_to_string(tree.render());
     let plain = strip_ansi(&output);
@@ -245,17 +245,17 @@ fn golden_tree_simple() {
 fn golden_tree_nested() {
     init_test_logging();
     let tree = Tree::new(TreeNode::new("Project"))
-        .with_child(
+        .child(
             TreeNode::new("src")
-                .with_child(TreeNode::new("main.rs"))
-                .with_child(TreeNode::new("lib.rs")),
+                .child(TreeNode::new("main.rs"))
+                .child(TreeNode::new("lib.rs")),
         )
-        .with_child(
+        .child(
             TreeNode::new("tests")
-                .with_child(TreeNode::new("unit.rs"))
-                .with_child(TreeNode::new("integration.rs")),
+                .child(TreeNode::new("unit.rs"))
+                .child(TreeNode::new("integration.rs")),
         )
-        .with_child(TreeNode::new("Cargo.toml"));
+        .child(TreeNode::new("Cargo.toml"));
 
     let output = segments_to_string(tree.render());
     let plain = strip_ansi(&output);
@@ -266,9 +266,9 @@ fn golden_tree_nested() {
 fn golden_tree_ascii() {
     init_test_logging();
     let tree = Tree::new(TreeNode::new("Root"))
-        .ascii()
-        .with_child(TreeNode::new("Branch A").with_child(TreeNode::new("Leaf 1")))
-        .with_child(TreeNode::new("Branch B").with_child(TreeNode::new("Leaf 2")));
+        .guides(TreeGuides::Ascii)
+        .child(TreeNode::new("Branch A").child(TreeNode::new("Leaf 1")))
+        .child(TreeNode::new("Branch B").child(TreeNode::new("Leaf 2")));
 
     let output = segments_to_string(tree.render());
     let plain = strip_ansi(&output);
@@ -282,7 +282,7 @@ fn golden_tree_ascii() {
 #[test]
 fn golden_columns_basic() {
     init_test_logging();
-    let columns = Columns::new(vec!["Column 1", "Column 2", "Column 3"]).equal(true);
+    let columns = Columns::from_strings(&["Column 1", "Column 2", "Column 3"]).equal_width(true);
 
     let output = segments_to_string(columns.render_flat(60));
     let plain = strip_ansi(&output);
@@ -292,12 +292,12 @@ fn golden_columns_basic() {
 #[test]
 fn golden_columns_multiline() {
     init_test_logging();
-    let columns = Columns::new(vec![
+    let columns = Columns::from_strings(&[
         "First column\nwith multiple\nlines",
         "Second column\nalso multiline",
         "Third",
     ])
-    .equal(true);
+    .equal_width(true);
 
     let output = segments_to_string(columns.render_flat(60));
     let plain = strip_ansi(&output);
@@ -311,7 +311,8 @@ fn golden_columns_multiline() {
 #[test]
 fn golden_progress_bar_empty() {
     init_test_logging();
-    let bar = ProgressBar::new(0.0).width(30);
+    let mut bar = ProgressBar::new().width(30);
+    bar.set_progress(0.0);
     let output = segments_to_string(bar.render(40));
     let plain = strip_ansi(&output);
     insta::assert_snapshot!("progress_bar_empty", plain);
@@ -320,7 +321,8 @@ fn golden_progress_bar_empty() {
 #[test]
 fn golden_progress_bar_half() {
     init_test_logging();
-    let bar = ProgressBar::new(0.5).width(30);
+    let mut bar = ProgressBar::new().width(30);
+    bar.set_progress(0.5);
     let output = segments_to_string(bar.render(40));
     let plain = strip_ansi(&output);
     insta::assert_snapshot!("progress_bar_half", plain);
@@ -329,7 +331,8 @@ fn golden_progress_bar_half() {
 #[test]
 fn golden_progress_bar_full() {
     init_test_logging();
-    let bar = ProgressBar::new(1.0).width(30);
+    let mut bar = ProgressBar::new().width(30);
+    bar.set_progress(1.0);
     let output = segments_to_string(bar.render(40));
     let plain = strip_ansi(&output);
     insta::assert_snapshot!("progress_bar_full", plain);
@@ -338,7 +341,8 @@ fn golden_progress_bar_full() {
 #[test]
 fn golden_progress_bar_ascii() {
     init_test_logging();
-    let bar = ProgressBar::new(0.75).width(30).style(BarStyle::Ascii);
+    let mut bar = ProgressBar::new().width(30).bar_style(BarStyle::Ascii);
+    bar.set_progress(0.75);
     let output = segments_to_string(bar.render(40));
     let plain = strip_ansi(&output);
     insta::assert_snapshot!("progress_bar_ascii", plain);

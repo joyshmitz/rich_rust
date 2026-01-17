@@ -1,0 +1,7 @@
+---
+source: tests/golden_test.rs
+expression: plain
+---
+╭─────────────────────────────────╮
+│ This is a very long piece of text that should be wrapped across multiple lines when rendered at a narrow width. │
+╰─────────────────────────────────╯
