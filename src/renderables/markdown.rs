@@ -1,0 +1,761 @@
+//! Markdown rendering for the terminal.
+//!
+//! This module provides markdown rendering using pulldown-cmark for parsing
+//! and converting to styled terminal output.
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use rich_rust::renderables::markdown::Markdown;
+//!
+//! let md = Markdown::new("# Hello\n\nThis is **bold** and *italic*.");
+//! let segments = md.render(80);
+//! ```
+
+use std::fmt::Write;
+
+use crate::segment::Segment;
+use crate::style::Style;
+
+use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+
+/// A markdown document that can be rendered to the terminal.
+#[derive(Debug, Clone)]
+pub struct Markdown {
+    /// The markdown source text.
+    source: String,
+    /// Style for H1 headings.
+    h1_style: Style,
+    /// Style for H2 headings.
+    h2_style: Style,
+    /// Style for H3 headings.
+    h3_style: Style,
+    /// Style for H4-H6 headings.
+    h4_style: Style,
+    /// Style for emphasis (italic).
+    emphasis_style: Style,
+    /// Style for strong emphasis (bold).
+    strong_style: Style,
+    /// Style for strikethrough text.
+    strikethrough_style: Style,
+    /// Style for inline code.
+    code_style: Style,
+    /// Style for code blocks.
+    code_block_style: Style,
+    /// Style for links.
+    link_style: Style,
+    /// Style for blockquotes.
+    quote_style: Style,
+    /// Style for table headers.
+    table_header_style: Style,
+    /// Style for table borders.
+    table_border_style: Style,
+    /// Character for bullet points.
+    bullet_char: char,
+    /// Indent for nested lists.
+    list_indent: usize,
+    /// Whether to show link URLs.
+    show_links: bool,
+}
+
+impl Default for Markdown {
+    fn default() -> Self {
+        Self {
+            source: String::new(),
+            h1_style: Style::new()
+                .bold()
+                .underline()
+                .color_str("bright_cyan")
+                .unwrap_or_default(),
+            h2_style: Style::new()
+                .bold()
+                .color_str("cyan")
+                .unwrap_or_default(),
+            h3_style: Style::new()
+                .bold()
+                .color_str("blue")
+                .unwrap_or_default(),
+            h4_style: Style::new()
+                .bold()
+                .color_str("bright_blue")
+                .unwrap_or_default(),
+            emphasis_style: Style::new().italic(),
+            strong_style: Style::new().bold(),
+            strikethrough_style: Style::new().strike(),
+            code_style: Style::new()
+                .color_str("bright_magenta")
+                .unwrap_or_default()
+                .bgcolor_str("bright_black")
+                .unwrap_or_default(),
+            code_block_style: Style::new()
+                .color_str("white")
+                .unwrap_or_default()
+                .bgcolor_str("bright_black")
+                .unwrap_or_default(),
+            link_style: Style::new()
+                .color_str("bright_blue")
+                .unwrap_or_default()
+                .underline(),
+            quote_style: Style::new()
+                .italic()
+                .color_str("bright_black")
+                .unwrap_or_default(),
+            table_header_style: Style::new()
+                .bold()
+                .color_str("bright_white")
+                .unwrap_or_default(),
+            table_border_style: Style::new()
+                .color_str("bright_black")
+                .unwrap_or_default(),
+            bullet_char: '•',
+            list_indent: 2,
+            show_links: true,
+        }
+    }
+}
+
+impl Markdown {
+    /// Create a new Markdown document.
+    #[must_use]
+    pub fn new(source: impl Into<String>) -> Self {
+        Self {
+            source: source.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set the style for H1 headings.
+    #[must_use]
+    pub fn h1_style(mut self, style: Style) -> Self {
+        self.h1_style = style;
+        self
+    }
+
+    /// Set the style for H2 headings.
+    #[must_use]
+    pub fn h2_style(mut self, style: Style) -> Self {
+        self.h2_style = style;
+        self
+    }
+
+    /// Set the style for H3 headings.
+    #[must_use]
+    pub fn h3_style(mut self, style: Style) -> Self {
+        self.h3_style = style;
+        self
+    }
+
+    /// Set the style for H4-H6 headings.
+    #[must_use]
+    pub fn h4_style(mut self, style: Style) -> Self {
+        self.h4_style = style;
+        self
+    }
+
+    /// Set the style for emphasis (italic).
+    #[must_use]
+    pub fn emphasis_style(mut self, style: Style) -> Self {
+        self.emphasis_style = style;
+        self
+    }
+
+    /// Set the style for strong emphasis (bold).
+    #[must_use]
+    pub fn strong_style(mut self, style: Style) -> Self {
+        self.strong_style = style;
+        self
+    }
+
+    /// Set the style for inline code.
+    #[must_use]
+    pub fn code_style(mut self, style: Style) -> Self {
+        self.code_style = style;
+        self
+    }
+
+    /// Set the style for code blocks.
+    #[must_use]
+    pub fn code_block_style(mut self, style: Style) -> Self {
+        self.code_block_style = style;
+        self
+    }
+
+    /// Set the style for links.
+    #[must_use]
+    pub fn link_style(mut self, style: Style) -> Self {
+        self.link_style = style;
+        self
+    }
+
+    /// Set the style for blockquotes.
+    #[must_use]
+    pub fn quote_style(mut self, style: Style) -> Self {
+        self.quote_style = style;
+        self
+    }
+
+    /// Set the style for table headers.
+    #[must_use]
+    pub fn table_header_style(mut self, style: Style) -> Self {
+        self.table_header_style = style;
+        self
+    }
+
+    /// Set the style for table borders.
+    #[must_use]
+    pub fn table_border_style(mut self, style: Style) -> Self {
+        self.table_border_style = style;
+        self
+    }
+
+    /// Set the bullet character for unordered lists.
+    #[must_use]
+    pub fn bullet_char(mut self, c: char) -> Self {
+        self.bullet_char = c;
+        self
+    }
+
+    /// Set the indent for nested lists.
+    #[must_use]
+    pub fn list_indent(mut self, indent: usize) -> Self {
+        self.list_indent = indent;
+        self
+    }
+
+    /// Set whether to show link URLs after link text.
+    #[must_use]
+    pub fn show_links(mut self, show: bool) -> Self {
+        self.show_links = show;
+        self
+    }
+
+    /// Render the markdown to segments.
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
+    pub fn render(&self, _max_width: usize) -> Vec<Segment> {
+        let mut segments = Vec::new();
+        let mut style_stack: Vec<Style> = Vec::new();
+        let mut list_stack: Vec<(bool, usize)> = Vec::new(); // (is_ordered, item_number)
+        let mut in_code_block = false;
+        let mut in_blockquote = false;
+        let mut current_link_url = String::new();
+
+        // Table state
+        let mut in_table = false;
+        let mut table_alignments: Vec<Alignment> = Vec::new();
+        let mut table_rows: Vec<Vec<String>> = Vec::new();
+        let mut current_row: Vec<String> = Vec::new();
+        let mut current_cell_content = String::new();
+        let mut in_table_head = false;
+        let mut header_row: Option<Vec<String>> = None;
+
+        let options = Options::ENABLE_STRIKETHROUGH
+            | Options::ENABLE_TABLES
+            | Options::ENABLE_FOOTNOTES;
+
+        let parser = Parser::new_ext(&self.source, options);
+
+        for event in parser {
+            match event {
+                Event::Start(tag) => {
+                    match tag {
+                        Tag::Heading { level, .. } => {
+                            // Add newline before heading if not at start
+                            if !segments.is_empty() {
+                                segments.push(Segment::new("\n\n", None));
+                            }
+                            let style = match level {
+                                HeadingLevel::H1 => self.h1_style.clone(),
+                                HeadingLevel::H2 => self.h2_style.clone(),
+                                HeadingLevel::H3 => self.h3_style.clone(),
+                                _ => self.h4_style.clone(),
+                            };
+                            style_stack.push(style);
+                        }
+                        Tag::Paragraph => {
+                            if !segments.is_empty() && !in_blockquote && !in_table {
+                                segments.push(Segment::new("\n\n", None));
+                            }
+                        }
+                        Tag::Emphasis => {
+                            style_stack.push(self.emphasis_style.clone());
+                        }
+                        Tag::Strong => {
+                            style_stack.push(self.strong_style.clone());
+                        }
+                        Tag::Strikethrough => {
+                            style_stack.push(self.strikethrough_style.clone());
+                        }
+                        Tag::CodeBlock(_) => {
+                            in_code_block = true;
+                            if !segments.is_empty() {
+                                segments.push(Segment::new("\n", None));
+                            }
+                            style_stack.push(self.code_block_style.clone());
+                        }
+                        Tag::Link { dest_url, .. } => {
+                            current_link_url = dest_url.to_string();
+                            style_stack.push(self.link_style.clone());
+                        }
+                        Tag::BlockQuote(_) => {
+                            in_blockquote = true;
+                            if !segments.is_empty() {
+                                segments.push(Segment::new("\n", None));
+                            }
+                            segments.push(Segment::new("│ ", Some(self.quote_style.clone())));
+                            style_stack.push(self.quote_style.clone());
+                        }
+                        Tag::List(start_num) => {
+                            if !segments.is_empty() {
+                                segments.push(Segment::new("\n", None));
+                            }
+                            let is_ordered = start_num.is_some();
+                            #[allow(clippy::cast_possible_truncation)]
+                            let start = start_num.unwrap_or(1) as usize;
+                            list_stack.push((is_ordered, start));
+                        }
+                        Tag::Item => {
+                            // Add indent based on list nesting
+                            let indent = " ".repeat(list_stack.len().saturating_sub(1) * self.list_indent);
+                            segments.push(Segment::new(indent, None));
+
+                            if let Some((is_ordered, num)) = list_stack.last_mut() {
+                                if *is_ordered {
+                                    segments.push(Segment::new(format!("{num}. "), None));
+                                    *num += 1;
+                                } else {
+                                    segments.push(Segment::new(format!("{} ", self.bullet_char), None));
+                                }
+                            }
+                        }
+                        Tag::Table(alignments) => {
+                            in_table = true;
+                            table_alignments = alignments.clone();
+                            table_rows.clear();
+                            header_row = None;
+                            if !segments.is_empty() {
+                                segments.push(Segment::new("\n", None));
+                            }
+                        }
+                        Tag::TableHead => {
+                            in_table_head = true;
+                            current_row.clear();
+                        }
+                        Tag::TableRow => {
+                            current_row.clear();
+                        }
+                        Tag::TableCell => {
+                            current_cell_content.clear();
+                        }
+                        _ => {}
+                    }
+                }
+                Event::End(tag_end) => {
+                    match tag_end {
+                        TagEnd::Heading(_) => {
+                            style_stack.pop();
+                        }
+                        TagEnd::Paragraph => {}
+                        TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough => {
+                            style_stack.pop();
+                        }
+                        TagEnd::CodeBlock => {
+                            in_code_block = false;
+                            style_stack.pop();
+                            segments.push(Segment::new("\n", None));
+                        }
+                        TagEnd::Link => {
+                            style_stack.pop();
+                            if self.show_links && !current_link_url.is_empty() && !in_table {
+                                segments.push(Segment::new(
+                                    format!(" ({current_link_url})"),
+                                    Some(Style::new().color_str("bright_black").unwrap_or_default()),
+                                ));
+                            }
+                            current_link_url.clear();
+                        }
+                        TagEnd::BlockQuote(_) => {
+                            in_blockquote = false;
+                            style_stack.pop();
+                        }
+                        TagEnd::List(_) => {
+                            list_stack.pop();
+                        }
+                        TagEnd::Item => {
+                            segments.push(Segment::new("\n", None));
+                        }
+                        TagEnd::Table => {
+                            // Render the collected table
+                            self.render_table(
+                                &mut segments,
+                                header_row.as_ref(),
+                                &table_rows,
+                                &table_alignments,
+                            );
+                            in_table = false;
+                            table_rows.clear();
+                            header_row = None;
+                        }
+                        TagEnd::TableHead => {
+                            in_table_head = false;
+                            header_row = Some(std::mem::take(&mut current_row));
+                        }
+                        TagEnd::TableRow => {
+                            if !in_table_head {
+                                table_rows.push(std::mem::take(&mut current_row));
+                            }
+                        }
+                        TagEnd::TableCell => {
+                            current_row.push(std::mem::take(&mut current_cell_content));
+                        }
+                        _ => {}
+                    }
+                }
+                Event::Text(text) => {
+                    if in_table {
+                        current_cell_content.push_str(&text);
+                    } else {
+                        let current_style = style_stack.last().cloned();
+                        if in_code_block {
+                            // Preserve code block formatting
+                            for line in text.lines() {
+                                segments.push(Segment::new(format!("  {line}"), current_style.clone()));
+                                segments.push(Segment::new("\n", None));
+                            }
+                        } else {
+                            segments.push(Segment::new(text.to_string(), current_style));
+                        }
+                    }
+                }
+                Event::Code(code) => {
+                    if in_table {
+                        let _ = write!(current_cell_content, "`{code}`");
+                    } else {
+                        segments.push(Segment::new(
+                            format!(" {code} "),
+                            Some(self.code_style.clone()),
+                        ));
+                    }
+                }
+                Event::SoftBreak => {
+                    if in_table {
+                        current_cell_content.push(' ');
+                    } else {
+                        segments.push(Segment::new(" ", None));
+                    }
+                }
+                Event::HardBreak => {
+                    if in_table {
+                        current_cell_content.push(' ');
+                    } else {
+                        segments.push(Segment::new("\n", None));
+                    }
+                }
+                Event::Rule => {
+                    segments.push(Segment::new("\n", None));
+                    segments.push(Segment::new(
+                        "─".repeat(40),
+                        Some(Style::new().color_str("bright_black").unwrap_or_default()),
+                    ));
+                    segments.push(Segment::new("\n", None));
+                }
+                _ => {}
+            }
+        }
+
+        segments
+    }
+
+    /// Render a table to segments.
+    fn render_table(
+        &self,
+        segments: &mut Vec<Segment>,
+        header: Option<&Vec<String>>,
+        rows: &[Vec<String>],
+        alignments: &[Alignment],
+    ) {
+        // Calculate column widths
+        let num_cols = header.map_or_else(
+            || rows.first().map_or(0, Vec::len),
+            Vec::len,
+        );
+
+        if num_cols == 0 {
+            return;
+        }
+
+        let mut col_widths = vec![0usize; num_cols];
+
+        // Measure header
+        if let Some(hdr) = header {
+            for (i, cell) in hdr.iter().enumerate() {
+                if i < col_widths.len() {
+                    col_widths[i] = col_widths[i].max(cell.chars().count());
+                }
+            }
+        }
+
+        // Measure rows
+        for row in rows {
+            for (i, cell) in row.iter().enumerate() {
+                if i < col_widths.len() {
+                    col_widths[i] = col_widths[i].max(cell.chars().count());
+                }
+            }
+        }
+
+        // Ensure minimum width
+        for w in &mut col_widths {
+            *w = (*w).max(3);
+        }
+
+        let border_style = Some(self.table_border_style.clone());
+
+        // Helper to render a horizontal border
+        let render_border = |segs: &mut Vec<Segment>, left: &str, mid: &str, right: &str, style: Option<Style>| {
+            segs.push(Segment::new(left, style.clone()));
+            for (i, &width) in col_widths.iter().enumerate() {
+                segs.push(Segment::new("─".repeat(width + 2), style.clone()));
+                if i < col_widths.len() - 1 {
+                    segs.push(Segment::new(mid, style.clone()));
+                }
+            }
+            segs.push(Segment::new(right, style));
+            segs.push(Segment::new("\n", None));
+        };
+
+        // Helper to render a row
+        let render_row = |segs: &mut Vec<Segment>, cells: &[String], style: Option<Style>, is_header: bool| {
+            segs.push(Segment::new("│", border_style.clone()));
+            for (i, width) in col_widths.iter().enumerate() {
+                let content = cells.get(i).map_or("", String::as_str);
+                let alignment = alignments.get(i).copied().unwrap_or(Alignment::None);
+                let padded = Self::pad_cell(content, *width, alignment);
+                segs.push(Segment::new(" ", None));
+                if is_header {
+                    segs.push(Segment::new(padded, Some(self.table_header_style.clone())));
+                } else {
+                    segs.push(Segment::new(padded, style.clone()));
+                }
+                segs.push(Segment::new(" ", None));
+                segs.push(Segment::new("│", border_style.clone()));
+            }
+            segs.push(Segment::new("\n", None));
+        };
+
+        // Top border
+        render_border(segments, "┌", "┬", "┐", border_style.clone());
+
+        // Header row
+        if let Some(hdr) = header {
+            render_row(segments, hdr, None, true);
+            // Header separator
+            render_border(segments, "├", "┼", "┤", border_style.clone());
+        }
+
+        // Data rows
+        for row in rows {
+            render_row(segments, row, None, false);
+        }
+
+        // Bottom border
+        render_border(segments, "└", "┴", "┘", border_style);
+    }
+
+    /// Pad a cell's content according to alignment.
+    fn pad_cell(content: &str, width: usize, alignment: Alignment) -> String {
+        let content_len = content.chars().count();
+        if content_len >= width {
+            return content.to_string();
+        }
+
+        let padding = width - content_len;
+        match alignment {
+            Alignment::Left | Alignment::None => {
+                format!("{content}{}", " ".repeat(padding))
+            }
+            Alignment::Right => {
+                format!("{}{content}", " ".repeat(padding))
+            }
+            Alignment::Center => {
+                let left_pad = padding / 2;
+                let right_pad = padding - left_pad;
+                format!("{}{content}{}", " ".repeat(left_pad), " ".repeat(right_pad))
+            }
+        }
+    }
+
+    /// Get the source markdown text.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_markdown_new() {
+        let md = Markdown::new("# Hello");
+        assert_eq!(md.source(), "# Hello");
+    }
+
+    #[test]
+    fn test_markdown_builder() {
+        let md = Markdown::new("test")
+            .bullet_char('*')
+            .list_indent(4)
+            .show_links(false);
+        assert_eq!(md.bullet_char, '*');
+        assert_eq!(md.list_indent, 4);
+        assert!(!md.show_links);
+    }
+
+    #[test]
+    fn test_render_heading() {
+        let md = Markdown::new("# Title");
+        let segments = md.render(80);
+        assert!(!segments.is_empty());
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Title"));
+    }
+
+    #[test]
+    fn test_render_multiple_headings() {
+        let md = Markdown::new("# H1\n## H2\n### H3");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("H1"));
+        assert!(text.contains("H2"));
+        assert!(text.contains("H3"));
+    }
+
+    #[test]
+    fn test_render_emphasis() {
+        let md = Markdown::new("This is *italic* and **bold**.");
+        let segments = md.render(80);
+        assert!(!segments.is_empty());
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("italic"));
+        assert!(text.contains("bold"));
+    }
+
+    #[test]
+    fn test_render_code() {
+        let md = Markdown::new("Use `inline code` here.");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("inline code"));
+    }
+
+    #[test]
+    fn test_render_code_block() {
+        let md = Markdown::new("```rust\nfn main() {}\n```");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("fn main"));
+    }
+
+    #[test]
+    fn test_render_unordered_list() {
+        let md = Markdown::new("- Item 1\n- Item 2\n- Item 3");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Item 1"));
+        assert!(text.contains("Item 2"));
+        assert!(text.contains("•")); // Default bullet
+    }
+
+    #[test]
+    fn test_render_ordered_list() {
+        let md = Markdown::new("1. First\n2. Second\n3. Third");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("First"));
+        assert!(text.contains("1."));
+        assert!(text.contains("2."));
+    }
+
+    #[test]
+    fn test_render_link() {
+        let md = Markdown::new("[Click here](https://example.com)");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Click here"));
+        assert!(text.contains("example.com"));
+    }
+
+    #[test]
+    fn test_render_link_no_url() {
+        let md = Markdown::new("[Click here](https://example.com)").show_links(false);
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Click here"));
+        assert!(!text.contains("example.com"));
+    }
+
+    #[test]
+    fn test_render_blockquote() {
+        let md = Markdown::new("> This is a quote");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("This is a quote"));
+        assert!(text.contains("│")); // Quote prefix
+    }
+
+    #[test]
+    fn test_render_horizontal_rule() {
+        let md = Markdown::new("Above\n\n---\n\nBelow");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Above"));
+        assert!(text.contains("Below"));
+        assert!(text.contains("─")); // Rule character
+    }
+
+    #[test]
+    fn test_render_strikethrough() {
+        let md = Markdown::new("This is ~~deleted~~ text.");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("deleted"));
+    }
+
+    #[test]
+    fn test_custom_bullet() {
+        let md = Markdown::new("- Item").bullet_char('→');
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("→"));
+    }
+
+    #[test]
+    fn test_render_table() {
+        let md = Markdown::new("| Name | Age |\n|------|-----|\n| Alice | 30 |\n| Bob | 25 |");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Name"));
+        assert!(text.contains("Age"));
+        assert!(text.contains("Alice"));
+        assert!(text.contains("Bob"));
+        assert!(text.contains("30"));
+        assert!(text.contains("25"));
+        // Check for table border characters
+        assert!(text.contains("┌")); // Top left corner
+        assert!(text.contains("│")); // Vertical border
+        assert!(text.contains("─")); // Horizontal border
+    }
+
+    #[test]
+    fn test_render_nested_list() {
+        let md = Markdown::new("- Item 1\n  - Nested 1\n  - Nested 2\n- Item 2");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(text.contains("Item 1"));
+        assert!(text.contains("Nested 1"));
+        assert!(text.contains("Nested 2"));
+        assert!(text.contains("Item 2"));
+    }
+}

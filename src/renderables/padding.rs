@@ -1,0 +1,268 @@
+//! Padding - CSS-style padding for renderables.
+//!
+//! This module provides padding dimensions that follow CSS conventions:
+//! - 1 value: all sides equal
+//! - 2 values: (vertical, horizontal) -> top/bottom, left/right
+//! - 4 values: (top, right, bottom, left) -> individual sides
+
+use crate::segment::Segment;
+use crate::style::Style;
+
+/// CSS-style padding dimensions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PaddingDimensions {
+    /// Top padding in cells.
+    pub top: usize,
+    /// Right padding in cells.
+    pub right: usize,
+    /// Bottom padding in cells.
+    pub bottom: usize,
+    /// Left padding in cells.
+    pub left: usize,
+}
+
+impl PaddingDimensions {
+    /// Create padding with all sides equal.
+    #[must_use]
+    pub const fn all(n: usize) -> Self {
+        Self {
+            top: n,
+            right: n,
+            bottom: n,
+            left: n,
+        }
+    }
+
+    /// Create padding with separate vertical and horizontal values.
+    #[must_use]
+    pub const fn symmetric(vertical: usize, horizontal: usize) -> Self {
+        Self {
+            top: vertical,
+            right: horizontal,
+            bottom: vertical,
+            left: horizontal,
+        }
+    }
+
+    /// Create padding with individual values for each side.
+    #[must_use]
+    pub const fn new(top: usize, right: usize, bottom: usize, left: usize) -> Self {
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
+    }
+
+    /// Create zero padding.
+    #[must_use]
+    pub const fn zero() -> Self {
+        Self::all(0)
+    }
+
+    /// Total horizontal padding (left + right).
+    #[must_use]
+    pub const fn horizontal(&self) -> usize {
+        self.left + self.right
+    }
+
+    /// Total vertical padding (top + bottom).
+    #[must_use]
+    pub const fn vertical(&self) -> usize {
+        self.top + self.bottom
+    }
+}
+
+impl From<usize> for PaddingDimensions {
+    fn from(n: usize) -> Self {
+        Self::all(n)
+    }
+}
+
+impl From<(usize, usize)> for PaddingDimensions {
+    fn from((vertical, horizontal): (usize, usize)) -> Self {
+        Self::symmetric(vertical, horizontal)
+    }
+}
+
+impl From<(usize, usize, usize, usize)> for PaddingDimensions {
+    fn from((top, right, bottom, left): (usize, usize, usize, usize)) -> Self {
+        Self::new(top, right, bottom, left)
+    }
+}
+
+/// A wrapper that adds padding around content.
+#[derive(Debug, Clone)]
+pub struct Padding {
+    /// Lines of content (each line is a Vec of Segments).
+    content_lines: Vec<Vec<Segment>>,
+    /// Padding dimensions.
+    pad: PaddingDimensions,
+    /// Style for the padding (background fill).
+    style: Style,
+    /// Width to expand content to.
+    width: usize,
+}
+
+impl Padding {
+    /// Create a new Padding wrapper.
+    #[must_use]
+    pub fn new(
+        content_lines: Vec<Vec<Segment>>,
+        pad: impl Into<PaddingDimensions>,
+        width: usize,
+    ) -> Self {
+        Self {
+            content_lines,
+            pad: pad.into(),
+            style: Style::new(),
+            width,
+        }
+    }
+
+    /// Set the padding style.
+    #[must_use]
+    pub fn style(mut self, style: Style) -> Self {
+        self.style = style;
+        self
+    }
+
+    /// Render with padding applied.
+    #[must_use]
+    pub fn render(self) -> Vec<Vec<Segment>> {
+        let mut result = Vec::new();
+
+        let inner_width = self.width.saturating_sub(self.pad.horizontal());
+        let left_pad = " ".repeat(self.pad.left);
+        let right_pad = " ".repeat(self.pad.right);
+        let blank_line_inner = " ".repeat(inner_width);
+
+        // Top padding
+        for _ in 0..self.pad.top {
+            let mut line = Vec::new();
+            if self.pad.left > 0 {
+                line.push(Segment::new(&left_pad, Some(self.style.clone())));
+            }
+            line.push(Segment::new(&blank_line_inner, Some(self.style.clone())));
+            if self.pad.right > 0 {
+                line.push(Segment::new(&right_pad, Some(self.style.clone())));
+            }
+            result.push(line);
+        }
+
+        // Content lines with left/right padding
+        for content_line in self.content_lines {
+            let mut line = Vec::new();
+
+            if self.pad.left > 0 {
+                line.push(Segment::new(&left_pad, Some(self.style.clone())));
+            }
+
+            line.extend(content_line);
+
+            if self.pad.right > 0 {
+                line.push(Segment::new(&right_pad, Some(self.style.clone())));
+            }
+
+            result.push(line);
+        }
+
+        // Bottom padding
+        for _ in 0..self.pad.bottom {
+            let mut line = Vec::new();
+            if self.pad.left > 0 {
+                line.push(Segment::new(&left_pad, Some(self.style.clone())));
+            }
+            line.push(Segment::new(&blank_line_inner, Some(self.style.clone())));
+            if self.pad.right > 0 {
+                line.push(Segment::new(&right_pad, Some(self.style.clone())));
+            }
+            result.push(line);
+        }
+
+        result
+    }
+}
+
+/// Create indentation padding (left-side only).
+#[must_use]
+pub fn indent(level: usize) -> PaddingDimensions {
+    PaddingDimensions::new(0, 0, 0, level)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_padding_all() {
+        let pad = PaddingDimensions::all(2);
+        assert_eq!(pad.top, 2);
+        assert_eq!(pad.right, 2);
+        assert_eq!(pad.bottom, 2);
+        assert_eq!(pad.left, 2);
+    }
+
+    #[test]
+    fn test_padding_symmetric() {
+        let pad = PaddingDimensions::symmetric(1, 3);
+        assert_eq!(pad.top, 1);
+        assert_eq!(pad.right, 3);
+        assert_eq!(pad.bottom, 1);
+        assert_eq!(pad.left, 3);
+    }
+
+    #[test]
+    fn test_padding_individual() {
+        let pad = PaddingDimensions::new(1, 2, 3, 4);
+        assert_eq!(pad.top, 1);
+        assert_eq!(pad.right, 2);
+        assert_eq!(pad.bottom, 3);
+        assert_eq!(pad.left, 4);
+    }
+
+    #[test]
+    fn test_padding_from_usize() {
+        let pad: PaddingDimensions = 5.into();
+        assert_eq!(pad, PaddingDimensions::all(5));
+    }
+
+    #[test]
+    fn test_padding_from_tuple2() {
+        let pad: PaddingDimensions = (1, 2).into();
+        assert_eq!(pad, PaddingDimensions::symmetric(1, 2));
+    }
+
+    #[test]
+    fn test_padding_from_tuple4() {
+        let pad: PaddingDimensions = (1, 2, 3, 4).into();
+        assert_eq!(pad, PaddingDimensions::new(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_horizontal_vertical() {
+        let pad = PaddingDimensions::new(1, 2, 3, 4);
+        assert_eq!(pad.horizontal(), 6); // 2 + 4
+        assert_eq!(pad.vertical(), 4);   // 1 + 3
+    }
+
+    #[test]
+    fn test_indent() {
+        let pad = indent(4);
+        assert_eq!(pad.left, 4);
+        assert_eq!(pad.right, 0);
+        assert_eq!(pad.top, 0);
+        assert_eq!(pad.bottom, 0);
+    }
+
+    #[test]
+    fn test_padding_render() {
+        let content = vec![vec![Segment::new("Hello", None)]];
+        let padded = Padding::new(content, 1, 10);
+        let lines = padded.render();
+
+        // Should have 1 top + 1 content + 1 bottom = 3 lines
+        assert_eq!(lines.len(), 3);
+    }
+}

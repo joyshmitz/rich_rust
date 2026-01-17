@@ -1,0 +1,387 @@
+//! Markup parsing for Rich-style text.
+//!
+//! This module provides functionality to parse markup strings like
+//! `[bold red]Hello[/]` into styled `Text` objects.
+
+use std::fmt;
+use regex::Regex;
+use once_cell::sync::Lazy;
+
+use crate::style::Style;
+use crate::text::Text;
+
+/// Error type for markup parsing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MarkupError {
+    /// Closing tag with nothing to close.
+    UnmatchedClosingTag(String),
+    /// Invalid tag syntax.
+    InvalidTag(String),
+}
+
+impl fmt::Display for MarkupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnmatchedClosingTag(tag) => {
+                write!(f, "closing tag '[/{tag}]' has nothing to close")
+            }
+            Self::InvalidTag(msg) => write!(f, "invalid tag: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for MarkupError {}
+
+/// A parsed tag from markup.
+#[derive(Debug, Clone)]
+pub struct Tag {
+    /// The tag name (e.g., "bold", "red", "/", "/bold").
+    pub name: String,
+    /// Optional parameter (e.g., "link" tag might have a URL).
+    pub parameters: Option<String>,
+}
+
+impl Tag {
+    /// Create a new tag.
+    pub fn new(name: impl Into<String>, parameters: Option<String>) -> Self {
+        Self {
+            name: name.into(),
+            parameters,
+        }
+    }
+
+    /// Check if this is a closing tag.
+    pub fn is_closing(&self) -> bool {
+        self.name.starts_with('/')
+    }
+
+    /// Get the tag name without the leading slash for closing tags.
+    pub fn base_name(&self) -> &str {
+        if self.is_closing() {
+            &self.name[1..]
+        } else {
+            &self.name
+        }
+    }
+}
+
+/// Result of parsing a single element from markup.
+#[derive(Debug, Clone)]
+pub enum ParseElement {
+    /// Plain text.
+    Text(String),
+    /// A tag (opening or closing).
+    Tag(Tag),
+}
+
+// Regex for matching tags: ((\\*)\[([a-z#/@][^[]*?)])
+// Matches: optional backslashes, then [tag_content]
+static TAG_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(\\*)\[([a-z#/@][^\[\]]*?)\]").expect("invalid regex")
+});
+
+/// Parse markup string into elements.
+///
+/// Yields (position, optional plain text, optional tag) tuples.
+fn parse_elements(markup: &str) -> Vec<(usize, Option<String>, Option<Tag>)> {
+    let mut elements = Vec::new();
+    let mut last_end = 0;
+
+    for cap in TAG_PATTERN.captures_iter(markup) {
+        let full_match = cap.get(0).unwrap();
+        let backslashes = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let tag_content = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+
+        let match_start = full_match.start();
+
+        // Text before this match
+        if match_start > last_end {
+            let text = &markup[last_end..match_start];
+            elements.push((last_end, Some(text.to_string()), None));
+        }
+
+        // Count backslashes
+        let num_backslashes = backslashes.len();
+        let escaped = num_backslashes % 2 == 1;
+
+        // Handle backslashes (each pair becomes one literal backslash)
+        if num_backslashes > 0 {
+            let literal_backslashes = num_backslashes / 2;
+            if literal_backslashes > 0 {
+                elements.push((
+                    match_start,
+                    Some("\\".repeat(literal_backslashes)),
+                    None,
+                ));
+            }
+        }
+
+        if escaped {
+            // Escaped bracket - treat as literal text
+            elements.push((
+                match_start,
+                Some(format!("[{tag_content}]")),
+                None,
+            ));
+        } else {
+            // Parse the tag
+            let tag = parse_tag(tag_content);
+            elements.push((match_start, None, Some(tag)));
+        }
+
+        last_end = full_match.end();
+    }
+
+    // Remaining text
+    if last_end < markup.len() {
+        elements.push((last_end, Some(markup[last_end..].to_string()), None));
+    }
+
+    elements
+}
+
+/// Parse tag content into a Tag struct.
+fn parse_tag(content: &str) -> Tag {
+    let trimmed = content.trim();
+
+    // Check for parameter (e.g., "link=https://...")
+    if let Some(eq_pos) = trimmed.find('=') {
+        let name = trimmed[..eq_pos].trim().to_string();
+        let param = trimmed[eq_pos + 1..].trim().to_string();
+        return Tag::new(name, Some(param));
+    }
+
+    // Check for handler syntax @handler(args)
+    if trimmed.starts_with('@') || trimmed.starts_with("/@") {
+        if let Some(paren_start) = trimmed.find('(') {
+            if let Some(paren_end) = trimmed.rfind(')') {
+                let name = trimmed[..paren_start].to_string();
+                let param = trimmed[paren_start + 1..paren_end].to_string();
+                return Tag::new(name, Some(param));
+            }
+        }
+    }
+
+    Tag::new(trimmed, None)
+}
+
+/// Render markup string to a Text object.
+///
+/// # Examples
+///
+/// ```ignore
+/// use rich_rust::markup::render;
+///
+/// let text = render("[bold]Hello[/] [red]World[/]").unwrap();
+/// ```
+pub fn render(markup: &str) -> Result<Text, MarkupError> {
+    // Optimization: if no '[', return plain text
+    if !markup.contains('[') {
+        return Ok(Text::new(markup));
+    }
+
+    let mut text = Text::new("");
+    let mut style_stack: Vec<(usize, Tag)> = Vec::new();
+
+    for (_position, plain_text, tag) in parse_elements(markup) {
+        // Add any plain text
+        if let Some(plain) = plain_text {
+            // Replace escaped brackets (double backslash-bracket becomes backslash-bracket)
+            let unescaped = plain.replace("\\[", "[");
+            text.append(&unescaped);
+        }
+
+        // Process tag
+        if let Some(tag) = tag {
+            if tag.is_closing() {
+                // Closing tag
+                let style_name = tag.base_name().trim();
+
+                let (start, open_tag) = if style_name.is_empty() {
+                    // Implicit close [/]
+                    style_stack
+                        .pop()
+                        .ok_or_else(|| MarkupError::UnmatchedClosingTag("/".to_string()))?
+                } else {
+                    // Explicit close [/name] - search stack
+                    pop_matching(&mut style_stack, style_name)
+                        .ok_or_else(|| MarkupError::UnmatchedClosingTag(style_name.to_string()))?
+                };
+
+                // Apply style from the opening tag
+                let style = tag_to_style(&open_tag);
+                let end = text.len();
+                if start < end {
+                    text.stylize(start, end, style);
+                }
+            } else {
+                // Opening tag - push to stack
+                style_stack.push((text.len(), tag));
+            }
+        }
+    }
+
+    // Auto-close any unclosed tags
+    while let Some((start, tag)) = style_stack.pop() {
+        let style = tag_to_style(&tag);
+        let end = text.len();
+        if start < end {
+            text.stylize(start, end, style);
+        }
+    }
+
+    Ok(text)
+}
+
+/// Pop a matching tag from the stack by name.
+fn pop_matching(stack: &mut Vec<(usize, Tag)>, name: &str) -> Option<(usize, Tag)> {
+    // Search from top of stack
+    for i in (0..stack.len()).rev() {
+        let tag_name = stack[i].1.name.to_lowercase();
+        let search_name = name.to_lowercase();
+
+        // Match by first word of tag (e.g., "bold" matches "bold red")
+        let first_word = tag_name.split_whitespace().next().unwrap_or(&tag_name);
+        if first_word == search_name || tag_name == search_name {
+            return Some(stack.remove(i));
+        }
+    }
+    None
+}
+
+/// Convert a tag to a Style.
+fn tag_to_style(tag: &Tag) -> Style {
+    // Handle link tag specially
+    if tag.name.eq_ignore_ascii_case("link") {
+        if let Some(ref url) = tag.parameters {
+            return Style::new().link(url);
+        }
+    }
+
+    // Parse tag name as style string
+    // The tag name can contain multiple style parts like "bold red on blue"
+    Style::parse(&tag.name).unwrap_or_else(|_| Style::new())
+}
+
+/// Escape text for use in markup.
+///
+/// This escapes any `[` characters so they are treated as literal text.
+pub fn escape(text: &str) -> String {
+    text.replace('[', "\\[")
+}
+
+/// Render markup to Text, returning plain text on error.
+///
+/// This is a convenience function that never fails - on parse error,
+/// it returns the original markup as plain text.
+pub fn render_or_plain(markup: &str) -> Text {
+    render(markup).unwrap_or_else(|_| Text::new(markup))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_plain() {
+        let text = render("hello world").unwrap();
+        assert_eq!(text.plain(), "hello world");
+        assert!(text.spans().is_empty());
+    }
+
+    #[test]
+    fn test_render_bold() {
+        let text = render("[bold]hello[/bold]").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_render_implicit_close() {
+        let text = render("[bold]hello[/]").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_render_nested() {
+        let text = render("[bold][red]hello[/red][/bold]").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 2);
+    }
+
+    #[test]
+    fn test_render_multiple_styles() {
+        let text = render("[bold red]hello[/]").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_render_escaped_bracket() {
+        let text = render("\\[not a tag]").unwrap();
+        assert_eq!(text.plain(), "[not a tag]");
+    }
+
+    #[test]
+    fn test_render_unclosed_tag() {
+        let text = render("[bold]hello").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 1); // Auto-closed
+    }
+
+    #[test]
+    fn test_render_mixed() {
+        let text = render("hello [bold]world[/]!").unwrap();
+        assert_eq!(text.plain(), "hello world!");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_escape() {
+        assert_eq!(escape("hello [world]"), "hello \\[world]");
+    }
+
+    #[test]
+    fn test_unmatched_closing_tag() {
+        let result = render("[/bold]");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_empty_close_nothing_to_close() {
+        let result = render("hello[/]");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_no_brackets_optimization() {
+        let text = render("plain text without any brackets").unwrap();
+        assert_eq!(text.plain(), "plain text without any brackets");
+    }
+
+    #[test]
+    fn test_link_tag() {
+        let text = render("[link=https://example.com]click here[/link]").unwrap();
+        assert_eq!(text.plain(), "click here");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_tag_parsing() {
+        let tag = parse_tag("bold red");
+        assert_eq!(tag.name, "bold red");
+        assert!(tag.parameters.is_none());
+
+        let tag = parse_tag("link=https://example.com");
+        assert_eq!(tag.name, "link");
+        assert_eq!(tag.parameters, Some("https://example.com".to_string()));
+    }
+
+    #[test]
+    fn test_render_color() {
+        let text = render("[red]error[/] [green]success[/]").unwrap();
+        assert_eq!(text.plain(), "error success");
+        assert_eq!(text.spans().len(), 2);
+    }
+}
