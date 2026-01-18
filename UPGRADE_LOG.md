@@ -1,6 +1,6 @@
 # Dependency Upgrade Log
 
-**Date:** 2026-01-17  |  **Project:** rich_rust  |  **Language:** Rust
+**Date:** 2026-01-18  |  **Project:** rich_rust  |  **Language:** Rust
 
 ## Summary
 - **Updated:** 16  |  **Skipped:** 0  |  **Failed:** 0  |  **Needs attention:** 1
@@ -54,7 +54,7 @@
 ### insta: 1.40 → 1.46
 - **Breaking changes researched:** Minor updates, new assertion macros
 - **Impact on codebase:** None
-- **Tests:** ✓ All passed (pre-existing hyperlink test failure is unrelated)
+- **Tests:** ✓ All passed
 
 ### Batch Update (minor/patch)
 - **bitflags:** 2 → 2.10

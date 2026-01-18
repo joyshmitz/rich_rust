@@ -1092,4 +1092,292 @@ mod tests {
         let style2 = Style::parse("bold red").unwrap();
         assert_eq!(style1, style2);
     }
+
+    // --- Additional Tests for 100% Coverage ---
+
+    #[test]
+    fn test_all_attributes_sgr_codes() {
+        // Test each attribute produces correct SGR code
+        assert_eq!(Attributes::BOLD.to_sgr_codes(), vec![1]);
+        assert_eq!(Attributes::DIM.to_sgr_codes(), vec![2]);
+        assert_eq!(Attributes::ITALIC.to_sgr_codes(), vec![3]);
+        assert_eq!(Attributes::UNDERLINE.to_sgr_codes(), vec![4]);
+        assert_eq!(Attributes::BLINK.to_sgr_codes(), vec![5]);
+        assert_eq!(Attributes::BLINK2.to_sgr_codes(), vec![6]);
+        assert_eq!(Attributes::REVERSE.to_sgr_codes(), vec![7]);
+        assert_eq!(Attributes::CONCEAL.to_sgr_codes(), vec![8]);
+        assert_eq!(Attributes::STRIKE.to_sgr_codes(), vec![9]);
+        assert_eq!(Attributes::UNDERLINE2.to_sgr_codes(), vec![21]);
+        assert_eq!(Attributes::FRAME.to_sgr_codes(), vec![51]);
+        assert_eq!(Attributes::ENCIRCLE.to_sgr_codes(), vec![52]);
+        assert_eq!(Attributes::OVERLINE.to_sgr_codes(), vec![53]);
+    }
+
+    #[test]
+    fn test_style_parse_blink2_frame_encircle() {
+        // Test attributes without dedicated builder methods
+        let blink2 = Style::parse("blink2").unwrap();
+        assert!(blink2.attributes.contains(Attributes::BLINK2));
+
+        let underline2 = Style::parse("underline2").unwrap();
+        assert!(underline2.attributes.contains(Attributes::UNDERLINE2));
+
+        let frame = Style::parse("frame").unwrap();
+        assert!(frame.attributes.contains(Attributes::FRAME));
+
+        let encircle = Style::parse("encircle").unwrap();
+        assert!(encircle.attributes.contains(Attributes::ENCIRCLE));
+    }
+
+    #[test]
+    fn test_style_parse_short_aliases() {
+        // Test all short aliases
+        assert!(Style::parse("r").unwrap().attributes.contains(Attributes::REVERSE));
+        assert!(Style::parse("c").unwrap().attributes.contains(Attributes::CONCEAL));
+        assert!(Style::parse("s").unwrap().attributes.contains(Attributes::STRIKE));
+        assert!(Style::parse("o").unwrap().attributes.contains(Attributes::OVERLINE));
+        assert!(Style::parse("uu").unwrap().attributes.contains(Attributes::UNDERLINE2));
+    }
+
+    #[test]
+    fn test_style_fromstr_trait() {
+        use std::str::FromStr;
+
+        let style: Style = "bold red".parse().unwrap();
+        assert!(style.attributes.contains(Attributes::BOLD));
+        assert!(style.color.is_some());
+
+        let style2 = Style::from_str("italic blue").unwrap();
+        assert!(style2.attributes.contains(Attributes::ITALIC));
+    }
+
+    #[test]
+    fn test_style_tryfrom_str() {
+        let style: Style = Style::try_from("bold").unwrap();
+        assert!(style.attributes.contains(Attributes::BOLD));
+    }
+
+    #[test]
+    fn test_style_tryfrom_string() {
+        let style: Style = Style::try_from(String::from("italic")).unwrap();
+        assert!(style.attributes.contains(Attributes::ITALIC));
+    }
+
+    #[test]
+    fn test_style_from_color_triplet() {
+        let triplet = ColorTriplet::new(100, 150, 200);
+        let style: Style = triplet.into();
+        assert!(style.color.is_some());
+        let color = style.color.unwrap();
+        assert_eq!(color.triplet, Some(ColorTriplet::new(100, 150, 200)));
+    }
+
+    #[test]
+    fn test_style_from_array() {
+        let style: Style = [255u8, 128u8, 64u8].into();
+        assert!(style.color.is_some());
+    }
+
+    #[test]
+    fn test_style_make_ansi_codes() {
+        let style = Style::new()
+            .bold()
+            .italic()
+            .color(Color::from_ansi(1));
+
+        let codes = style.make_ansi_codes(ColorSystem::TrueColor);
+        assert!(codes.contains("1")); // Bold
+        assert!(codes.contains("3")); // Italic
+    }
+
+    #[test]
+    fn test_style_make_ansi_codes_empty() {
+        let style = Style::new();
+        let codes = style.make_ansi_codes(ColorSystem::TrueColor);
+        assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn test_style_render_ansi_null() {
+        let style = Style::null();
+        let (prefix, suffix) = style.render_ansi(ColorSystem::TrueColor);
+        assert!(prefix.is_empty());
+        assert!(suffix.is_empty());
+    }
+
+    #[test]
+    fn test_style_render_ansi_empty_codes() {
+        // Style with no attributes and no colors
+        let style = Style::new();
+        let (prefix, suffix) = style.render_ansi(ColorSystem::TrueColor);
+        assert!(prefix.is_empty());
+        assert!(suffix.is_empty());
+    }
+
+    #[test]
+    fn test_style_stack_multiple_operations() {
+        let mut stack = StyleStack::new(Style::null());
+        assert!(stack.is_empty());
+
+        stack.push(Style::new().bold());
+        stack.push(Style::new().italic());
+        stack.push(Style::new().underline());
+        assert_eq!(stack.len(), 4); // Base + 3
+
+        stack.pop();
+        assert!(stack.current().attributes.contains(Attributes::BOLD));
+        assert!(stack.current().attributes.contains(Attributes::ITALIC));
+
+        stack.pop();
+        stack.pop();
+        // Should stop at base
+        stack.pop();
+        stack.pop();
+        assert!(stack.current().is_null());
+    }
+
+    #[test]
+    fn test_style_combine_attribute_inheritance() {
+        // Test that set_attributes properly tracks what's explicitly set
+        let bold = Style::new().bold();
+        let not_bold = Style::new().not(Attributes::BOLD);
+
+        // Combining bold + not_bold should result in not bold
+        // because not_bold explicitly sets BOLD to off
+        let combined = bold.combine(&not_bold);
+        assert!(!combined.attributes.contains(Attributes::BOLD));
+        assert!(combined.set_attributes.contains(Attributes::BOLD));
+    }
+
+    #[test]
+    fn test_style_add_with_refs() {
+        let s1 = Style::new().bold();
+        let s2 = Style::new().italic();
+
+        // Test &Style + &Style
+        let c1 = &s1 + &s2;
+        assert!(c1.attributes.contains(Attributes::BOLD));
+        assert!(c1.attributes.contains(Attributes::ITALIC));
+
+        // Test Style + &Style
+        let c2 = s1.clone() + &s2;
+        assert!(c2.attributes.contains(Attributes::BOLD));
+
+        // Test &Style + Style
+        let c3 = &s1 + s2.clone();
+        assert!(c3.attributes.contains(Attributes::ITALIC));
+    }
+
+    #[test]
+    fn test_style_display_with_colors_and_link() {
+        let style = Style::new()
+            .bold()
+            .color(Color::from_ansi(1))
+            .bgcolor(Color::from_ansi(4))
+            .link("https://example.com");
+
+        let display = format!("{}", style);
+        assert!(display.contains("bold"));
+        assert!(display.contains("on"));
+        assert!(display.contains("link"));
+        assert!(display.contains("https://example.com"));
+    }
+
+    #[test]
+    fn test_style_parse_error_display() {
+        let err1 = StyleParseError::InvalidFormat("test".to_string());
+        assert!(err1.to_string().contains("Invalid style format"));
+
+        let err2 = StyleParseError::UnknownAttribute("xyz".to_string());
+        assert!(err2.to_string().contains("Unknown attribute"));
+
+        let err3 = StyleParseError::UnknownToken("abc".to_string());
+        assert!(err3.to_string().contains("Unknown token"));
+    }
+
+    #[test]
+    fn test_style_parse_not_with_unknown_attribute() {
+        let result = Style::parse("not unknown_attr");
+        assert!(result.is_err());
+        match result {
+            Err(StyleParseError::UnknownAttribute(attr)) => {
+                assert_eq!(attr, "unknown_attr");
+            }
+            _ => panic!("Expected UnknownAttribute error"),
+        }
+    }
+
+    #[test]
+    fn test_style_parse_link_without_url() {
+        let result = Style::parse("link");
+        assert!(result.is_err());
+        match result {
+            Err(StyleParseError::InvalidFormat(msg)) => {
+                assert!(msg.contains("requires a URL"));
+            }
+            _ => panic!("Expected InvalidFormat error"),
+        }
+    }
+
+    #[test]
+    fn test_style_parse_whitespace_handling() {
+        // Test that extra whitespace is handled
+        let style = Style::parse("  bold   red   on   blue  ").unwrap();
+        assert!(style.attributes.contains(Attributes::BOLD));
+        assert!(style.color.is_some());
+        assert!(style.bgcolor.is_some());
+    }
+
+    #[test]
+    fn test_style_parse_case_insensitive() {
+        let style1 = Style::parse("BOLD RED").unwrap();
+        let style2 = Style::parse("bold red").unwrap();
+        assert_eq!(style1.attributes, style2.attributes);
+    }
+
+    #[test]
+    fn test_style_color_str_error() {
+        let result = Style::new().color_str("not_a_color");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_style_bgcolor_str_error() {
+        let result = Style::new().bgcolor_str("not_a_color");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_style_is_null_vs_new() {
+        let null = Style::null();
+        let new = Style::new();
+
+        assert!(null.is_null());
+        assert!(!new.is_null()); // new() is not null, it's default
+    }
+
+    #[test]
+    fn test_style_render_link_only() {
+        // Test rendering a style with only a link (no other attributes or colors)
+        let style = Style::new().link("https://test.com");
+        let rendered = style.render("text", ColorSystem::TrueColor);
+
+        // Should contain OSC 8 sequences but no SGR codes
+        assert!(rendered.contains("\x1b]8;;https://test.com\x1b\\"));
+        assert!(rendered.contains("text"));
+        assert!(rendered.contains("\x1b]8;;\x1b\\"));
+        // Should NOT contain SGR reset since no colors/attributes
+        assert!(!rendered.contains("\x1b[0m"));
+    }
+
+    #[test]
+    fn test_attributes_combine_multiple() {
+        let attrs = Attributes::BOLD | Attributes::DIM | Attributes::ITALIC | Attributes::STRIKE;
+        let codes = attrs.to_sgr_codes();
+        assert_eq!(codes.len(), 4);
+        assert!(codes.contains(&1)); // BOLD
+        assert!(codes.contains(&2)); // DIM
+        assert!(codes.contains(&3)); // ITALIC
+        assert!(codes.contains(&9)); // STRIKE
+    }
 }
