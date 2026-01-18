@@ -351,8 +351,7 @@ pub struct Table {
     show_edge: bool,
     /// Show lines between rows.
     show_lines: bool,
-    /// Extra lines between rows (planned feature, not yet implemented).
-    #[allow(dead_code)]
+    /// Extra blank lines between rows.
     leading: usize,
     /// Table-level style.
     style: Style,
@@ -578,6 +577,13 @@ impl Table {
     #[must_use]
     pub fn show_lines(mut self, show: bool) -> Self {
         self.show_lines = show;
+        self
+    }
+
+    /// Set the number of extra blank lines between rows.
+    #[must_use]
+    pub fn leading(mut self, leading: usize) -> Self {
+        self.leading = leading;
         self
     }
 
@@ -895,14 +901,18 @@ impl Table {
                 &overrides,
             ));
 
+            let is_last = row_idx == self.rows.len() - 1;
+
+            // Leading blank lines between rows
+            if self.leading > 0 && !is_last {
+                segments.extend(self.render_leading_lines(box_chars, &widths, self.leading));
+            }
+
             // Row separator
-            if self.show_lines || row.end_section {
-                let is_last = row_idx == self.rows.len() - 1;
-                if !is_last || self.show_footer {
-                    let sep = self.build_separator(box_chars, &widths, RowLevel::Row);
-                    segments.push(Segment::new(&sep, Some(self.border_style.clone())));
-                    segments.push(Segment::line());
-                }
+            if (self.show_lines || row.end_section) && (!is_last || self.show_footer) {
+                let sep = self.build_separator(box_chars, &widths, RowLevel::Row);
+                segments.push(Segment::new(&sep, Some(self.border_style.clone())));
+                segments.push(Segment::line());
             }
         }
 
@@ -1145,6 +1155,79 @@ impl Table {
         segments
     }
 
+    /// Render a blank row line with proper borders (for leading).
+    fn render_blank_row(&self, box_chars: &BoxChars, widths: &[usize]) -> Vec<Segment> {
+        let mut segments = Vec::new();
+        let pad_str = " ".repeat(self.padding.0);
+        let last_idx = widths.len().saturating_sub(1);
+
+        // Left edge
+        if self.show_edge {
+            segments.push(Segment::new(
+                box_chars.head[0].to_string(),
+                Some(self.border_style.clone()),
+            ));
+        }
+
+        for (i, &width) in widths.iter().enumerate() {
+            // Left padding
+            let pad_left = if self.collapse_padding {
+                self.pad_edge && i == 0
+            } else {
+                self.pad_edge || i > 0
+            };
+            if pad_left {
+                segments.push(Segment::new(&pad_str, None));
+            }
+
+            // Blank content (just spaces)
+            segments.push(Segment::new(" ".repeat(width), None));
+
+            // Right padding
+            let pad_right = if self.collapse_padding {
+                self.pad_edge && i == last_idx
+            } else {
+                self.pad_edge || i < widths.len() - 1
+            };
+            if pad_right {
+                segments.push(Segment::new(&pad_str, None));
+            }
+
+            // Cell divider
+            if i < widths.len() - 1 {
+                segments.push(Segment::new(
+                    box_chars.head[2].to_string(),
+                    Some(self.border_style.clone()),
+                ));
+            }
+        }
+
+        // Right edge
+        if self.show_edge {
+            segments.push(Segment::new(
+                box_chars.head[3].to_string(),
+                Some(self.border_style.clone()),
+            ));
+        }
+
+        segments.push(Segment::line());
+        segments
+    }
+
+    /// Render multiple leading blank lines between rows.
+    fn render_leading_lines(
+        &self,
+        box_chars: &BoxChars,
+        widths: &[usize],
+        count: usize,
+    ) -> Vec<Segment> {
+        let mut segments = Vec::new();
+        for _ in 0..count {
+            segments.extend(self.render_blank_row(box_chars, widths));
+        }
+        segments
+    }
+
     /// Render title or caption.
     fn render_title_or_caption(
         &self,
@@ -1233,6 +1316,7 @@ impl Table {
 }
 
 #[cfg(test)]
+#[allow(clippy::similar_names)]
 mod tests {
     use super::*;
     use crate::cells::cell_len;
@@ -1464,5 +1548,120 @@ mod tests {
 
         let style = styled_seg.style.as_ref().expect("expected styled segment");
         assert!(style.attributes.contains(Attributes::ITALIC));
+    }
+
+    #[test]
+    fn test_table_leading_adds_blank_lines() {
+        let mut table = Table::new().with_column(Column::new("X")).leading(2);
+
+        table.add_row_cells(["A"]);
+        table.add_row_cells(["B"]);
+
+        let text = table.render_plain(20);
+        let lines: Vec<&str> = text.lines().collect();
+
+        // With leading=2, we expect:
+        // 1. Top border
+        // 2. Header row
+        // 3. Header separator
+        // 4. Row A
+        // 5-6. Two blank lines (leading)
+        // 7. Row B
+        // 8. Bottom border
+        assert!(
+            lines.len() >= 8,
+            "expected at least 8 lines with leading=2, got {}",
+            lines.len()
+        );
+
+        // Check that there are blank content lines between A and B
+        let line_with_a = lines.iter().position(|l| l.contains('A')).expect("row A");
+        let line_with_b = lines.iter().position(|l| l.contains('B')).expect("row B");
+
+        // There should be 2 blank lines between row A and row B
+        assert_eq!(
+            line_with_b - line_with_a - 1,
+            2,
+            "expected 2 blank lines between rows A and B"
+        );
+    }
+
+    #[test]
+    fn test_table_leading_with_show_lines() {
+        let mut table = Table::new()
+            .with_column(Column::new("X"))
+            .leading(1)
+            .show_lines(true);
+
+        table.add_row_cells(["A"]);
+        table.add_row_cells(["B"]);
+
+        let text = table.render_plain(20);
+        let lines: Vec<&str> = text.lines().collect();
+
+        // With leading=1 and show_lines=true:
+        // 1. Top border
+        // 2. Header row
+        // 3. Header separator
+        // 4. Row A
+        // 5. Blank line (leading)
+        // 6. Row separator
+        // 7. Row B
+        // 8. Bottom border
+
+        let line_with_a = lines.iter().position(|l| l.contains('A')).expect("row A");
+        let line_with_b = lines.iter().position(|l| l.contains('B')).expect("row B");
+
+        // There should be 2 lines between row A and row B (1 leading + 1 separator)
+        assert_eq!(
+            line_with_b - line_with_a - 1,
+            2,
+            "expected 1 leading line + 1 separator between rows"
+        );
+    }
+
+    #[test]
+    fn test_table_leading_zero_no_extra_lines() {
+        let mut table = Table::new().with_column(Column::new("X")).leading(0);
+
+        table.add_row_cells(["A"]);
+        table.add_row_cells(["B"]);
+
+        let text = table.render_plain(20);
+        let lines: Vec<&str> = text.lines().collect();
+
+        let line_with_a = lines.iter().position(|l| l.contains('A')).expect("row A");
+        let line_with_b = lines.iter().position(|l| l.contains('B')).expect("row B");
+
+        // With leading=0, rows should be adjacent
+        assert_eq!(
+            line_with_b - line_with_a - 1,
+            0,
+            "expected no blank lines between rows with leading=0"
+        );
+    }
+
+    #[test]
+    fn test_table_leading_preserves_border_structure() {
+        let mut table = Table::new()
+            .with_column(Column::new("Col").width(5))
+            .leading(1)
+            .ascii();
+
+        table.add_row_cells(["A"]);
+        table.add_row_cells(["B"]);
+
+        let text = table.render_plain(20);
+        let lines: Vec<&str> = text.lines().collect();
+
+        // Find the blank leading line (between row A and row B)
+        let row_a_idx = lines.iter().position(|l| l.contains('A')).expect("row A");
+        let blank_line = lines[row_a_idx + 1];
+
+        // Blank line should have proper border characters
+        assert!(
+            blank_line.starts_with('|') && blank_line.ends_with('|'),
+            "blank leading line should have borders: {blank_line}"
+        );
     }
 }

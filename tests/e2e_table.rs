@@ -754,3 +754,169 @@ fn e2e_snapshot_table_all_features() {
     let output = table.render_plain(45);
     insta::assert_snapshot!("e2e_table_all_features", output);
 }
+
+// =============================================================================
+// Scenario 9: Table Leading (Extra Blank Lines Between Rows)
+// =============================================================================
+
+#[test]
+fn e2e_table_leading_basic() {
+    init_test_logging();
+    tracing::info!("Starting E2E table leading basic test");
+
+    let mut table = Table::new()
+        .leading(1)
+        .with_column(Column::new("Name"))
+        .with_column(Column::new("Value"));
+
+    table.add_row_cells(["Row1", "A"]);
+    table.add_row_cells(["Row2", "B"]);
+    table.add_row_cells(["Row3", "C"]);
+
+    let output = table.render_plain(30);
+    tracing::debug!(output = %output, "Table with leading=1");
+
+    // Verify content
+    assert!(output.contains("Row1"), "Missing Row1");
+    assert!(output.contains("Row2"), "Missing Row2");
+    assert!(output.contains("Row3"), "Missing Row3");
+
+    // Count non-empty lines (should have more due to leading)
+    let lines: Vec<&str> = output.lines().collect();
+    tracing::debug!(line_count = lines.len(), "Line count");
+
+    // With leading=1, there should be extra blank lines between rows
+    // Check for blank lines within the table (lines with only borders and spaces)
+    let has_blank_rows = lines.iter().any(|line| {
+        let trimmed = line.replace("│", "").replace("|", "");
+        trimmed.trim().is_empty()
+    });
+    assert!(has_blank_rows, "Should have blank rows for leading");
+
+    tracing::info!("E2E table leading basic test PASSED");
+}
+
+#[test]
+fn e2e_table_leading_with_show_lines() {
+    init_test_logging();
+    tracing::info!("Starting E2E table leading with show_lines test");
+
+    let mut table = Table::new()
+        .leading(2)
+        .show_lines(true)
+        .with_column(Column::new("Item"));
+
+    table.add_row_cells(["First"]);
+    table.add_row_cells(["Second"]);
+    table.add_row_cells(["Third"]);
+
+    let output = table.render_plain(20);
+    tracing::debug!(output = %output, "Table with leading=2 and show_lines=true");
+
+    // Content should be present
+    assert!(output.contains("First"), "Missing First");
+    assert!(output.contains("Second"), "Missing Second");
+    assert!(output.contains("Third"), "Missing Third");
+
+    // Should have both row separators (from show_lines) and blank rows (from leading)
+    let separator_count = output.matches("├").count() + output.matches("+").count();
+    tracing::debug!(separator_count = separator_count, "Row separator count");
+
+    assert!(separator_count >= 2, "Should have row separators");
+
+    tracing::info!("E2E table leading with show_lines test PASSED");
+}
+
+#[test]
+fn e2e_table_leading_zero() {
+    init_test_logging();
+    tracing::info!("Starting E2E table leading=0 test");
+
+    let mut table = Table::new().leading(0).with_column(Column::new("Col"));
+
+    table.add_row_cells(["A"]);
+    table.add_row_cells(["B"]);
+
+    let output = table.render_plain(20);
+    tracing::debug!(output = %output, "Table with leading=0");
+
+    // With leading=0, no extra blank rows should be added
+    let lines: Vec<&str> = output.lines().collect();
+
+    // Count lines that are purely blank (only borders and spaces, no content)
+    let blank_row_count = lines
+        .iter()
+        .filter(|line| {
+            let trimmed = line.replace("│", "").replace("|", "");
+            trimmed.trim().is_empty() && !line.contains("─") && !line.contains("-")
+        })
+        .count();
+
+    assert_eq!(blank_row_count, 0, "leading=0 should not add blank rows");
+
+    tracing::info!("E2E table leading=0 test PASSED");
+}
+
+#[test]
+fn e2e_table_leading_ascii() {
+    init_test_logging();
+    tracing::info!("Starting E2E table leading with ASCII box test");
+
+    let mut table = Table::new()
+        .leading(1)
+        .ascii()
+        .with_column(Column::new("X"))
+        .with_column(Column::new("Y"));
+
+    table.add_row_cells(["1", "2"]);
+    table.add_row_cells(["3", "4"]);
+
+    let output = table.render_plain(20);
+    tracing::debug!(output = %output, "ASCII table with leading=1");
+
+    // Verify ASCII box characters
+    assert!(output.contains("|"), "Should have ASCII vertical bars");
+    assert!(output.contains("-"), "Should have ASCII horizontal lines");
+
+    // Content present
+    assert!(output.contains("1"), "Missing cell 1");
+    assert!(output.contains("4"), "Missing cell 4");
+
+    tracing::info!("E2E table leading with ASCII box test PASSED");
+}
+
+#[test]
+fn e2e_snapshot_table_with_leading() {
+    init_test_logging();
+
+    let mut table = Table::new()
+        .title("Spaced Table")
+        .leading(1)
+        .with_column(Column::new("Name"))
+        .with_column(Column::new("Score").justify(JustifyMethod::Right));
+
+    table.add_row_cells(["Alice", "95"]);
+    table.add_row_cells(["Bob", "87"]);
+    table.add_row_cells(["Carol", "92"]);
+
+    let output = table.render_plain(35);
+    insta::assert_snapshot!("e2e_table_with_leading", output);
+}
+
+#[test]
+fn e2e_snapshot_table_leading_with_separators() {
+    init_test_logging();
+
+    let mut table = Table::new()
+        .leading(1)
+        .show_lines(true)
+        .with_column(Column::new("Task"))
+        .with_column(Column::new("Status"));
+
+    table.add_row_cells(["Build", "Done"]);
+    table.add_row_cells(["Test", "Running"]);
+    table.add_row_cells(["Deploy", "Pending"]);
+
+    let output = table.render_plain(30);
+    insta::assert_snapshot!("e2e_table_leading_with_separators", output);
+}
