@@ -1349,6 +1349,53 @@ mod tests {
     }
 
     #[test]
+    fn test_table_leading_without_separators() {
+        let mut table = Table::new()
+            .with_column(Column::new("X"))
+            .show_header(false)
+            .show_lines(false)
+            .leading(1);
+
+        table.add_row_cells(["1"]);
+        table.add_row_cells(["2"]);
+
+        let output = table.render_plain(20);
+        let lines: Vec<&str> = output.lines().collect();
+
+        assert_eq!(lines.len(), 5);
+        assert!(lines[1].contains('1'));
+        assert!(lines[3].contains('2'));
+        assert!(!lines[2].contains('1'));
+        assert!(!lines[2].contains('2'));
+        assert_eq!(cell_len(lines[2]), cell_len(lines[1]));
+    }
+
+    #[test]
+    fn test_table_leading_with_separators() {
+        let mut table = Table::new()
+            .with_column(Column::new("X"))
+            .ascii()
+            .show_header(false)
+            .show_lines(true)
+            .leading(1);
+
+        table.add_row_cells(["1"]);
+        table.add_row_cells(["2"]);
+
+        let output = table.render_plain(20);
+        let lines: Vec<&str> = output.lines().collect();
+
+        assert_eq!(lines.len(), 6);
+        assert!(lines[1].contains('1'));
+        assert!(lines[4].contains('2'));
+        assert!(!lines[2].contains('1'));
+        assert!(!lines[2].contains('2'));
+        assert!(!lines[2].contains('-'));
+        assert!(lines[3].contains('-'));
+        assert_eq!(cell_len(lines[2]), cell_len(lines[1]));
+    }
+
+    #[test]
     fn test_table_ascii() {
         let mut table = Table::new().with_column(Column::new("X")).ascii();
 
