@@ -49,10 +49,27 @@ jobs:
         run: cargo build --all-targets --all-features
 
       - name: Run tests (no features)
-        run: cargo test
+        run: cargo test -- --nocapture 2>&1 | tee test-output-default.log
+        continue-on-error: true
 
       - name: Run tests (all features)
-        run: cargo test --all-features
+        run: cargo test --all-features -- --nocapture 2>&1 | tee test-output-all-features.log
+        continue-on-error: true
+
+      - name: Check test results
+        run: |
+          cargo test 2>/dev/null
+          cargo test --all-features 2>/dev/null
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: test-logs
+          path: |
+            test-output-*.log
+            **/snapshots/*.snap.new
+          retention-days: 30
 
   feature-matrix:
     name: Test Features (${{ matrix.features || 'default' }})
@@ -88,11 +105,22 @@ jobs:
 
       - name: Test with features
         run: |
+          FEATURE_SUFFIX="${{ matrix.features || 'default' }}"
           if [ -z "${{ matrix.features }}" ]; then
-            cargo test
+            cargo test -- --nocapture 2>&1 | tee "test-output-${FEATURE_SUFFIX}.log"
           else
-            cargo test --features "${{ matrix.features }}"
+            cargo test --features "${{ matrix.features }}" -- --nocapture 2>&1 | tee "test-output-${FEATURE_SUFFIX}.log"
           fi
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: test-logs-features-${{ matrix.features || 'default' }}
+          path: |
+            test-output-*.log
+            **/snapshots/*.snap.new
+          retention-days: 14
 
   test-platform:
     name: Test (${{ matrix.name }})
@@ -124,7 +152,18 @@ jobs:
           key: ${{ matrix.os }}
 
       - name: Run tests
-        run: cargo test --all-features
+        shell: bash
+        run: cargo test --all-features -- --nocapture 2>&1 | tee test-output-${{ matrix.name }}.log
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: test-logs-${{ matrix.name }}
+          path: |
+            test-output-*.log
+            **/snapshots/*.snap.new
+          retention-days: 14
 
   # Minimal Supported Rust Version check
   msrv:
@@ -145,3 +184,120 @@ jobs:
 
       - name: Check compilation
         run: cargo check --all-features
+
+  # Security audit for known vulnerabilities
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # nightly
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@735e5933943122c5ac182670a935f54a949265c1 # v2.52.4
+        with:
+          tool: cargo-audit
+
+      - name: Run security audit
+        run: cargo audit
+
+  # Documentation build check
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # nightly
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: docs
+
+      - name: Build documentation
+        run: cargo doc --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Run doc tests
+        run: cargo test --doc --all-features
+
+  # Benchmark suite with artifact preservation
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on push to master/main (benchmarks are noisy on PRs)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # nightly
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: benchmarks
+
+      - name: Run benchmarks
+        run: cargo bench --all-features -- --noplot 2>&1 | tee bench-output.log
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: benchmark-results
+          path: |
+            bench-output.log
+            target/criterion
+          retention-days: 90
+
+  # Code coverage with codecov integration
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # nightly
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: coverage
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@735e5933943122c5ac182670a935f54a949265c1 # v2.52.4
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Generate coverage report
+        run: |
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+          cargo llvm-cov report --all-features --workspace --html --output-dir coverage-html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565f39 # v5.1.2
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: coverage-report
+          path: coverage-html
+          retention-days: 30
