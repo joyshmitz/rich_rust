@@ -1240,6 +1240,37 @@ fn regression_table_cell_preserves_spans() {
     tracing::info!("Regression test PASSED: table cell spans preserved");
 }
 
+/// Regression test: Rule title alignment preserves total width
+///
+/// Bug: Rule titles could produce lines shorter/longer than width
+/// Fixed: Rule output maintains consistent line width
+#[test]
+fn regression_rule_title_alignment_width_consistency() {
+    init_test_logging();
+    log_test_context(
+        "regression_rule_title_alignment_width_consistency",
+        "Ensures rule output width matches requested width",
+    );
+
+    let _phase = test_phase("rule_title_width");
+
+    use rich_rust::cells;
+
+    let width = 20;
+    let rule_left = Rule::with_title("Title").align_left();
+    let rule_center = Rule::with_title("Title").align_center();
+    let rule_right = Rule::with_title("Title").align_right();
+
+    for rule in [rule_left, rule_center, rule_right] {
+        let output = rule.render_plain(width);
+        for line in output.lines().filter(|line| !line.is_empty()) {
+            assert_eq!(cells::cell_len(line), width, "rule line should match width");
+        }
+    }
+
+    tracing::info!("Regression test PASSED: rule title width consistency");
+}
+
 /// Regression test: Console control segments emit ANSI/control sequences
 ///
 /// Bug: Control segments were silently skipped in Console output
