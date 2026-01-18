@@ -1148,6 +1148,65 @@ fn regression_panel_subtitle_truncates_and_fits_width() {
     tracing::info!("Regression test PASSED: panel subtitle truncation");
 }
 
+/// Regression test: Panel title preserves span styles
+///
+/// Bug: Title spans could be flattened to plain text
+/// Fixed: Title rendering preserves span styles
+#[test]
+fn regression_panel_title_preserves_spans() {
+    init_test_logging();
+    log_test_context(
+        "regression_panel_title_preserves_spans",
+        "Ensures panel title preserves span styles",
+    );
+
+    let _phase = test_phase("panel_title_spans");
+
+    let mut title = Text::new("TitleSpan");
+    title.stylize(0, 2, Style::new().italic());
+
+    let panel = Panel::from_text("Body").title(title).width(20);
+    let segments = panel.render(20);
+    let has_italic = segments.iter().any(|seg| {
+        seg.text.contains("Ti")
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.attributes.contains(Attributes::ITALIC))
+    });
+
+    assert!(has_italic, "title should preserve italic span");
+    tracing::info!("Regression test PASSED: panel title spans preserved");
+}
+
+/// Regression test: Panel subtitle preserves span styles
+#[test]
+fn regression_panel_subtitle_preserves_spans() {
+    init_test_logging();
+    log_test_context(
+        "regression_panel_subtitle_preserves_spans",
+        "Ensures panel subtitle preserves span styles",
+    );
+
+    let _phase = test_phase("panel_subtitle_spans");
+
+    let mut subtitle = Text::new("SubSpan");
+    subtitle.stylize(0, 3, Style::new().underline());
+
+    let panel = Panel::from_text("Body").subtitle(subtitle).width(24);
+    let segments = panel.render(24);
+    let has_underline = segments.iter().any(|seg| {
+        seg.text.contains("Sub")
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.attributes.contains(Attributes::UNDERLINE))
+    });
+
+    assert!(has_underline, "subtitle should preserve underline span");
+    tracing::info!("Regression test PASSED: panel subtitle spans preserved");
+}
+
 /// Regression test: Console control segments emit ANSI/control sequences
 ///
 /// Bug: Control segments were silently skipped in Console output
