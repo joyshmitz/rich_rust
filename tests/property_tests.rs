@@ -27,7 +27,7 @@ fn ansi_color_number() -> impl Strategy<Value = u8> {
 
 /// Generate random Attributes bitflags.
 fn random_attributes() -> impl Strategy<Value = Attributes> {
-    (0u16..8192u16).prop_map(|bits| Attributes::from_bits_truncate(bits))
+    (0u16..8192u16).prop_map(Attributes::from_bits_truncate)
 }
 
 /// Generate a random Style.
@@ -59,10 +59,10 @@ fn random_style() -> impl Strategy<Value = Style> {
             if attrs.contains(Attributes::STRIKE) {
                 style = style.strike();
             }
-            if let Some(url) = link {
-                if !url.is_empty() {
-                    style = style.link(url);
-                }
+            if let Some(url) = link
+                && !url.is_empty()
+            {
+                style = style.link(url);
             }
             style
         })
@@ -205,9 +205,9 @@ proptest! {
         let triplet = ColorTriplet::new(r, g, b);
         let (nr, ng, nb) = triplet.normalized();
 
-        prop_assert!(nr >= 0.0 && nr <= 1.0);
-        prop_assert!(ng >= 0.0 && ng <= 1.0);
-        prop_assert!(nb >= 0.0 && nb <= 1.0);
+        prop_assert!((0.0..=1.0).contains(&nr));
+        prop_assert!((0.0..=1.0).contains(&ng));
+        prop_assert!((0.0..=1.0).contains(&nb));
     }
 }
 

@@ -295,7 +295,7 @@ impl Text {
     }
 
     /// Highlight text matching a pattern with a style.
-    pub fn highlight_regex(&mut self, pattern: &str, style: Style) -> Result<(), regex::Error> {
+    pub fn highlight_regex(&mut self, pattern: &str, style: &Style) -> Result<(), regex::Error> {
         let re = regex::Regex::new(pattern)?;
         let chars: Vec<char> = self.plain.chars().collect();
 
@@ -318,7 +318,7 @@ impl Text {
     }
 
     /// Highlight specific words with a style.
-    pub fn highlight_words(&mut self, words: &[&str], style: Style, case_sensitive: bool) {
+    pub fn highlight_words(&mut self, words: &[&str], style: &Style, case_sensitive: bool) {
         let text = if case_sensitive {
             self.plain.clone()
         } else {
@@ -489,8 +489,7 @@ impl Text {
             let new_end = char_map
                 .iter()
                 .rposition(|&old| old < span.end)
-                .map(|p| p + 1)
-                .unwrap_or(new_start);
+                .map_or(new_start, |p| p + 1);
 
             if new_start < new_end {
                 new_spans.push(Span::new(new_start, new_end, span.style.clone()));
@@ -596,14 +595,14 @@ impl Text {
                 self.append(&" ".repeat(padding));
             }
             JustifyMethod::Right => {
-                let mut new_text = Self::new(&" ".repeat(padding));
+                let mut new_text = Self::new(" ".repeat(padding));
                 new_text.append_text(self);
                 *self = new_text;
             }
             JustifyMethod::Center => {
                 let left_pad = padding / 2;
                 let right_pad = padding - left_pad;
-                let mut new_text = Self::new(&" ".repeat(left_pad));
+                let mut new_text = Self::new(" ".repeat(left_pad));
                 new_text.append_text(self);
                 new_text.append(&" ".repeat(right_pad));
                 *self = new_text;
@@ -630,8 +629,7 @@ impl Text {
         let end = chars
             .iter()
             .rposition(|c| !c.is_whitespace())
-            .map(|p| p + 1)
-            .unwrap_or(0);
+            .map_or(0, |p| p + 1);
 
         if start >= end {
             Self::new("")
@@ -1606,7 +1604,7 @@ mod tests {
     #[test]
     fn test_highlight_regex() {
         let mut text = Text::new("hello world hello");
-        text.highlight_regex("hello", Style::new().bold()).unwrap();
+        text.highlight_regex("hello", &Style::new().bold()).unwrap();
         // Should have 2 spans for the two "hello" matches
         assert_eq!(text.spans().len(), 2);
     }
@@ -1614,7 +1612,7 @@ mod tests {
     #[test]
     fn test_highlight_words() {
         let mut text = Text::new("Hello World HELLO");
-        text.highlight_words(&["hello"], Style::new().bold(), false);
+        text.highlight_words(&["hello"], &Style::new().bold(), false);
         // Case insensitive - should find 2 matches
         assert_eq!(text.spans().len(), 2);
     }

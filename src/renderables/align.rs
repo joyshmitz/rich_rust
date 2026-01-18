@@ -182,7 +182,7 @@ pub struct AlignLines {
 }
 
 impl AlignLines {
-    /// Create a new AlignLines wrapper.
+    /// Create a new `AlignLines` wrapper.
     #[must_use]
     pub fn new(lines: Vec<Vec<Segment>>, width: usize) -> Self {
         Self {

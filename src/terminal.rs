@@ -22,7 +22,7 @@ pub fn get_terminal_size() -> Option<(usize, usize)> {
 /// Returns a default of 80 if the width cannot be determined.
 #[must_use]
 pub fn get_terminal_width() -> usize {
-    get_terminal_size().map(|(w, _)| w).unwrap_or(80)
+    get_terminal_size().map_or(80, |(w, _)| w)
 }
 
 /// Get the terminal height in rows.
@@ -30,7 +30,7 @@ pub fn get_terminal_width() -> usize {
 /// Returns a default of 24 if the height cannot be determined.
 #[must_use]
 pub fn get_terminal_height() -> usize {
-    get_terminal_size().map(|(_, h)| h).unwrap_or(24)
+    get_terminal_size().map_or(24, |(_, h)| h)
 }
 
 /// Check if stdout is connected to a terminal.

@@ -72,7 +72,7 @@
 //!
 //! The Console automatically detects terminal capabilities:
 //!
-//! - **Color system**: TrueColor (24-bit), 256 colors, or 16 colors
+//! - **Color system**: `TrueColor` (24-bit), 256 colors, or 16 colors
 //! - **Terminal dimensions**: Width and height in character cells
 //! - **TTY status**: Whether output is to an interactive terminal
 //!
@@ -127,7 +127,7 @@ pub struct ConsoleOptions {
     pub justify: Option<JustifyMethod>,
     /// Default overflow handling.
     pub overflow: Option<OverflowMethod>,
-    /// Default no_wrap setting.
+    /// Default `no_wrap` setting.
     pub no_wrap: Option<bool>,
     /// Enable highlighting.
     pub highlight: Option<bool>,
@@ -158,7 +158,7 @@ impl Default for ConsoleOptions {
 }
 
 impl ConsoleOptions {
-    /// Create options with a different max_width.
+    /// Create options with a different `max_width`.
     #[must_use]
     pub fn update_width(&self, width: usize) -> Self {
         Self {
@@ -190,7 +190,7 @@ pub struct PrintOptions {
     pub justify: Option<JustifyMethod>,
     /// Override overflow handling.
     pub overflow: Option<OverflowMethod>,
-    /// Override no_wrap.
+    /// Override `no_wrap`.
     pub no_wrap: Option<bool>,
     /// Suppress newline.
     pub no_newline: bool,
@@ -259,7 +259,7 @@ impl PrintOptions {
         self
     }
 
-    /// Override no_wrap.
+    /// Override `no_wrap`.
     #[must_use]
     pub fn with_no_wrap(mut self, no_wrap: bool) -> Self {
         self.no_wrap = Some(no_wrap);
@@ -677,7 +677,7 @@ impl Console {
     }
 }
 
-/// Log level for console.log().
+/// Log level for `console.log()`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
     Debug,
@@ -687,6 +687,7 @@ pub enum LogLevel {
 }
 
 /// Builder for creating a Console with custom settings.
+#[derive(Default)]
 pub struct ConsoleBuilder {
     color_system: Option<ColorSystem>,
     force_terminal: Option<bool>,
@@ -700,22 +701,6 @@ pub struct ConsoleBuilder {
     file: Option<Box<dyn Write + Send>>,
 }
 
-impl Default for ConsoleBuilder {
-    fn default() -> Self {
-        Self {
-            color_system: None,
-            force_terminal: None,
-            tab_size: None,
-            markup: None,
-            emoji: None,
-            highlight: None,
-            width: None,
-            height: None,
-            safe_box: None,
-            file: None,
-        }
-    }
-}
 
 impl std::fmt::Debug for ConsoleBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -943,8 +928,7 @@ mod tests {
         let text = String::from_utf8_lossy(&output);
         assert!(
             text.contains("Hello, World!"),
-            "Expected 'Hello, World!' in output, got: {}",
-            text
+            "Expected 'Hello, World!' in output, got: {text}"
         );
     }
 
@@ -974,6 +958,6 @@ mod tests {
 
         let output = buffer.0.lock().unwrap();
         let text = String::from_utf8_lossy(&output);
-        assert_eq!(text, "\n", "Expected single newline, got: {:?}", text);
+        assert_eq!(text, "\n", "Expected single newline, got: {text:?}");
     }
 }

@@ -974,7 +974,7 @@ fn e2e_highlight_regex_unicode() {
     let red = Style::new().color(Color::parse("red").unwrap());
 
     // Highlight "World" which comes after CJK characters
-    text.highlight_regex("World", red).expect("valid regex");
+    text.highlight_regex("World", &red).expect("valid regex");
 
     tracing::debug!(
         plain = %text.plain(),

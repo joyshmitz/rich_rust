@@ -257,7 +257,7 @@ fn test_style_parse_all_attributes() {
     ];
 
     for (name, expected) in attributes {
-        let style = Style::parse(name).expect(&format!("Should parse '{}'", name));
+        let style = Style::parse(name).unwrap_or_else(|_| panic!("Should parse '{}'", name));
         assert!(
             style.attributes.contains(expected),
             "'{}' should set {:?} attribute",

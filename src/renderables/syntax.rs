@@ -195,8 +195,7 @@ impl Syntax {
         let language = path
             .extension()
             .and_then(|ext| ext.to_str())
-            .map(Self::extension_to_language)
-            .unwrap_or_else(|| String::from("text"));
+            .map_or_else(|| String::from("text"), Self::extension_to_language);
 
         Ok(Self::new(code, language))
     }
@@ -263,7 +262,7 @@ impl Syntax {
     /// Set the theme for syntax highlighting.
     ///
     /// Common themes: "base16-ocean.dark", "base16-ocean.light",
-    /// "InspiredGitHub", "Solarized (dark)", "Solarized (light)"
+    /// `InspiredGitHub`, `Solarized (dark)`, `Solarized (light)`
     #[must_use]
     pub fn theme(mut self, theme_name: impl Into<String>) -> Self {
         self.theme_name = theme_name.into();

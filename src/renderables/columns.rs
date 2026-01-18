@@ -231,13 +231,14 @@ impl Columns {
         }
 
         // Calculate number of rows needed
-        let num_rows = (self.items.len() + num_columns - 1) / num_columns;
+        let num_rows = self.items.len().div_ceil(num_columns);
 
         let mut result = Vec::with_capacity(num_rows);
 
         for row_idx in 0..num_rows {
             let mut row_segments = Vec::new();
 
+            #[expect(clippy::needless_range_loop, reason = "col_idx used for multiple purposes")]
             for col_idx in 0..num_columns {
                 let item_idx = row_idx * num_columns + col_idx;
                 let column_width = column_widths[col_idx];

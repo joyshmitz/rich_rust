@@ -58,7 +58,7 @@
 
 use bitflags::bitflags;
 use lru::LruCache;
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::LazyLock;
@@ -457,7 +457,7 @@ impl Style {
         if !codes.is_empty() {
             result.push_str("\x1b[");
             result.push_str(&codes);
-            result.push_str("m");
+            result.push('m');
         }
         result.push_str(text);
         if !codes.is_empty() {
@@ -480,6 +480,8 @@ impl Style {
     ///
     /// Results are cached for performance when the same style is rendered repeatedly.
     #[must_use]
+    #[expect(clippy::items_after_statements, reason = "static cache placed close to usage for clarity")]
+    #[expect(clippy::type_complexity, reason = "LRU cache type is inherently complex")]
     pub fn render_ansi(&self, color_system: ColorSystem) -> (String, String) {
         // Fast path: null style returns empty strings without cache lookup
         if self.is_null() {
@@ -525,12 +527,12 @@ impl Style {
                 .link_id
                 .as_ref()
                 .map_or(String::new(), |id| format!("id={id}"));
-            prefix.push_str(&format!("\x1b]8;{params};{link}\x1b\\"));
+            let _ = write!(prefix, "\x1b]8;{params};{link}\x1b\\");
         }
 
         // Apply style (only if there are codes)
         if !codes.is_empty() {
-            prefix.push_str(&format!("\x1b[{codes}m"));
+            let _ = write!(prefix, "\x1b[{codes}m");
         }
 
         // Build suffix
@@ -846,6 +848,7 @@ impl StyleStack {
     }
 
     /// Push a new style onto the stack, combining with current.
+    #[expect(clippy::needless_pass_by_value, reason = "style ownership simplifies API")]
     pub fn push(&mut self, style: Style) {
         let combined = self.current().combine(&style);
         self.stack.push(combined);

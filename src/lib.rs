@@ -1,4 +1,4 @@
-//! # rich_rust
+//! # `rich_rust`
 //!
 //! A Rust port of Python's Rich library for beautiful terminal output.
 //!
@@ -136,6 +136,12 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::too_many_lines)]
 
 pub mod r#box;
 pub mod cells;

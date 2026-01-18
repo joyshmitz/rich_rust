@@ -863,19 +863,17 @@ impl Table {
 
         // Data rows
         for (row_idx, row) in self.rows.iter().enumerate() {
-            let row_style = if !self.row_styles.is_empty() {
-                &self.row_styles[row_idx % self.row_styles.len()]
-            } else {
+            let row_style = if self.row_styles.is_empty() {
                 &row.style
+            } else {
+                &self.row_styles[row_idx % self.row_styles.len()]
             };
 
             // Pad cells to match column count
             let cells: Vec<Text> = (0..self.columns.len())
                 .map(|i| {
                     row.cells
-                        .get(i)
-                        .map(|c| c.content.clone())
-                        .unwrap_or_else(|| Text::new(""))
+                        .get(i).map_or_else(|| Text::new(""), |c| c.content.clone())
                 })
                 .collect();
             let cell_refs: Vec<&Text> = cells.iter().collect();
@@ -1017,7 +1015,7 @@ impl Table {
         // Left edge
         if self.show_edge {
             segments.push(Segment::new(
-                &box_chars.head[0].to_string(),
+                box_chars.head[0].to_string(),
                 Some(self.border_style.clone()),
             ));
         }
@@ -1037,8 +1035,7 @@ impl Table {
             let justify = self
                 .columns
                 .get(i)
-                .map(|c| c.justify)
-                .unwrap_or(JustifyMethod::Left);
+                .map_or(JustifyMethod::Left, |c| c.justify);
 
             // Calculate padding for justification
             let space = width.saturating_sub(content_width);
@@ -1054,7 +1051,7 @@ impl Table {
 
             if left_space > 0 {
                 segments.push(Segment::new(
-                    &" ".repeat(left_space),
+                    " ".repeat(left_space),
                     Some(combined_style.clone()),
                 ));
             }
@@ -1077,7 +1074,7 @@ impl Table {
 
             if right_space > 0 {
                 segments.push(Segment::new(
-                    &" ".repeat(right_space),
+                    " ".repeat(right_space),
                     Some(combined_style.clone()),
                 ));
             }
@@ -1090,7 +1087,7 @@ impl Table {
             // Cell divider
             if i < widths.len() - 1 {
                 segments.push(Segment::new(
-                    &box_chars.head[2].to_string(),
+                    box_chars.head[2].to_string(),
                     Some(self.border_style.clone()),
                 ));
             }
@@ -1099,7 +1096,7 @@ impl Table {
         // Right edge
         if self.show_edge {
             segments.push(Segment::new(
-                &box_chars.head[3].to_string(),
+                box_chars.head[3].to_string(),
                 Some(self.border_style.clone()),
             ));
         }
@@ -1132,13 +1129,13 @@ impl Table {
         let mut segments = Vec::new();
 
         if left_space > 0 {
-            segments.push(Segment::new(&" ".repeat(left_space), Some(style.clone())));
+            segments.push(Segment::new(" ".repeat(left_space), Some(style.clone())));
         }
 
         segments.push(Segment::new(content, Some(text.style().clone())));
 
         if right_space > 0 {
-            segments.push(Segment::new(&" ".repeat(right_space), Some(style.clone())));
+            segments.push(Segment::new(" ".repeat(right_space), Some(style.clone())));
         }
 
         segments

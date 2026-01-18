@@ -1,7 +1,7 @@
 //! Markdown rendering for the terminal.
 //!
 //! This module provides markdown rendering using pulldown-cmark for parsing
-//! and converting to styled terminal output. It supports the full CommonMark
+//! and converting to styled terminal output. It supports the full `CommonMark`
 //! specification plus GitHub Flavored Markdown extensions.
 //!
 //! # Feature Flag
@@ -410,7 +410,7 @@ impl Markdown {
                         }
                         Tag::Table(alignments) => {
                             in_table = true;
-                            table_alignments = alignments.clone();
+                            table_alignments.clone_from(&alignments);
                             table_rows.clear();
                             header_row = None;
                             if !segments.is_empty() {

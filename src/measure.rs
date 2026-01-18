@@ -156,7 +156,7 @@ impl Measurement {
 
     /// Compute measurement with optional renderable measurement logic.
     ///
-    /// If no measurement is provided, defaults to (0, max_width).
+    /// If no measurement is provided, defaults to (0, `max_width`).
     #[must_use]
     pub fn get(
         console: &Console,

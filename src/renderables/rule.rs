@@ -97,48 +97,45 @@ impl Rule {
 
         let mut segments = Vec::new();
 
-        match &self.title {
-            Some(title) => {
-                // Render title with surrounding spaces
-                let title_text = format!(" {} ", title.plain());
-                let title_width = cells::cell_len(&title_text);
+        if let Some(title) = &self.title {
+            // Render title with surrounding spaces
+            let title_text = format!(" {} ", title.plain());
+            let title_width = cells::cell_len(&title_text);
 
-                // Calculate available space for rule characters
-                let available = width.saturating_sub(title_width);
-                let rule_chars = available / char_width;
+            // Calculate available space for rule characters
+            let available = width.saturating_sub(title_width);
+            let rule_chars = available / char_width;
 
-                if rule_chars < 2 {
-                    // Not enough space for rule, just show title
-                    segments.push(Segment::new(&title_text, Some(title.style().clone())));
-                } else {
-                    let (left_count, right_count) = match self.align {
-                        JustifyMethod::Left | JustifyMethod::Default => (1, rule_chars - 1),
-                        JustifyMethod::Right => (rule_chars - 1, 1),
-                        JustifyMethod::Center | JustifyMethod::Full => {
-                            let left = rule_chars / 2;
-                            let right = rule_chars - left;
-                            (left, right)
-                        }
-                    };
+            if rule_chars < 2 {
+                // Not enough space for rule, just show title
+                segments.push(Segment::new(&title_text, Some(title.style().clone())));
+            } else {
+                let (left_count, right_count) = match self.align {
+                    JustifyMethod::Left | JustifyMethod::Default => (1, rule_chars - 1),
+                    JustifyMethod::Right => (rule_chars - 1, 1),
+                    JustifyMethod::Center | JustifyMethod::Full => {
+                        let left = rule_chars / 2;
+                        let right = rule_chars - left;
+                        (left, right)
+                    }
+                };
 
-                    // Left rule section
-                    let left_rule = self.character.repeat(left_count);
-                    segments.push(Segment::new(&left_rule, Some(self.style.clone())));
+                // Left rule section
+                let left_rule = self.character.repeat(left_count);
+                segments.push(Segment::new(&left_rule, Some(self.style.clone())));
 
-                    // Title
-                    segments.push(Segment::new(&title_text, Some(title.style().clone())));
+                // Title
+                segments.push(Segment::new(&title_text, Some(title.style().clone())));
 
-                    // Right rule section
-                    let right_rule = self.character.repeat(right_count);
-                    segments.push(Segment::new(&right_rule, Some(self.style.clone())));
-                }
+                // Right rule section
+                let right_rule = self.character.repeat(right_count);
+                segments.push(Segment::new(&right_rule, Some(self.style.clone())));
             }
-            None => {
-                // No title, just a full-width rule
-                let count = width / char_width;
-                let rule_text = self.character.repeat(count);
-                segments.push(Segment::new(&rule_text, Some(self.style.clone())));
-            }
+        } else {
+            // No title, just a full-width rule
+            let count = width / char_width;
+            let rule_text = self.character.repeat(count);
+            segments.push(Segment::new(&rule_text, Some(self.style.clone())));
         }
 
         segments.push(Segment::line());

@@ -54,6 +54,7 @@ pub struct BoxChars {
 impl BoxChars {
     /// Create a new box from character arrays.
     #[must_use]
+    #[expect(clippy::too_many_arguments, reason = "struct constructor needs all fields")]
     pub const fn new(
         top: [char; 4],
         head: [char; 4],
@@ -383,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_ascii_box() {
-        assert!(ASCII.ascii);
+        const { assert!(ASCII.ascii) };
         assert_eq!(ASCII.top[0], '+');
     }
 
@@ -403,7 +404,7 @@ mod tests {
 
     #[test]
     fn test_unicode_square() {
-        assert!(!SQUARE.ascii);
+        const { assert!(!SQUARE.ascii) };
         assert_eq!(SQUARE.top[0], '\u{250C}'); // ┌
     }
 
@@ -424,7 +425,7 @@ mod tests {
     fn test_build_row_widths() {
         let widths = [4, 4];
         let row = SQUARE.build_row(&widths, RowLevel::HeadRow, true);
-        assert!(row.len() > 0);
+        assert!(!row.is_empty());
         assert!(row.contains('\u{253C}')); // ┼
     }
 
@@ -437,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_rounded_box() {
-        assert!(!ROUNDED.ascii);
+        const { assert!(!ROUNDED.ascii) };
         assert_eq!(ROUNDED.top[0], '\u{256D}'); // ╭
         assert_eq!(ROUNDED.bottom[0], '\u{2570}'); // ╰
     }

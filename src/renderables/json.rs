@@ -117,6 +117,8 @@
 //! - **Compact output**: No option for compact (non-pretty-printed) output
 //! - **Trailing commas**: Standard JSON only; no trailing comma support
 
+use std::fmt::Write as _;
+
 use serde_json::Value;
 
 use crate::segment::Segment;
@@ -191,6 +193,7 @@ impl Json {
     /// # Errors
     ///
     /// Returns an error if the string is not valid JSON.
+    #[expect(clippy::should_implement_trait, reason = "returns Result with custom error, not FromStr pattern")]
     pub fn from_str(s: &str) -> Result<Self, JsonError> {
         let value: Value = serde_json::from_str(s).map_err(JsonError::Parse)?;
         Ok(Self::new(value))
@@ -372,7 +375,7 @@ fn escape_json_string(s: &str) -> String {
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
             c if c.is_control() => {
-                result.push_str(&format!("\\u{:04x}", c as u32));
+                let _ = write!(result, "\\u{:04x}", c as u32);
             }
             c => result.push(c),
         }

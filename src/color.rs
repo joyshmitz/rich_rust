@@ -463,14 +463,14 @@ impl Color {
         // Try hex format: #RRGGBB or #RGB (shorthand)
         if let Some(hex) = color.strip_prefix('#') {
             // 6-digit hex: #RRGGBB
-            if hex.len() == 6 {
-                if let (Ok(r), Ok(g), Ok(b)) = (
+            if hex.len() == 6
+                && let (Ok(r), Ok(g), Ok(b)) = (
                     u8::from_str_radix(&hex[0..2], 16),
                     u8::from_str_radix(&hex[2..4], 16),
                     u8::from_str_radix(&hex[4..6], 16),
-                ) {
-                    return Ok(Self::from_rgb(r, g, b));
-                }
+                )
+            {
+                return Ok(Self::from_rgb(r, g, b));
             }
             // 3-digit hex shorthand: #RGB -> #RRGGBB
             if hex.len() == 3 {
@@ -487,26 +487,30 @@ impl Color {
         }
 
         // Try color(N) format
-        if let Some(caps) = COLOR_NUM_RE.captures(color) {
-            if let Ok(num) = caps[1].parse::<u16>() {
-                if num <= 255 {
-                    return Ok(Self::from_ansi(num as u8));
-                }
-            }
+        if let Some(caps) = COLOR_NUM_RE.captures(color)
+            && let Ok(num) = caps[1].parse::<u16>()
+            && num <= 255
+        {
+            #[expect(clippy::cast_possible_truncation, reason = "verified num <= 255")]
+            return Ok(Self::from_ansi(num as u8));
+        } else if COLOR_NUM_RE.is_match(color) {
             return Err(ColorParseError::InvalidColorNumber(color.to_string()));
         }
 
         // Try rgb(R,G,B) format
-        if let Some(caps) = RGB_RE.captures(color) {
-            if let (Ok(r), Ok(g), Ok(b)) = (
+        if let Some(caps) = RGB_RE.captures(color)
+            && let (Ok(r), Ok(g), Ok(b)) = (
                 caps[1].parse::<u16>(),
                 caps[2].parse::<u16>(),
                 caps[3].parse::<u16>(),
-            ) {
-                if r <= 255 && g <= 255 && b <= 255 {
-                    return Ok(Self::from_rgb(r as u8, g as u8, b as u8));
-                }
-            }
+            )
+            && r <= 255
+            && g <= 255
+            && b <= 255
+        {
+            #[expect(clippy::cast_possible_truncation, reason = "verified values <= 255")]
+            return Ok(Self::from_rgb(r as u8, g as u8, b as u8));
+        } else if RGB_RE.is_match(color) {
             return Err(ColorParseError::InvalidRgb(color.to_string()));
         }
 
@@ -785,6 +789,7 @@ fn generate_eight_bit_palette() -> [ColorTriplet; 256] {
 
     // 232-255: Grayscale ramp
     for i in 0..24 {
+        #[expect(clippy::cast_possible_truncation, reason = "max value is 8+23*10=238 which fits in u8")]
         let gray = (8 + i * 10) as u8;
         palette[232 + i] = ColorTriplet::new(gray, gray, gray);
     }
@@ -814,11 +819,18 @@ pub fn rgb_to_eight_bit(triplet: ColorTriplet) -> u8 {
         if lightness > 0.96 {
             return 231; // Near white
         }
+        #[expect(clippy::cast_possible_truncation, reason = "result is 0-24 range")]
+        #[expect(clippy::cast_sign_loss, reason = "lightness is positive so result is positive")]
         let gray_index = ((lightness - 0.04) / 0.92 * 24.0).round() as u8;
         return 232 + gray_index.min(23);
     }
 
     // Color cube mapping
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "values are in 0-5 range"
+    )]
     let quantize = |v: u8| -> usize {
         if v < 95 {
             (f64::from(v) / 95.0).round() as usize
@@ -832,7 +844,9 @@ pub fn rgb_to_eight_bit(triplet: ColorTriplet) -> u8 {
     let g_idx = quantize(triplet.green);
     let b_idx = quantize(triplet.blue);
 
-    (16 + r_idx * 36 + g_idx * 6 + b_idx) as u8
+    #[expect(clippy::cast_possible_truncation, reason = "result is in 16-231 range")]
+    let color_index = (16 + r_idx * 36 + g_idx * 6 + b_idx) as u8;
+    color_index
 }
 
 /// Convert RGB to nearest standard 16-color number.
@@ -845,7 +859,10 @@ pub fn rgb_to_standard(triplet: ColorTriplet) -> u8 {
         let distance = color_distance(triplet, palette_color);
         if distance < best_distance {
             best_distance = distance;
-            best_index = i as u8;
+            #[expect(clippy::cast_possible_truncation, reason = "STANDARD_PALETTE has 16 entries")]
+            {
+                best_index = i as u8;
+            }
         }
     }
 
@@ -1568,14 +1585,16 @@ mod tests {
         );
 
         // The downgraded color should be a valid standard color (0-15)
-        if downgraded.number.is_some() {
-            assert!(downgraded.number.unwrap() <= 15);
+        if let Some(num) = downgraded.number {
+            assert!(num <= 15);
         }
     }
 
     // ColorTriplet equality and comparison
     #[test]
     fn test_color_triplet_equality() {
+        use std::collections::HashSet;
+
         let a = ColorTriplet::new(128, 64, 32);
         let b = ColorTriplet::new(128, 64, 32);
         let c = ColorTriplet::new(128, 64, 33);
@@ -1584,7 +1603,6 @@ mod tests {
         assert_ne!(a, c);
 
         // Hash equality (same triplets should hash equally for HashMap use)
-        use std::collections::HashSet;
         let mut set = HashSet::new();
         set.insert(a);
         assert!(set.contains(&b));

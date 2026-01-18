@@ -3,9 +3,9 @@
 //! This module provides functionality to parse markup strings like
 //! `[bold red]Hello[/]` into styled `Text` objects.
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt;
+use std::sync::LazyLock;
 
 use crate::style::Style;
 use crate::text::Text;
@@ -54,11 +54,13 @@ impl Tag {
     }
 
     /// Check if this is a closing tag.
+    #[must_use] 
     pub fn is_closing(&self) -> bool {
         self.name.starts_with('/')
     }
 
     /// Get the tag name without the leading slash for closing tags.
+    #[must_use] 
     pub fn base_name(&self) -> &str {
         if self.is_closing() {
             &self.name[1..]
@@ -79,8 +81,8 @@ pub enum ParseElement {
 
 // Regex for matching tags: ((\\*)\[([a-z#/@][^[]*?)])
 // Matches: optional backslashes, then [tag_content]
-static TAG_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(\\*)\[([a-z#/@][^\[\]]*?)\]").expect("invalid regex"));
+static TAG_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(\\*)\[([a-z#/@][^\[\]]*?)\]").expect("invalid regex"));
 
 /// Parse markup string into elements.
 ///
@@ -91,8 +93,8 @@ fn parse_elements(markup: &str) -> Vec<(usize, Option<String>, Option<Tag>)> {
 
     for cap in TAG_PATTERN.captures_iter(markup) {
         let full_match = cap.get(0).unwrap();
-        let backslashes = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-        let tag_content = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let backslashes = cap.get(1).map_or("", |m| m.as_str());
+        let tag_content = cap.get(2).map_or("", |m| m.as_str());
 
         let match_start = full_match.start();
 
@@ -146,15 +148,13 @@ fn parse_tag(content: &str) -> Tag {
     }
 
     // Check for handler syntax @handler(args)
-    if trimmed.starts_with('@') || trimmed.starts_with("/@") {
-        if let Some(paren_start) = trimmed.find('(') {
-            if let Some(paren_end) = trimmed.rfind(')') {
+    if (trimmed.starts_with('@') || trimmed.starts_with("/@"))
+        && let Some(paren_start) = trimmed.find('(')
+            && let Some(paren_end) = trimmed.rfind(')') {
                 let name = trimmed[..paren_start].to_string();
                 let param = trimmed[paren_start + 1..paren_end].to_string();
                 return Tag::new(name, Some(param));
             }
-        }
-    }
 
     Tag::new(trimmed, None)
 }
@@ -247,11 +247,10 @@ fn pop_matching(stack: &mut Vec<(usize, Tag)>, name: &str) -> Option<(usize, Tag
 /// Convert a tag to a Style.
 fn tag_to_style(tag: &Tag) -> Style {
     // Handle link tag specially
-    if tag.name.eq_ignore_ascii_case("link") {
-        if let Some(ref url) = tag.parameters {
+    if tag.name.eq_ignore_ascii_case("link")
+        && let Some(ref url) = tag.parameters {
             return Style::new().link(url);
         }
-    }
 
     // Parse tag name as style string
     // The tag name can contain multiple style parts like "bold red on blue"
@@ -261,6 +260,7 @@ fn tag_to_style(tag: &Tag) -> Style {
 /// Escape text for use in markup.
 ///
 /// This escapes any `[` characters so they are treated as literal text.
+#[must_use] 
 pub fn escape(text: &str) -> String {
     text.replace('[', "\\[")
 }
@@ -269,6 +269,7 @@ pub fn escape(text: &str) -> String {
 ///
 /// This is a convenience function that never fails - on parse error,
 /// it returns the original markup as plain text.
+#[must_use] 
 pub fn render_or_plain(markup: &str) -> Text {
     render(markup).unwrap_or_else(|_| Text::new(markup))
 }

@@ -426,11 +426,13 @@ fn perf_segment_merge_10000() {
     // Merge consecutive segments with same style
     let mut merged: Vec<Segment> = Vec::new();
     for seg in segments {
-        if let Some(last) = merged.last_mut() {
-            if last.style == seg.style && last.control.is_none() && seg.control.is_none() {
-                last.text.push_str(&seg.text);
-                continue;
-            }
+        if let Some(last) = merged.last_mut()
+            && last.style == seg.style
+            && last.control.is_none()
+            && seg.control.is_none()
+        {
+            last.text.push_str(&seg.text);
+            continue;
         }
         merged.push(seg);
     }

@@ -10,7 +10,7 @@ use crate::text::Text;
 /// Guide character styles for tree rendering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TreeGuides {
-    /// ASCII guides using | ` - characters.
+    /// ASCII guides using `|`, `-`, and related characters.
     Ascii,
     /// Unicode box-drawing characters (default).
     #[default]
@@ -61,7 +61,7 @@ impl TreeGuides {
 
     /// Empty space (for indentation where no guide is needed).
     #[must_use]
-    pub const fn space(&self) -> &str {
+    pub const fn space(&self) -> &'static str {
         "    "
     }
 }
@@ -283,7 +283,7 @@ impl Tree {
     #[must_use]
     pub fn render(&self) -> Vec<Segment> {
         let mut segments = Vec::new();
-        let mut prefix_stack: Vec<bool> = Vec::new(); // true = has more siblings
+        let prefix_stack: Vec<bool> = Vec::new();
 
         if self.show_root {
             self.render_node(&self.root, &mut segments, &prefix_stack, true, 0);
@@ -292,7 +292,7 @@ impl Tree {
             let children = &self.root.children;
             for (i, child) in children.iter().enumerate() {
                 let is_last = i == children.len() - 1;
-                self.render_node(child, &mut segments, &mut prefix_stack, is_last, 0);
+                self.render_node(child, &mut segments, &prefix_stack, is_last, 0);
             }
         }
 
@@ -300,6 +300,7 @@ impl Tree {
     }
 
     /// Render a single node and its children recursively.
+    #[expect(clippy::cast_possible_wrap, reason = "tree depth will never exceed isize::MAX")]
     fn render_node(
         &self,
         node: &TreeNode,
@@ -336,7 +337,7 @@ impl Tree {
         // Add icon if present
         if let Some(icon) = node.get_icon() {
             segments.push(Segment::new(
-                &format!("{icon} "),
+                format!("{icon} "),
                 Some(node.icon_style.clone()),
             ));
         }

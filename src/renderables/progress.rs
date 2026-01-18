@@ -381,14 +381,13 @@ impl ProgressBar {
     /// Update progress with current/total counts.
     pub fn update(&mut self, current: u64) {
         self.current = current;
-        if let Some(total) = self.total {
-            if total > 0 {
+        if let Some(total) = self.total
+            && total > 0 {
                 #[allow(clippy::cast_precision_loss)]
                 {
                     self.completed = (current as f64) / (total as f64);
                 }
             }
-        }
         if self.completed >= 1.0 {
             self.is_finished = true;
         }
@@ -479,14 +478,13 @@ impl ProgressBar {
         let mut segments = Vec::new();
 
         // If finished and has a finished message, show that
-        if self.is_finished {
-            if let Some(ref msg) = self.finished_message {
+        if self.is_finished
+            && let Some(ref msg) = self.finished_message {
                 let style = Style::new().color_str("green").unwrap_or_default();
-                segments.push(Segment::new(&format!("✓ {msg}"), Some(style)));
+                segments.push(Segment::new(format!("✓ {msg}"), Some(style)));
                 segments.push(Segment::line());
                 return segments;
             }
-        }
 
         // Description
         let mut used_width = 0;
@@ -506,20 +504,18 @@ impl ProgressBar {
             suffix_parts.push(format!("{pct:3}%"));
         }
 
-        if self.show_elapsed {
-            if let Some(elapsed) = self.elapsed() {
+        if self.show_elapsed
+            && let Some(elapsed) = self.elapsed() {
                 suffix_parts.push(Self::format_duration(elapsed));
             }
-        }
 
-        if self.show_eta && !self.is_finished {
-            if let Some(eta) = self.eta() {
+        if self.show_eta && !self.is_finished
+            && let Some(eta) = self.eta() {
                 suffix_parts.push(format!("ETA {}", Self::format_duration(eta)));
             }
-        }
 
-        if self.show_speed {
-            if let Some(speed) = self.speed() {
+        if self.show_speed
+            && let Some(speed) = self.speed() {
                 if speed >= 1.0 {
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                     let speed_int = speed as u64;
@@ -528,7 +524,6 @@ impl ProgressBar {
                     suffix_parts.push(format!("{speed:.2}/s"));
                 }
             }
-        }
 
         let suffix = if suffix_parts.is_empty() {
             String::new()
@@ -549,7 +544,7 @@ impl ProgressBar {
             if self.show_percentage {
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let pct = (self.completed * 100.0) as u32;
-                segments.push(Segment::new(&format!("{pct}%"), None));
+                segments.push(Segment::new(format!("{pct}%"), None));
             }
             segments.push(Segment::line());
             return segments;
@@ -560,7 +555,7 @@ impl ProgressBar {
             segments.push(Segment::new("[", None));
         }
 
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
         let completed_width = ((self.completed * bar_width as f64).round() as usize).min(bar_width);
         let remaining_width = bar_width.saturating_sub(completed_width);
 
