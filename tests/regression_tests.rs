@@ -949,6 +949,68 @@ fn regression_rendering_control_character_width() {
     tracing::info!("Regression test PASSED: control character width");
 }
 
+/// Regression test: Rule truncates title to available width
+///
+/// Bug: Long titles could overflow the configured rule width
+/// Fixed: Titles are truncated when they exceed available width
+#[test]
+fn regression_rule_title_truncation() {
+    init_test_logging();
+    log_test_context(
+        "regression_rule_title_truncation",
+        "Ensures rule titles are truncated to width",
+    );
+
+    let _phase = test_phase("rule_truncation");
+
+    use rich_rust::cells;
+
+    let rule = Rule::with_title("abcdefghijk");
+    let width = 5;
+    let output = rule.render_plain(width);
+    let trimmed = output.trim_end_matches('\n');
+
+    assert_eq!(
+        cells::cell_len(trimmed),
+        width,
+        "Rule output should be truncated to width"
+    );
+    assert!(
+        !trimmed.contains('\u{2500}'),
+        "Truncated title should not include rule characters"
+    );
+
+    tracing::info!("Regression test PASSED: rule title truncation");
+}
+
+/// Regression test: Rule with exact width shows only title + spaces
+#[test]
+fn regression_rule_title_exact_width_no_rule_chars() {
+    init_test_logging();
+    log_test_context(
+        "regression_rule_title_exact_width_no_rule_chars",
+        "Ensures exact-width titles omit rule characters",
+    );
+
+    let _phase = test_phase("rule_exact_width");
+
+    let rule = Rule::with_title("abcd");
+    let width = 6; // " abcd " fits exactly
+    let output = rule.render_plain(width);
+    let trimmed = output.trim_end_matches('\n');
+
+    assert_eq!(
+        trimmed, " abcd ",
+        "Rule should render title with surrounding spaces"
+    );
+    assert!(
+        !trimmed.contains('\u{2500}'),
+        "No rule characters expected when width is exact"
+    );
+
+    tracing::info!("Regression test PASSED: rule exact width");
+}
+
 /// Regression test: Console control segments emit ANSI/control sequences
 ///
 /// Bug: Control segments were silently skipped in Console output
