@@ -15,6 +15,10 @@
   <a href="https://github.com/Dicklesworthstone/rich_rust/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
+<div align="center">
+  <img src="rich_rust_illustration.webp" alt="rich_rust - Beautiful terminal output for Rust">
+</div>
+
 ```bash
 # Add to your Cargo.toml
 cargo add rich_rust
