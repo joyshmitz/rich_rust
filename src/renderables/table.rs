@@ -8,6 +8,7 @@ use crate::r#box::{BoxChars, RowLevel, SQUARE, ASCII};
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::{JustifyMethod, OverflowMethod, Text};
+use num_rational::Ratio;
 
 // PaddingDimensions is available but not needed for current implementation
 
@@ -147,6 +148,13 @@ impl Column {
         self
     }
 
+    /// Set overflow handling.
+    #[must_use]
+    pub fn overflow(mut self, overflow: OverflowMethod) -> Self {
+        self.overflow = overflow;
+        self
+    }
+
     /// Set flex ratio.
     #[must_use]
     pub fn ratio(mut self, ratio: usize) -> Self {
@@ -243,6 +251,12 @@ impl Row {
     pub fn end_section(mut self) -> Self {
         self.end_section = true;
         self
+    }
+}
+
+impl From<Vec<Cell>> for Row {
+    fn from(cells: Vec<Cell>) -> Self {
+        Self::new(cells)
     }
 }
 
@@ -348,6 +362,11 @@ impl Table {
         self.columns.push(column);
     }
 
+    /// Add multiple columns to the table.
+    pub fn add_columns(&mut self, columns: impl IntoIterator<Item = Column>) {
+        self.columns.extend(columns);
+    }
+
     /// Add a column (builder pattern).
     #[must_use]
     pub fn with_column(mut self, column: Column) -> Self {
@@ -355,9 +374,21 @@ impl Table {
         self
     }
 
+    /// Add multiple columns (builder pattern).
+    #[must_use]
+    pub fn with_columns(mut self, columns: impl IntoIterator<Item = Column>) -> Self {
+        self.columns.extend(columns);
+        self
+    }
+
     /// Add a row to the table.
     pub fn add_row(&mut self, row: Row) {
         self.rows.push(row);
+    }
+
+    /// Add multiple rows to the table.
+    pub fn add_rows(&mut self, rows: impl IntoIterator<Item = Row>) {
+        self.rows.extend(rows);
     }
 
     /// Add a row (builder pattern).
@@ -367,10 +398,24 @@ impl Table {
         self
     }
 
+    /// Add multiple rows (builder pattern).
+    #[must_use]
+    pub fn with_rows(mut self, rows: impl IntoIterator<Item = Row>) -> Self {
+        self.rows.extend(rows);
+        self
+    }
+
     /// Add a row from cell values.
     pub fn add_row_cells<T: Into<Cell>>(&mut self, cells: impl IntoIterator<Item = T>) {
         let cells: Vec<Cell> = cells.into_iter().map(Into::into).collect();
         self.rows.push(Row::new(cells));
+    }
+
+    /// Add a row from cell values (builder pattern).
+    #[must_use]
+    pub fn with_row_cells<T: Into<Cell>>(mut self, cells: impl IntoIterator<Item = T>) -> Self {
+        self.add_row_cells(cells);
+        self
     }
 
     /// Set the title.
@@ -486,6 +531,34 @@ impl Table {
         self
     }
 
+    /// Set title style.
+    #[must_use]
+    pub fn title_style(mut self, style: Style) -> Self {
+        self.title_style = style;
+        self
+    }
+
+    /// Set caption style.
+    #[must_use]
+    pub fn caption_style(mut self, style: Style) -> Self {
+        self.caption_style = style;
+        self
+    }
+
+    /// Set title justification.
+    #[must_use]
+    pub fn title_justify(mut self, justify: JustifyMethod) -> Self {
+        self.title_justify = justify;
+        self
+    }
+
+    /// Set caption justification.
+    #[must_use]
+    pub fn caption_justify(mut self, justify: JustifyMethod) -> Self {
+        self.caption_justify = justify;
+        self
+    }
+
     /// Set header style.
     #[must_use]
     pub fn header_style(mut self, style: Style) -> Self {
@@ -597,12 +670,27 @@ impl Table {
         }
 
         // Shrink proportionally
-        let mut remaining_excess = excess;
         for (i, shrink) in shrinkable.iter().enumerate() {
-            if *shrink > 0 && remaining_excess > 0 {
-                let reduction = (*shrink * excess / total_shrinkable).min(remaining_excess);
+            if *shrink > 0 {
+                let reduction = *shrink * excess / total_shrinkable;
                 result[i] = result[i].saturating_sub(reduction);
-                remaining_excess = remaining_excess.saturating_sub(reduction);
+            }
+        }
+
+        // Handle rounding errors (RICH_SPEC Section 9.3, lines 1680-1694)
+        let new_total: usize = result.iter().sum();
+        if new_total > available {
+            let mut diff = new_total - available;
+            // Remove from columns in reverse order (largest first assumption)
+            for i in (0..result.len()).rev() {
+                if diff == 0 {
+                    break;
+                }
+                if result[i] > minimums[i] {
+                    let can_remove = (result[i] - minimums[i]).min(diff);
+                    result[i] -= can_remove;
+                    diff -= can_remove;
+                }
             }
         }
 
@@ -616,24 +704,47 @@ impl Table {
             return widths.to_vec();
         }
 
-        let mut result = widths.to_vec();
-        let extra = available - total;
+        let remaining = available - total;
+        let mut sizes = widths.to_vec();
 
-        // Distribute extra space equally
-        let num_cols = result.len();
-        if num_cols > 0 {
-            let per_col = extra / num_cols;
-            let remainder = extra % num_cols;
-
-            for (i, w) in result.iter_mut().enumerate() {
-                *w += per_col;
-                if i < remainder {
-                    *w += 1;
+        let ratios: Vec<usize> = self
+            .columns
+            .iter()
+            .zip(sizes.iter())
+            .map(|(col, &size)| {
+                let ratio = col.ratio.unwrap_or(0);
+                if ratio > 0 && size < available {
+                    ratio
+                } else {
+                    0
                 }
+            })
+            .collect();
+
+        let total_ratio: usize = ratios.iter().sum();
+        if total_ratio == 0 {
+            return sizes;
+        }
+
+        let flexible_count = ratios.iter().filter(|&&r| r > 0).count();
+        let mut distributed = 0;
+        let mut flex_idx = 0;
+
+        for (i, &ratio) in ratios.iter().enumerate() {
+            if ratio > 0 {
+                flex_idx += 1;
+                let share = Ratio::new(ratio, total_ratio);
+                let extra = if flex_idx == flexible_count {
+                    remaining - distributed
+                } else {
+                    (share * remaining).round().to_integer()
+                };
+                sizes[i] = sizes[i].saturating_add(extra);
+                distributed += extra;
             }
         }
 
-        result
+        sizes
     }
 
     /// Render the table to segments.
