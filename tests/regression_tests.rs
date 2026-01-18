@@ -1271,6 +1271,50 @@ fn regression_rule_title_alignment_width_consistency() {
     tracing::info!("Regression test PASSED: rule title width consistency");
 }
 
+/// Regression test: Tree highlight combines with span styles
+///
+/// Bug: Highlight style could overwrite span styles
+/// Fixed: Highlight combines with existing span styles
+#[test]
+fn regression_tree_highlight_combines_with_spans() {
+    init_test_logging();
+    log_test_context(
+        "regression_tree_highlight_combines_with_spans",
+        "Ensures highlight style combines with span styles",
+    );
+
+    let _phase = test_phase("tree_highlight_span");
+
+    let mut label = Text::new("root");
+    label.stylize(0, 4, Style::new().bold());
+
+    let tree = Tree::new(TreeNode::new(label))
+        .highlight_style(Style::new().color(Color::parse("red").unwrap()).italic());
+
+    let segments = tree.render();
+    let has_bold_red = segments.iter().any(|seg| {
+        seg.text.contains("root")
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.attributes.contains(Attributes::BOLD))
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.color.is_some())
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.attributes.contains(Attributes::ITALIC))
+    });
+
+    assert!(
+        has_bold_red,
+        "highlight should combine color/italic with bold span"
+    );
+    tracing::info!("Regression test PASSED: tree highlight combines with spans");
+}
+
 /// Regression test: Console control segments emit ANSI/control sequences
 ///
 /// Bug: Control segments were silently skipped in Console output
