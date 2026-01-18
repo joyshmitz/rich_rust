@@ -79,10 +79,10 @@ pub enum ParseElement {
     Tag(Tag),
 }
 
-// Regex for matching tags: ((\\*)\[([a-z#/@][^[]*?)])
+// Regex for matching tags: ((\\*)\[([A-Za-z#/@][^[]*?)])
 // Matches: optional backslashes, then [tag_content]
 static TAG_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(\\*)\[([a-z#/@][^\[\]]*?)\]").expect("invalid regex"));
+    LazyLock::new(|| Regex::new(r"(\\*)\[([A-Za-z#/@][^\[\]]*?)\]").expect("invalid regex"));
 
 /// Parse markup string into elements.
 ///
@@ -231,14 +231,20 @@ pub fn render(markup: &str) -> Result<Text, MarkupError> {
 
 /// Pop a matching tag from the stack by name.
 fn pop_matching(stack: &mut Vec<(usize, Tag)>, name: &str) -> Option<(usize, Tag)> {
+    fn normalize_tag(tag_name: &str) -> String {
+        tag_name
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    }
+
+    let search_name = normalize_tag(name);
+
     // Search from top of stack
     for i in (0..stack.len()).rev() {
-        let tag_name = stack[i].1.name.to_lowercase();
-        let search_name = name.to_lowercase();
-
-        // Match by first word of tag (e.g., "bold" matches "bold red")
-        let first_word = tag_name.split_whitespace().next().unwrap_or(&tag_name);
-        if first_word == search_name || tag_name == search_name {
+        let tag_name = normalize_tag(&stack[i].1.name);
+        if tag_name == search_name {
             return Some(stack.remove(i));
         }
     }
@@ -316,6 +322,13 @@ mod tests {
     }
 
     #[test]
+    fn test_render_explicit_close_matches_full_style() {
+        let text = render("[bold red]hello[/bold red]").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
     fn test_render_escaped_bracket() {
         let text = render("\\[not a tag]").unwrap();
         assert_eq!(text.plain(), "[not a tag]");
@@ -344,6 +357,16 @@ mod tests {
     fn test_unmatched_closing_tag() {
         let result = render("[/bold]");
         let err = result.expect_err("expected error for unmatched closing tag");
+        assert_eq!(
+            err.to_string(),
+            "closing tag '[/bold]' doesn't match any open tag"
+        );
+    }
+
+    #[test]
+    fn test_explicit_close_requires_full_tag_match() {
+        let result = render("[bold red]text[/bold]");
+        let err = result.expect_err("expected error for mismatched closing tag");
         assert_eq!(
             err.to_string(),
             "closing tag '[/bold]' doesn't match any open tag"
@@ -386,6 +409,13 @@ mod tests {
         let text = render("[red]error[/] [green]success[/]").unwrap();
         assert_eq!(text.plain(), "error success");
         assert_eq!(text.spans().len(), 2);
+    }
+
+    #[test]
+    fn test_render_uppercase_tag() {
+        let text = render("[BOLD]hello[/BOLD]").unwrap();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.spans().len(), 1);
     }
 
     // ============================================================

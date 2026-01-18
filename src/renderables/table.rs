@@ -652,6 +652,7 @@ impl Table {
         }
 
         let num_cols = self.columns.len();
+        let base_max_width = self.width.unwrap_or(max_width).min(max_width);
 
         // Calculate overhead (borders + padding)
         let border_width = if self.show_edge { 2 } else { 0 };
@@ -667,7 +668,7 @@ impl Table {
         let edge_padding = if self.pad_edge { self.padding.0 * 2 } else { 0 };
 
         let overhead = border_width + separator_width + edge_padding;
-        let available = max_width.saturating_sub(overhead);
+        let available = base_max_width.saturating_sub(overhead);
 
         // Calculate natural widths for each column
         let mut widths: Vec<usize> = self
@@ -698,14 +699,33 @@ impl Table {
             .collect();
 
         // Calculate total and adjust if needed
-        let total: usize = widths.iter().sum();
+        let mut total: usize = widths.iter().sum();
 
         if total > available {
             // Need to shrink columns
             widths = self.collapse_widths(&widths, available);
-        } else if self.expand && total < available {
-            // Expand to fill
-            widths = self.expand_widths(&widths, available);
+            total = widths.iter().sum();
+        }
+
+        let mut target_available = available;
+        let mut should_expand = self.expand || self.width.is_some();
+
+        if !should_expand && let Some(min_width) = self.min_width {
+            let min_table_width = min_width.min(base_max_width);
+            let min_available = min_table_width.saturating_sub(overhead);
+            if total < min_available {
+                target_available = min_available;
+                should_expand = true;
+            }
+        }
+
+        if should_expand && total < target_available {
+            // Expand to fill target width
+            if self.columns.iter().any(|col| col.ratio.unwrap_or(0) > 0) {
+                widths = self.expand_widths(&widths, target_available);
+            } else if self.width.is_some() || self.min_width.is_some() {
+                widths = self.expand_widths_by_weights(&widths, target_available);
+            }
         }
 
         widths
@@ -818,6 +838,39 @@ impl Table {
         sizes
     }
 
+    /// Expand column widths proportionally to their current sizes.
+    fn expand_widths_by_weights(&self, widths: &[usize], available: usize) -> Vec<usize> {
+        let total: usize = widths.iter().sum();
+        if total >= available {
+            return widths.to_vec();
+        }
+
+        let remaining = available - total;
+        let mut sizes = widths.to_vec();
+        let weights: Vec<usize> = sizes.iter().map(|&size| size.max(1)).collect();
+        let total_weight: usize = weights.iter().sum();
+        if total_weight == 0 {
+            return sizes;
+        }
+
+        let mut distributed = 0;
+        let mut weight_idx = 0;
+
+        for (i, &weight) in weights.iter().enumerate() {
+            weight_idx += 1;
+            let share = Ratio::new(weight, total_weight);
+            let extra = if weight_idx == weights.len() {
+                remaining - distributed
+            } else {
+                (share * remaining).round().to_integer()
+            };
+            sizes[i] = sizes[i].saturating_add(extra);
+            distributed += extra;
+        }
+
+        sizes
+    }
+
     /// Render the table to segments.
     #[must_use]
     pub fn render(&self, max_width: usize) -> Vec<Segment> {
@@ -861,6 +914,8 @@ impl Table {
                     box_chars,
                     &widths,
                     &self.header_style,
+                    &header_styles,
+                    &header_overrides,
                     self.padding.1,
                 ));
             }
@@ -877,6 +932,8 @@ impl Table {
                     box_chars,
                     &widths,
                     &self.header_style,
+                    &header_styles,
+                    &header_overrides,
                     self.padding.1,
                 ));
             }
@@ -886,6 +943,8 @@ impl Table {
                     box_chars,
                     &widths,
                     &self.header_style,
+                    &header_styles,
+                    &header_overrides,
                     self.leading,
                 ));
             }
@@ -924,6 +983,8 @@ impl Table {
                     box_chars,
                     &widths,
                     row_style,
+                    &col_styles,
+                    &overrides,
                     self.padding.1,
                 ));
             }
@@ -940,6 +1001,8 @@ impl Table {
                     box_chars,
                     &widths,
                     row_style,
+                    &col_styles,
+                    &overrides,
                     self.padding.1,
                 ));
             }
@@ -953,6 +1016,8 @@ impl Table {
                     box_chars,
                     &widths,
                     row_style,
+                    &col_styles,
+                    &overrides,
                     self.leading,
                 ));
             }
@@ -982,6 +1047,8 @@ impl Table {
                     box_chars,
                     &widths,
                     &self.footer_style,
+                    &footer_styles,
+                    &footer_overrides,
                     self.padding.1,
                 ));
             }
@@ -998,6 +1065,8 @@ impl Table {
                     box_chars,
                     &widths,
                     &self.footer_style,
+                    &footer_styles,
+                    &footer_overrides,
                     self.padding.1,
                 ));
             }
@@ -1226,6 +1295,8 @@ impl Table {
         box_chars: &BoxChars,
         widths: &[usize],
         row_style: &Style,
+        cell_styles: &[&Style],
+        cell_overrides: &[Option<Style>],
         count: usize,
     ) -> Vec<Segment> {
         if count == 0 {
@@ -1234,8 +1305,6 @@ impl Table {
 
         let empty_cells: Vec<Text> = (0..widths.len()).map(|_| Text::new("")).collect();
         let cell_refs: Vec<&Text> = empty_cells.iter().collect();
-        let cell_styles: Vec<&Style> = self.columns.iter().map(|c| &c.style).collect();
-        let overrides: Vec<Option<Style>> = vec![None; self.columns.len()];
 
         let mut segments = Vec::new();
         for _ in 0..count {
@@ -1243,9 +1312,9 @@ impl Table {
                 box_chars,
                 widths,
                 &cell_refs,
-                &cell_styles,
+                cell_styles,
                 row_style,
-                &overrides,
+                cell_overrides,
             ));
         }
         segments
@@ -1444,6 +1513,54 @@ mod tests {
     }
 
     #[test]
+    fn test_table_vertical_padding_header_body_footer() {
+        let mut table = Table::new()
+            .with_column(Column::new("H").footer("F"))
+            .ascii()
+            .padding(1, 1)
+            .show_footer(true);
+
+        table.add_row_cells(["B"]);
+
+        let output = table.render_plain(40);
+        let lines: Vec<&str> = output.lines().collect();
+
+        let header_idx = lines.iter().position(|line| line.contains('H')).unwrap();
+        let body_idx = lines.iter().position(|line| line.contains('B')).unwrap();
+        let footer_idx = lines.iter().position(|line| line.contains('F')).unwrap();
+
+        let blank_indices = [
+            header_idx - 1,
+            header_idx + 1,
+            body_idx - 1,
+            body_idx + 1,
+            footer_idx - 1,
+            footer_idx + 1,
+        ];
+
+        for &idx in &blank_indices {
+            let line = lines[idx];
+            assert!(line.contains('|'));
+            assert!(!line.contains('-'));
+            assert!(!line.contains('H'));
+            assert!(!line.contains('B'));
+            assert!(!line.contains('F'));
+        }
+
+        let header_width = cell_len(lines[header_idx]);
+        assert_eq!(cell_len(lines[header_idx - 1]), header_width);
+        assert_eq!(cell_len(lines[header_idx + 1]), header_width);
+
+        let body_width = cell_len(lines[body_idx]);
+        assert_eq!(cell_len(lines[body_idx - 1]), body_width);
+        assert_eq!(cell_len(lines[body_idx + 1]), body_width);
+
+        let footer_width = cell_len(lines[footer_idx]);
+        assert_eq!(cell_len(lines[footer_idx - 1]), footer_width);
+        assert_eq!(cell_len(lines[footer_idx + 1]), footer_width);
+    }
+
+    #[test]
     fn test_table_ascii() {
         let mut table = Table::new().with_column(Column::new("X")).ascii();
 
@@ -1563,6 +1680,31 @@ mod tests {
         let widths = table.calculate_widths(50);
         assert_eq!(widths[0], 10);
         assert!(widths[1] >= 5);
+    }
+
+    #[test]
+    fn test_table_fixed_width_applies_even_without_expand() {
+        let mut table = Table::new()
+            .with_column(Column::new("A"))
+            .with_column(Column::new("B"))
+            .width(12);
+        table.add_row_cells(["1", "2"]);
+
+        let output = table.render_plain(40);
+        let line = output.lines().next().expect("output line");
+
+        assert_eq!(cell_len(line), 12);
+    }
+
+    #[test]
+    fn test_table_min_width_expands_to_minimum() {
+        let mut table = Table::new().with_column(Column::new("A")).min_width(10);
+        table.add_row_cells(["B"]);
+
+        let output = table.render_plain(40);
+        let line = output.lines().next().expect("output line");
+
+        assert_eq!(cell_len(line), 10);
     }
 
     #[test]

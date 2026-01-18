@@ -175,14 +175,59 @@ impl Columns {
                 }
             }
 
-            // Ensure widths don't exceed available per-column space
-            let max_per_column = available_width / num_columns;
-            for width in &mut max_widths {
-                *width = (*width).min(max_per_column);
+            // Ensure widths fit within the available space.
+            let total: usize = max_widths.iter().sum();
+            if total > available_width {
+                max_widths = self.collapse_widths(&max_widths, available_width);
             }
 
             max_widths
         }
+    }
+
+    /// Collapse column widths to fit the available width.
+    fn collapse_widths(&self, widths: &[usize], available_width: usize) -> Vec<usize> {
+        let total: usize = widths.iter().sum();
+        if total <= available_width {
+            return widths.to_vec();
+        }
+
+        let mut result = widths.to_vec();
+        let excess = total - available_width;
+        let minimums = vec![0usize; widths.len()];
+        let shrinkable: Vec<usize> = result
+            .iter()
+            .zip(minimums.iter())
+            .map(|(w, m)| w.saturating_sub(*m))
+            .collect();
+        let total_shrinkable: usize = shrinkable.iter().sum();
+        if total_shrinkable == 0 {
+            return result;
+        }
+
+        for (i, shrink) in shrinkable.iter().enumerate() {
+            if *shrink > 0 {
+                let reduction = *shrink * excess / total_shrinkable;
+                result[i] = result[i].saturating_sub(reduction);
+            }
+        }
+
+        let new_total: usize = result.iter().sum();
+        if new_total > available_width {
+            let mut diff = new_total - available_width;
+            for i in (0..result.len()).rev() {
+                if diff == 0 {
+                    break;
+                }
+                if result[i] > minimums[i] {
+                    let can_remove = (result[i] - minimums[i]).min(diff);
+                    result[i] -= can_remove;
+                    diff -= can_remove;
+                }
+            }
+        }
+
+        result
     }
 
     /// Auto-calculate number of columns based on content and width.

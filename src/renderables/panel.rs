@@ -230,7 +230,7 @@ impl Panel {
 
         // Calculate panel width
         let panel_width = if self.expand {
-            self.width.unwrap_or(max_width)
+            self.width.unwrap_or(max_width).min(max_width)
         } else {
             let content_w = self.content_width();
             let min_width = content_w + 2 + self.padding.horizontal();
@@ -242,6 +242,35 @@ impl Panel {
         // Content width (inside borders and padding)
         let content_width = inner_width.saturating_sub(self.padding.horizontal());
 
+        let mut pad_top = self.padding.top;
+        let mut pad_bottom = self.padding.bottom;
+        let mut content_lines = self.content_lines.clone();
+
+        if let Some(height) = self.height {
+            let max_inner_lines = height.saturating_sub(2);
+            if content_lines.len() > max_inner_lines {
+                content_lines.truncate(max_inner_lines);
+                pad_top = 0;
+                pad_bottom = 0;
+            } else {
+                let remaining_after_content = max_inner_lines - content_lines.len();
+                if pad_top + pad_bottom > remaining_after_content {
+                    let mut remaining = remaining_after_content;
+                    pad_top = pad_top.min(remaining);
+                    remaining = remaining.saturating_sub(pad_top);
+                    pad_bottom = pad_bottom.min(remaining);
+                }
+
+                let max_content_lines = max_inner_lines.saturating_sub(pad_top + pad_bottom);
+                if content_lines.len() < max_content_lines {
+                    content_lines.extend(
+                        std::iter::repeat_with(Vec::new)
+                            .take(max_content_lines - content_lines.len()),
+                    );
+                }
+            }
+        }
+
         let mut segments = Vec::new();
 
         // Top border with optional title
@@ -249,7 +278,7 @@ impl Panel {
         segments.push(Segment::line());
 
         // Top padding
-        for _ in 0..self.padding.top {
+        for _ in 0..pad_top {
             segments.push(Segment::new(
                 box_chars.head[0].to_string(),
                 Some(self.border_style.clone()),
@@ -269,7 +298,7 @@ impl Panel {
         let left_pad = " ".repeat(self.padding.left);
         let right_pad = " ".repeat(self.padding.right);
 
-        for line in &self.content_lines {
+        for line in &content_lines {
             // Left border
             segments.push(Segment::new(
                 box_chars.head[0].to_string(),
@@ -319,7 +348,7 @@ impl Panel {
         }
 
         // Bottom padding
-        for _ in 0..self.padding.bottom {
+        for _ in 0..pad_bottom {
             segments.push(Segment::new(
                 box_chars.head[0].to_string(),
                 Some(self.border_style.clone()),
@@ -622,6 +651,58 @@ mod tests {
                 assert_eq!(width, 10);
             }
         }
+    }
+
+    #[test]
+    fn test_panel_height_limits_content_lines() {
+        let panel = Panel::from_text("A\nB\nC").height(4).padding(0).width(10);
+
+        let segments = panel.render(10);
+        let lines = split_lines(segments.into_iter());
+        let non_empty_lines = lines
+            .iter()
+            .filter(|line| line.iter().map(Segment::cell_length).sum::<usize>() > 0)
+            .count();
+
+        assert_eq!(non_empty_lines, 4);
+        let text: String = lines
+            .iter()
+            .map(|line| line.iter().map(|seg| seg.text.as_str()).collect::<String>())
+            .collect();
+        assert!(!text.contains('C'));
+    }
+
+    #[test]
+    fn test_panel_height_pads_content_lines() {
+        let panel = Panel::from_text("A").height(5).padding(0).width(10);
+
+        let segments = panel.render(10);
+        let lines = split_lines(segments.into_iter());
+        let non_empty_lines = lines
+            .iter()
+            .filter(|line| line.iter().map(Segment::cell_length).sum::<usize>() > 0)
+            .count();
+
+        assert_eq!(non_empty_lines, 5);
+    }
+
+    #[test]
+    fn test_panel_height_prefers_content_over_padding() {
+        let panel = Panel::from_text("A").height(4).padding((2, 0)).width(10);
+
+        let segments = panel.render(10);
+        let lines = split_lines(segments.into_iter());
+        let non_empty_lines = lines
+            .iter()
+            .filter(|line| line.iter().map(Segment::cell_length).sum::<usize>() > 0)
+            .count();
+
+        assert_eq!(non_empty_lines, 4);
+        let text: String = lines
+            .iter()
+            .map(|line| line.iter().map(|seg| seg.text.as_str()).collect::<String>())
+            .collect();
+        assert!(text.contains('A'));
     }
 
     #[test]

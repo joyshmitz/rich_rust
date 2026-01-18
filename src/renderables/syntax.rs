@@ -368,12 +368,6 @@ impl Syntax {
         // Process each line
         for (idx, line) in LinesWithEndings::from(&self.code).enumerate() {
             let line_num = self.start_line + idx;
-            let has_newline = line.ends_with('\n');
-            let line_content = if has_newline {
-                &line[..line.len().saturating_sub(1)]
-            } else {
-                line
-            };
 
             // Add horizontal padding
             if self.padding.1 > 0 {
@@ -387,7 +381,7 @@ impl Syntax {
             }
 
             // Expand tabs
-            let line_expanded = line_content.replace('\t', &" ".repeat(self.tab_size));
+            let line_expanded = line.replace('\t', &" ".repeat(self.tab_size));
 
             // Add indentation guides if enabled
             if self.indent_guides {
@@ -406,18 +400,31 @@ impl Syntax {
                 .highlight_line(&line_expanded, &ps)
                 .unwrap_or_default();
 
+            let mut saw_newline = false;
             for (style, text) in ranges {
                 let rich_style = self.syntect_style_to_rich(style, theme);
-                segments.push(Segment::new(text, Some(rich_style)));
+                if text.contains('\n') {
+                    let mut parts = text.split('\n').peekable();
+                    while let Some(part) = parts.next() {
+                        if !part.is_empty() {
+                            segments.push(Segment::new(part, Some(rich_style.clone())));
+                        }
+                        if parts.peek().is_some() {
+                            if self.padding.1 > 0 {
+                                segments.push(Segment::new(" ".repeat(self.padding.1), None));
+                            }
+                            segments.push(Segment::new("\n", None));
+                            saw_newline = true;
+                        }
+                    }
+                } else if !text.is_empty() {
+                    segments.push(Segment::new(text, Some(rich_style)));
+                }
             }
 
             // Add horizontal padding at end
-            if self.padding.1 > 0 {
+            if self.padding.1 > 0 && !saw_newline {
                 segments.push(Segment::new(" ".repeat(self.padding.1), None));
-            }
-
-            if has_newline {
-                segments.push(Segment::new("\n", None));
             }
         }
 

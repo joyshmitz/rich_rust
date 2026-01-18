@@ -292,6 +292,10 @@ fn truncate_line(segments: Vec<Segment>, max_width: usize) -> Vec<Segment> {
             continue;
         }
 
+        if remaining == 0 {
+            continue;
+        }
+
         let seg_width = segment.cell_length();
         if seg_width <= remaining {
             result.push(segment);
@@ -299,9 +303,7 @@ fn truncate_line(segments: Vec<Segment>, max_width: usize) -> Vec<Segment> {
         } else if remaining > 0 {
             let (left, _) = segment.split_at_cell(remaining);
             result.push(left);
-            break;
-        } else {
-            break;
+            remaining = 0;
         }
     }
 
@@ -803,6 +805,14 @@ mod tests {
         ];
         let result = adjust_line_length(line, 2, None, false);
         assert!(result[0].is_control()); // Control preserved
+
+        // Control segments after truncation are preserved
+        let line = vec![
+            Segment::new("text", None),
+            Segment::control(vec![ControlCode::new(ControlType::Bell)]),
+        ];
+        let result = adjust_line_length(line, 2, None, false);
+        assert!(result.last().is_some_and(Segment::is_control));
     }
 
     // 3.3 simplify - Merges contiguous segments with identical styles

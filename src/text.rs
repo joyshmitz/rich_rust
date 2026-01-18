@@ -944,7 +944,7 @@ impl Text {
                     truncated.append("...");
                     result.push(truncated);
                 } else {
-                    result.push(line.slice(0, width));
+                    result.push(line.slice(0, self.char_pos_for_width(line, width)));
                 }
             }
             OverflowMethod::Ignore => {
@@ -1475,6 +1475,15 @@ mod tests {
         let lines = text.wrap(10);
         assert_eq!(lines.len(), 1);
         assert!(lines[0].plain().ends_with("..."));
+    }
+
+    #[test]
+    fn test_wrap_overflow_ellipsis_narrow_respects_cells() {
+        let mut text = Text::new("你");
+        text.overflow = OverflowMethod::Ellipsis;
+        let lines = text.wrap(1);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].cell_len() <= 1);
     }
 
     // --- Justification Tests ---
