@@ -2,6 +2,10 @@
 //!
 //! These functions wrap standard assertions with tracing logs,
 //! providing detailed context when assertions fail.
+//!
+//! Note: Not all helpers are currently used, but they're available for future tests.
+
+#![allow(dead_code)]
 
 use std::fmt::Debug;
 
