@@ -585,7 +585,20 @@ impl Text {
             }
             OverflowMethod::Ellipsis => {
                 if max_width < 3 {
-                    *self = self.slice(0, max_width);
+                    let chars: Vec<char> = self.plain.chars().collect();
+                    let mut width = 0;
+                    let mut cut_pos = 0;
+
+                    for (i, c) in chars.iter().enumerate() {
+                        let char_width = crate::cells::get_character_cell_size(*c);
+                        if width + char_width > max_width {
+                            break;
+                        }
+                        width += char_width;
+                        cut_pos = i + 1;
+                    }
+
+                    *self = self.slice(0, cut_pos);
                     return;
                 }
 
@@ -1084,6 +1097,16 @@ mod tests {
         let mut text = Text::new("hello world");
         text.truncate(8, OverflowMethod::Ellipsis, false);
         assert_eq!(text.plain(), "hello...");
+    }
+
+    #[test]
+    fn test_text_truncate_ellipsis_small_width_respects_cells() {
+        let mut text = Text::new("日本");
+        text.truncate(1, OverflowMethod::Ellipsis, false);
+        assert!(
+            text.cell_len() <= 1,
+            "truncate should respect cell width for small max"
+        );
     }
 
     #[test]
