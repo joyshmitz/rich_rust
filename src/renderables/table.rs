@@ -964,9 +964,16 @@ impl Table {
             result.push(left);
         }
 
+        let last_idx = widths.len().saturating_sub(1);
+
         for (i, &width) in widths.iter().enumerate() {
             // Left padding
-            if self.pad_edge || i > 0 {
+            let pad_left = if self.collapse_padding {
+                self.pad_edge && i == 0
+            } else {
+                self.pad_edge || i > 0
+            };
+            if pad_left {
                 for _ in 0..self.padding.0 {
                     result.push(mid);
                 }
@@ -978,7 +985,12 @@ impl Table {
             }
 
             // Right padding
-            if self.pad_edge || i < widths.len() - 1 {
+            let pad_right = if self.collapse_padding {
+                self.pad_edge && i == last_idx
+            } else {
+                self.pad_edge || i < widths.len() - 1
+            };
+            if pad_right {
                 for _ in 0..self.padding.0 {
                     result.push(mid);
                 }
@@ -1000,14 +1012,18 @@ impl Table {
     /// Calculate total row width.
     fn total_row_width(&self, widths: &[usize]) -> usize {
         let content: usize = widths.iter().sum();
-        let padding = widths.len() * self.padding.0 * 2;
         let separators = if widths.len() > 1 {
-            widths.len() - 1
+            if self.collapse_padding {
+                widths.len() - 1
+            } else {
+                (widths.len() - 1) * (1 + self.padding.0 * 2)
+            }
         } else {
             0
         };
+        let edge_padding = if self.pad_edge { self.padding.0 * 2 } else { 0 };
         let edges = if self.show_edge { 2 } else { 0 };
-        content + padding + separators + edges
+        content + separators + edge_padding + edges
     }
 
     /// Render a row's content.
@@ -1022,6 +1038,7 @@ impl Table {
     ) -> Vec<Segment> {
         let mut segments = Vec::new();
         let pad_str = " ".repeat(self.padding.0);
+        let last_idx = widths.len().saturating_sub(1);
 
         // Left edge
         if self.show_edge {
@@ -1042,7 +1059,12 @@ impl Table {
             combined_style = combined_style.combine(cell.style());
 
             // Left padding
-            if self.pad_edge || i > 0 {
+            let pad_left = if self.collapse_padding {
+                self.pad_edge && i == 0
+            } else {
+                self.pad_edge || i > 0
+            };
+            if pad_left {
                 segments.push(Segment::new(&pad_str, Some(combined_style.clone())));
             }
 
@@ -1093,7 +1115,12 @@ impl Table {
             }
 
             // Right padding
-            if self.pad_edge || i < widths.len() - 1 {
+            let pad_right = if self.collapse_padding {
+                self.pad_edge && i == last_idx
+            } else {
+                self.pad_edge || i < widths.len() - 1
+            };
+            if pad_right {
                 segments.push(Segment::new(&pad_str, Some(combined_style)));
             }
 

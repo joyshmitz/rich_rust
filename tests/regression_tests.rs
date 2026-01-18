@@ -483,6 +483,45 @@ fn regression_layout_table_width_sum_exactness() {
     tracing::info!("Regression test PASSED: width sum exactness");
 }
 
+/// Regression test: collapse_padding must not overflow width
+///
+/// Bug: collapse_padding affected width calculation but not rendering,
+///      so row lines could exceed max_width.
+/// Fixed: remove inner padding when collapse_padding=true.
+#[test]
+fn regression_layout_table_collapse_padding_width_respected() {
+    use rich_rust::cells;
+
+    init_test_logging();
+    log_test_context(
+        "regression_layout_table_collapse_padding_width_respected",
+        "Ensures collapse_padding keeps lines within max_width",
+    );
+
+    let _phase = test_phase("collapse_padding_width");
+
+    let mut table = Table::new()
+        .padding(1, 0)
+        .collapse_padding(true)
+        .pad_edge(false)
+        .with_column(Column::new("A").width(1))
+        .with_column(Column::new("B").width(1));
+
+    table.add_row_cells(["1", "2"]);
+
+    let max_width = 6; // 2 edges + 1 separator + 2 content + 1 slack
+    let output = table.render_plain(max_width);
+
+    for line in output.lines().filter(|line| !line.is_empty()) {
+        assert!(
+            cells::cell_len(line) <= max_width,
+            "line exceeds max width with collapse_padding"
+        );
+    }
+
+    tracing::info!("Regression test PASSED: collapse_padding width respected");
+}
+
 /// Regression test: Table with very narrow width
 ///
 /// Bug: Table rendered at very narrow width could panic or produce garbled output
