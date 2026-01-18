@@ -33,7 +33,7 @@ Building beautiful terminal UIs in Rust is tedious. You either:
 
 ### The Solution
 
-**rich_rust** brings Python Rich's ergonomic API to Rust: styled text, tables, panels, progress bars, syntax highlighting, and more — with zero `unsafe` code and automatic terminal detection.
+**rich_rust** brings Python Rich's ergonomic API to Rust: styled text, tables, panels, progress bars, syntax highlighting, and more. Zero `unsafe` code, automatic terminal detection.
 
 ### Why Use rich_rust?
 

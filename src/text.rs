@@ -1087,4 +1087,568 @@ mod tests {
         assert_eq!(text.plain(), "hello world");
         assert_eq!(text.spans().len(), 1);
     }
+
+    // ============================================================
+    // Additional tests for comprehensive coverage (rich_rust-zca)
+    // ============================================================
+
+    // --- Text Construction Tests ---
+
+    #[test]
+    fn test_text_from_str() {
+        let text: Text = "hello".into();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.len(), 5);
+    }
+
+    #[test]
+    fn test_text_from_string() {
+        let text: Text = String::from("hello").into();
+        assert_eq!(text.plain(), "hello");
+        assert_eq!(text.len(), 5);
+    }
+
+    #[test]
+    fn test_text_empty() {
+        let text = Text::new("");
+        assert!(text.is_empty());
+        assert_eq!(text.len(), 0);
+        assert_eq!(text.plain(), "");
+    }
+
+    #[test]
+    fn test_text_styled_empty() {
+        let text = Text::styled("", Style::new().bold());
+        assert!(text.is_empty());
+        // Empty styled text should have no spans
+        assert!(text.spans().is_empty());
+    }
+
+    // --- Overlapping Spans Tests ---
+
+    #[test]
+    fn test_overlapping_spans() {
+        let mut text = Text::new("hello world");
+        // First span: bold for "hello world"
+        text.stylize(0, 11, Style::new().bold());
+        // Second span: italic for "llo wor" (overlapping)
+        text.stylize(2, 9, Style::new().italic());
+
+        assert_eq!(text.spans().len(), 2);
+        // Both spans should be stored
+        let segments = text.render("");
+        // Should render with combined styles where spans overlap
+        assert!(!segments.is_empty());
+    }
+
+    #[test]
+    fn test_adjacent_spans() {
+        let mut text = Text::new("helloworld");
+        // Adjacent spans: "hello" bold, "world" italic
+        text.stylize(0, 5, Style::new().bold());
+        text.stylize(5, 10, Style::new().italic());
+
+        assert_eq!(text.spans().len(), 2);
+        let segments = text.render("");
+        // Should have at least 2 segments with different styles
+        assert!(segments.len() >= 2);
+    }
+
+    #[test]
+    fn test_nested_spans() {
+        let mut text = Text::new("hello world");
+        // Outer: entire text bold
+        text.stylize(0, 11, Style::new().bold());
+        // Inner: "world" also red
+        text.stylize(6, 11, Style::new().color_str("red").unwrap_or_default());
+
+        let segments = text.render("");
+        // "hello " should be bold only, "world" should be bold+red
+        assert!(!segments.is_empty());
+    }
+
+    // --- Text Rendering Tests ---
+
+    #[test]
+    fn test_render_empty() {
+        let text = Text::new("");
+        let segments = text.render("");
+        assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn test_render_with_end() {
+        let text = Text::new("hello");
+        let segments = text.render("\n");
+        // Should have text segment + end segment
+        assert!(segments.len() >= 2);
+        assert_eq!(segments.last().unwrap().text, "\n");
+    }
+
+    #[test]
+    fn test_render_base_style() {
+        let mut text = Text::new("hello");
+        text.set_style(Style::new().bold());
+        let segments = text.render("");
+        // Base style should be applied
+        assert!(!segments.is_empty());
+        let style = segments[0].style.as_ref().unwrap();
+        assert!(style.attributes.contains(crate::style::Attributes::BOLD));
+    }
+
+    // --- Text Division Tests (CRITICAL) ---
+
+    #[test]
+    fn test_divide_with_span_crossing_boundary() {
+        let mut text = Text::new("hello world");
+        // Span covers "lo wor" (positions 3-9)
+        text.stylize(3, 9, Style::new().bold());
+
+        // Divide at position 5 (between "hello" and " world")
+        let parts = text.divide(&[5]);
+
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].plain(), "hello");
+        assert_eq!(parts[1].plain(), " world");
+
+        // First part should have span for "lo" (original 3-5 → adjusted to 3-5)
+        assert_eq!(parts[0].spans().len(), 1);
+        assert_eq!(parts[0].spans()[0].start, 3);
+        assert_eq!(parts[0].spans()[0].end, 5);
+
+        // Second part should have span for " wor" (original 5-9 → adjusted to 0-4)
+        assert_eq!(parts[1].spans().len(), 1);
+        assert_eq!(parts[1].spans()[0].start, 0);
+        assert_eq!(parts[1].spans()[0].end, 4);
+    }
+
+    #[test]
+    fn test_divide_span_starts_at_cut() {
+        let mut text = Text::new("hello world");
+        // Span starts exactly at position 5
+        text.stylize(5, 11, Style::new().bold());
+
+        let parts = text.divide(&[5]);
+
+        assert_eq!(parts[0].spans().len(), 0); // No span in first part
+        assert_eq!(parts[1].spans().len(), 1); // Span in second part
+        assert_eq!(parts[1].spans()[0].start, 0);
+        assert_eq!(parts[1].spans()[0].end, 6);
+    }
+
+    #[test]
+    fn test_divide_span_ends_at_cut() {
+        let mut text = Text::new("hello world");
+        // Span ends exactly at position 5
+        text.stylize(0, 5, Style::new().bold());
+
+        let parts = text.divide(&[5]);
+
+        assert_eq!(parts[0].spans().len(), 1); // Span in first part
+        assert_eq!(parts[0].spans()[0].start, 0);
+        assert_eq!(parts[0].spans()[0].end, 5);
+        assert_eq!(parts[1].spans().len(), 0); // No span in second part
+    }
+
+    #[test]
+    fn test_divide_multiple_spans() {
+        let mut text = Text::new("hello world!");
+        text.stylize(0, 5, Style::new().bold());     // "hello"
+        text.stylize(6, 11, Style::new().italic());  // "world"
+
+        let parts = text.divide(&[6]);
+
+        assert_eq!(parts[0].plain(), "hello ");
+        assert_eq!(parts[1].plain(), "world!");
+
+        // First part has "hello" span
+        assert_eq!(parts[0].spans().len(), 1);
+        // Second part has "world" span (adjusted)
+        assert_eq!(parts[1].spans().len(), 1);
+        assert_eq!(parts[1].spans()[0].start, 0);
+        assert_eq!(parts[1].spans()[0].end, 5);
+    }
+
+    #[test]
+    fn test_divide_empty_offsets() {
+        let text = Text::new("hello");
+        let parts = text.divide(&[]);
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].plain(), "hello");
+    }
+
+    #[test]
+    fn test_divide_multiple_cuts() {
+        let text = Text::new("hello world!");
+        let parts = text.divide(&[5, 6, 11]);
+
+        assert_eq!(parts.len(), 4);
+        assert_eq!(parts[0].plain(), "hello");
+        assert_eq!(parts[1].plain(), " ");
+        assert_eq!(parts[2].plain(), "world");
+        assert_eq!(parts[3].plain(), "!");
+    }
+
+    #[test]
+    fn test_divide_cut_at_end() {
+        let text = Text::new("hello");
+        let parts = text.divide(&[5]);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].plain(), "hello");
+        assert_eq!(parts[1].plain(), "");
+    }
+
+    #[test]
+    fn test_divide_cut_beyond_length() {
+        let text = Text::new("hello");
+        let parts = text.divide(&[10]);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].plain(), "hello");
+        assert_eq!(parts[1].plain(), "");
+    }
+
+    // --- Text Wrapping Tests ---
+
+    #[test]
+    fn test_wrap_basic() {
+        let text = Text::new("hello world foo bar");
+        let lines = text.wrap(10);
+        // Should wrap at word boundaries
+        assert!(lines.len() >= 2);
+        for line in &lines {
+            assert!(line.cell_len() <= 10);
+        }
+    }
+
+    #[test]
+    fn test_wrap_long_word() {
+        let text = Text::new("supercalifragilistic");
+        let lines = text.wrap(10);
+        // Should break the long word
+        assert!(lines.len() >= 2);
+        for line in &lines {
+            assert!(line.cell_len() <= 10);
+        }
+    }
+
+    #[test]
+    fn test_wrap_zero_width() {
+        let text = Text::new("hello");
+        let lines = text.wrap(0);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].plain(), "");
+    }
+
+    #[test]
+    fn test_wrap_no_wrap_flag() {
+        let mut text = Text::new("hello world this is long");
+        text.no_wrap = true;
+        let lines = text.wrap(10);
+        // Should return original text without wrapping
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].plain(), "hello world this is long");
+    }
+
+    #[test]
+    fn test_wrap_fits_width() {
+        let text = Text::new("hello");
+        let lines = text.wrap(20);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].plain(), "hello");
+    }
+
+    #[test]
+    fn test_wrap_with_wide_chars() {
+        let text = Text::new("你好世界");  // 8 cells (4 chars * 2 cells each)
+        let lines = text.wrap(6);
+        // Should wrap CJK characters correctly
+        assert!(lines.len() >= 2);
+    }
+
+    #[test]
+    fn test_wrap_preserves_spans() {
+        let mut text = Text::new("hello world");
+        text.stylize(0, 5, Style::new().bold());
+        let lines = text.wrap(6);
+        // First line should contain span
+        assert!(!lines[0].spans().is_empty());
+    }
+
+    #[test]
+    fn test_wrap_overflow_crop() {
+        let mut text = Text::new("hello world this is too long");
+        text.overflow = OverflowMethod::Crop;
+        let lines = text.wrap(10);
+        // Should crop, not wrap
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].cell_len() <= 10);
+    }
+
+    #[test]
+    fn test_wrap_overflow_ellipsis() {
+        let mut text = Text::new("hello world this is too long");
+        text.overflow = OverflowMethod::Ellipsis;
+        let lines = text.wrap(10);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].plain().ends_with("..."));
+    }
+
+    // --- Justification Tests ---
+
+    #[test]
+    fn test_pad_left() {
+        let mut text = Text::new("hi");
+        text.pad(5, JustifyMethod::Left);
+        assert_eq!(text.cell_len(), 5);
+        assert_eq!(text.plain(), "hi   ");
+    }
+
+    #[test]
+    fn test_pad_right() {
+        let mut text = Text::new("hi");
+        text.pad(5, JustifyMethod::Right);
+        assert_eq!(text.cell_len(), 5);
+        assert_eq!(text.plain(), "   hi");
+    }
+
+    #[test]
+    fn test_pad_center() {
+        let mut text = Text::new("hi");
+        text.pad(6, JustifyMethod::Center);
+        assert_eq!(text.cell_len(), 6);
+        assert_eq!(text.plain(), "  hi  ");
+    }
+
+    #[test]
+    fn test_pad_full() {
+        let mut text = Text::new("hi");
+        text.pad(5, JustifyMethod::Full);
+        // Full justify just right-pads for single text
+        assert_eq!(text.cell_len(), 5);
+    }
+
+    #[test]
+    fn test_pad_already_wide() {
+        let mut text = Text::new("hello");
+        text.pad(3, JustifyMethod::Center);
+        // Should not change if already wider
+        assert_eq!(text.plain(), "hello");
+    }
+
+    // --- Slice Tests ---
+
+    #[test]
+    fn test_slice_empty_range() {
+        let text = Text::new("hello");
+        let slice = text.slice(3, 3);
+        assert!(slice.is_empty());
+    }
+
+    #[test]
+    fn test_slice_out_of_bounds() {
+        let text = Text::new("hello");
+        let slice = text.slice(10, 20);
+        assert!(slice.is_empty());
+    }
+
+    #[test]
+    fn test_slice_reversed_range() {
+        let text = Text::new("hello");
+        let slice = text.slice(4, 2);
+        // Should handle reversed range gracefully
+        assert!(slice.is_empty());
+    }
+
+    #[test]
+    fn test_slice_preserves_span() {
+        let mut text = Text::new("hello world");
+        text.stylize(0, 5, Style::new().bold());
+        let slice = text.slice(0, 3);
+        assert_eq!(slice.plain(), "hel");
+        assert_eq!(slice.spans().len(), 1);
+        assert_eq!(slice.spans()[0].start, 0);
+        assert_eq!(slice.spans()[0].end, 3);
+    }
+
+    // --- Span Helper Tests ---
+
+    #[test]
+    fn test_span_is_empty() {
+        let empty = Span::new(5, 5, Style::new());
+        assert!(empty.is_empty());
+
+        let non_empty = Span::new(0, 5, Style::new());
+        assert!(!non_empty.is_empty());
+    }
+
+    #[test]
+    fn test_span_len() {
+        let span = Span::new(3, 10, Style::new());
+        assert_eq!(span.len(), 7);
+    }
+
+    #[test]
+    fn test_span_adjust() {
+        let span = Span::new(10, 15, Style::new());
+        let adjusted = span.adjust(5);
+        assert_eq!(adjusted.start, 5);
+        assert_eq!(adjusted.end, 10);
+    }
+
+    #[test]
+    fn test_span_new_swaps_if_needed() {
+        // If start > end, they should be swapped
+        let span = Span::new(10, 5, Style::new());
+        assert_eq!(span.start, 5);
+        assert_eq!(span.end, 10);
+    }
+
+    // --- Tab Expansion Tests ---
+
+    #[test]
+    fn test_expand_tabs_multiple() {
+        let text = Text::new("a\tb\tc");
+        let expanded = text.expand_tabs(4);
+        // Each tab expands to fill to next multiple of 4
+        assert!(!expanded.plain().contains('\t'));
+    }
+
+    #[test]
+    fn test_expand_tabs_preserves_spans() {
+        let mut text = Text::new("a\tb");
+        text.stylize(0, 1, Style::new().bold());  // Just "a"
+        let expanded = text.expand_tabs(4);
+        // Span should still exist
+        assert!(!expanded.spans().is_empty());
+    }
+
+    #[test]
+    fn test_expand_tabs_zero_size() {
+        let text = Text::new("a\tb");
+        let expanded = text.expand_tabs(0);
+        // Should return unchanged
+        assert_eq!(expanded.plain(), "a\tb");
+    }
+
+    // --- Other Tests ---
+
+    #[test]
+    fn test_text_display() {
+        let text = Text::new("hello");
+        assert_eq!(format!("{text}"), "hello");
+    }
+
+    #[test]
+    fn test_text_equality() {
+        let a = Text::new("hello");
+        let b = Text::new("hello");
+        assert_eq!(a, b);
+
+        let c = Text::new("world");
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn test_text_add_assign() {
+        let mut text = Text::new("hello ");
+        text += Text::new("world");
+        assert_eq!(text.plain(), "hello world");
+    }
+
+    #[test]
+    fn test_stylize_all() {
+        let mut text = Text::new("hello");
+        text.stylize_all(Style::new().bold());
+        assert_eq!(text.spans().len(), 1);
+        assert_eq!(text.spans()[0].start, 0);
+        assert_eq!(text.spans()[0].end, 5);
+    }
+
+    #[test]
+    fn test_stylize_clamps() {
+        let mut text = Text::new("hello");
+        // Stylize beyond text length - should clamp
+        text.stylize(3, 100, Style::new().bold());
+        assert_eq!(text.spans().len(), 1);
+        assert_eq!(text.spans()[0].end, 5);  // Clamped to text length
+    }
+
+    #[test]
+    fn test_to_lowercase() {
+        let text = Text::new("Hello WORLD");
+        let lower = text.to_lowercase();
+        assert_eq!(lower.plain(), "hello world");
+    }
+
+    #[test]
+    fn test_to_uppercase() {
+        let text = Text::new("Hello World");
+        let upper = text.to_uppercase();
+        assert_eq!(upper.plain(), "HELLO WORLD");
+    }
+
+    #[test]
+    fn test_append_text_merges_spans() {
+        let mut a = Text::new("hello");
+        a.stylize(0, 5, Style::new().bold());
+
+        let mut b = Text::new("world");
+        b.stylize(0, 5, Style::new().italic());
+
+        a.append_text(&b);
+
+        assert_eq!(a.plain(), "helloworld");
+        assert_eq!(a.spans().len(), 2);
+        // Second span should be offset
+        assert_eq!(a.spans()[1].start, 5);
+        assert_eq!(a.spans()[1].end, 10);
+    }
+
+    #[test]
+    fn test_highlight_regex() {
+        let mut text = Text::new("hello world hello");
+        text.highlight_regex("hello", Style::new().bold()).unwrap();
+        // Should have 2 spans for the two "hello" matches
+        assert_eq!(text.spans().len(), 2);
+    }
+
+    #[test]
+    fn test_highlight_words() {
+        let mut text = Text::new("Hello World HELLO");
+        text.highlight_words(&["hello"], Style::new().bold(), false);
+        // Case insensitive - should find 2 matches
+        assert_eq!(text.spans().len(), 2);
+    }
+
+    #[test]
+    fn test_split_lines_empty() {
+        let text = Text::new("");
+        let lines = text.split_lines();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].is_empty());
+    }
+
+    #[test]
+    fn test_split_lines_trailing_newline() {
+        let text = Text::new("hello\n");
+        let lines = text.split_lines();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].plain(), "hello");
+        assert_eq!(lines[1].plain(), "");
+    }
+
+    #[test]
+    fn test_truncate_crop() {
+        let mut text = Text::new("hello world");
+        text.truncate(5, OverflowMethod::Crop, false);
+        assert_eq!(text.plain(), "hello");
+    }
+
+    #[test]
+    fn test_truncate_with_pad() {
+        let mut text = Text::new("hi");
+        text.truncate(5, OverflowMethod::Crop, true);
+        assert_eq!(text.cell_len(), 5);
+        assert_eq!(text.plain(), "hi   ");
+    }
 }

@@ -394,4 +394,264 @@ mod tests {
         assert_eq!(text.plain(), "error success");
         assert_eq!(text.spans().len(), 2);
     }
+
+    // ============================================================
+    // Additional tests for comprehensive coverage (rich_rust-xz9)
+    // ============================================================
+
+    // --- Deep Nesting Tests ---
+
+    #[test]
+    fn test_deep_nesting_3_levels() {
+        let text = render("[bold][italic][underline]deep[/][/][/]").unwrap();
+        assert_eq!(text.plain(), "deep");
+        assert_eq!(text.spans().len(), 3);
+    }
+
+    #[test]
+    fn test_deep_nesting_4_levels() {
+        let text = render("[bold][red][italic][underline]very deep[/][/][/][/]").unwrap();
+        assert_eq!(text.plain(), "very deep");
+        assert_eq!(text.spans().len(), 4);
+    }
+
+    #[test]
+    fn test_nested_with_explicit_close() {
+        let text = render("[bold][italic]text[/italic][/bold]").unwrap();
+        assert_eq!(text.plain(), "text");
+        assert_eq!(text.spans().len(), 2);
+    }
+
+    // --- Sibling Tags Tests ---
+
+    #[test]
+    fn test_sibling_tags() {
+        let text = render("[bold]one[/][italic]two[/][underline]three[/]").unwrap();
+        assert_eq!(text.plain(), "onetwothree");
+        assert_eq!(text.spans().len(), 3);
+    }
+
+    #[test]
+    fn test_sibling_tags_with_text_between() {
+        let text = render("[bold]one[/] and [italic]two[/] and [red]three[/]").unwrap();
+        assert_eq!(text.plain(), "one and two and three");
+        assert_eq!(text.spans().len(), 3);
+    }
+
+    // --- Style Inheritance Tests ---
+
+    #[test]
+    fn test_style_combination_bold_red() {
+        let text = render("[bold red]styled[/]").unwrap();
+        assert_eq!(text.plain(), "styled");
+        assert_eq!(text.spans().len(), 1);
+        // Style should contain both bold and red
+        let style = &text.spans()[0].style;
+        assert!(style.attributes.contains(crate::style::Attributes::BOLD));
+        assert!(style.color.is_some());
+    }
+
+    #[test]
+    fn test_style_on_background() {
+        let text = render("[red on blue]text[/]").unwrap();
+        assert_eq!(text.plain(), "text");
+        assert_eq!(text.spans().len(), 1);
+        let style = &text.spans()[0].style;
+        assert!(style.color.is_some());
+        assert!(style.bgcolor.is_some());
+    }
+
+    // --- Escaping Tests ---
+
+    #[test]
+    fn test_double_backslash() {
+        let text = render("\\\\[bold]text[/]").unwrap();
+        // Double backslash becomes single backslash
+        assert!(text.plain().contains('\\'));
+        assert!(text.plain().contains("text"));
+    }
+
+    #[test]
+    fn test_mixed_escaped_and_tags() {
+        let text = render("\\[not tag] [bold]real tag[/]").unwrap();
+        assert_eq!(text.plain(), "[not tag] real tag");
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_escaped_bracket_in_middle() {
+        let text = render("[bold]hello\\[world[/]").unwrap();
+        assert!(text.plain().contains("hello"));
+    }
+
+    // --- Edge Cases ---
+
+    #[test]
+    fn test_empty_string() {
+        let text = render("").unwrap();
+        assert_eq!(text.plain(), "");
+        assert!(text.spans().is_empty());
+    }
+
+    #[test]
+    fn test_only_whitespace() {
+        let text = render("   ").unwrap();
+        assert_eq!(text.plain(), "   ");
+    }
+
+    #[test]
+    fn test_empty_tag_content() {
+        // [] is not matched by the regex (requires [a-z#/@...])
+        let text = render("[]").unwrap();
+        assert_eq!(text.plain(), "[]");
+    }
+
+    #[test]
+    fn test_unclosed_bracket() {
+        // [bold without closing ] - not matched by regex
+        let text = render("[bold without closing").unwrap();
+        assert_eq!(text.plain(), "[bold without closing");
+    }
+
+    #[test]
+    fn test_unopened_bracket() {
+        // Just ] is plain text
+        let text = render("text] more").unwrap();
+        assert_eq!(text.plain(), "text] more");
+    }
+
+    #[test]
+    fn test_invalid_style_graceful() {
+        // Invalid style should not panic - tag_to_style returns default
+        let text = render("[invalidstyle12345]text[/]").unwrap();
+        assert_eq!(text.plain(), "text");
+    }
+
+    #[test]
+    fn test_nested_brackets_in_content() {
+        // Brackets inside styled text
+        let text = render("[bold]hello \\[world\\][/]").unwrap();
+        assert!(text.plain().contains("hello"));
+    }
+
+    // --- No Panic Tests ---
+
+    #[test]
+    fn test_no_panic_on_random_brackets() {
+        // Should not panic on any input
+        let inputs = [
+            "[[[]]]",
+            "[[[",
+            "]]]",
+            "[/][/][/]",
+            "\\\\\\\\",
+            "[bold[italic]text[/]",
+            "[=value]text[/]",
+            "[@handler]text[/]",
+        ];
+
+        for input in inputs {
+            // Should not panic - may return Ok or Err
+            let _ = render(input);
+        }
+    }
+
+    #[test]
+    fn test_no_panic_unicode() {
+        let text = render("[bold]日本語テキスト[/]").unwrap();
+        assert_eq!(text.plain(), "日本語テキスト");
+    }
+
+    #[test]
+    fn test_no_panic_emoji() {
+        let text = render("[red]🎉 celebration 🎉[/]").unwrap();
+        assert_eq!(text.plain(), "🎉 celebration 🎉");
+    }
+
+    // --- Link and Parameter Tests ---
+
+    #[test]
+    fn test_link_with_special_chars() {
+        let text = render("[link=https://example.com/path?a=1&b=2]url[/link]").unwrap();
+        assert_eq!(text.plain(), "url");
+    }
+
+    #[test]
+    fn test_handler_syntax() {
+        // @handler(args) syntax
+        let tag = parse_tag("@click(button1)");
+        assert_eq!(tag.name, "@click");
+        assert_eq!(tag.parameters, Some("button1".to_string()));
+    }
+
+    // --- Multiple Tags Same Line ---
+
+    #[test]
+    fn test_adjacent_tags_no_space() {
+        let text = render("[bold]A[/][italic]B[/][underline]C[/]").unwrap();
+        assert_eq!(text.plain(), "ABC");
+        assert_eq!(text.spans().len(), 3);
+    }
+
+    #[test]
+    fn test_many_tags_single_line() {
+        let markup = "[red]R[/][green]G[/][blue]B[/][yellow]Y[/][magenta]M[/][cyan]C[/]";
+        let text = render(markup).unwrap();
+        assert_eq!(text.plain(), "RGBYMC");
+        assert_eq!(text.spans().len(), 6);
+    }
+
+    // --- Tag with Whitespace ---
+
+    #[test]
+    fn test_tag_with_internal_whitespace() {
+        let text = render("[bold  red]styled[/]").unwrap();
+        assert_eq!(text.plain(), "styled");
+    }
+
+    #[test]
+    fn test_tag_trimming() {
+        let tag = parse_tag("  bold  ");
+        assert_eq!(tag.name, "bold");
+    }
+
+    // --- Complex Cases ---
+
+    #[test]
+    fn test_interleaved_text_and_tags() {
+        let text = render("start [bold]middle[/] end").unwrap();
+        assert_eq!(text.plain(), "start middle end");
+    }
+
+    #[test]
+    fn test_color_hex() {
+        let text = render("[#ff0000]red hex[/]").unwrap();
+        assert_eq!(text.plain(), "red hex");
+        // Should have a span with the color
+        assert_eq!(text.spans().len(), 1);
+    }
+
+    #[test]
+    fn test_render_or_plain_fallback() {
+        // render_or_plain should not fail
+        let text = render_or_plain("[/]");
+        assert_eq!(text.plain(), "[/]"); // Falls back to plain text
+    }
+
+    #[test]
+    fn test_tag_is_closing() {
+        let open = Tag::new("bold", None);
+        let close = Tag::new("/bold", None);
+        assert!(!open.is_closing());
+        assert!(close.is_closing());
+    }
+
+    #[test]
+    fn test_tag_base_name() {
+        let tag = Tag::new("/bold", None);
+        assert_eq!(tag.base_name(), "bold");
+
+        let tag = Tag::new("bold", None);
+        assert_eq!(tag.base_name(), "bold");
+    }
 }

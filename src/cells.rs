@@ -3,8 +3,21 @@
 //! This module provides functions to calculate the display width of text
 //! in terminal cells, handling wide characters (CJK, emoji) correctly.
 
+use std::num::NonZeroUsize;
+use std::sync::{LazyLock, Mutex};
+
+use lru::LruCache;
 use unicode_width::UnicodeWidthChar;
 use unicode_width::UnicodeWidthStr;
+
+/// Minimum string length to cache (shorter strings have minimal overhead).
+const CACHE_MIN_LEN: usize = 8;
+
+/// LRU cache for cell_len calculations.
+/// Per RICH_SPEC.md Section 12.4, string widths should be cached.
+static CELL_LEN_CACHE: LazyLock<Mutex<LruCache<String, usize>>> = LazyLock::new(|| {
+    Mutex::new(LruCache::new(NonZeroUsize::new(1024).expect("non-zero")))
+});
 
 /// Get the cell width of a single character.
 ///
@@ -15,12 +28,44 @@ pub fn get_character_cell_size(c: char) -> usize {
     c.width().unwrap_or(0)
 }
 
-/// Get the total cell width of a string.
+/// Get the total cell width of a string (cached for longer strings).
 ///
 /// This is the sum of the widths of all characters, accounting for
 /// wide characters that take 2 cells.
+///
+/// Per RICH_SPEC.md Section 12.4, results are cached using an LRU cache
+/// for strings of 8+ characters to avoid repeated calculations.
 #[must_use]
 pub fn cell_len(text: &str) -> usize {
+    // Short strings: compute directly (cache overhead not worth it)
+    if text.len() < CACHE_MIN_LEN {
+        return text.width();
+    }
+
+    // Check cache first
+    if let Ok(mut cache) = CELL_LEN_CACHE.lock() {
+        if let Some(&cached) = cache.get(text) {
+            return cached;
+        }
+    }
+
+    // Compute width
+    let width = text.width();
+
+    // Store in cache
+    if let Ok(mut cache) = CELL_LEN_CACHE.lock() {
+        cache.put(text.to_string(), width);
+    }
+
+    width
+}
+
+/// Get the total cell width of a string without caching.
+///
+/// Use this when you know the string is unique or when you want to
+/// avoid cache overhead for single-use calculations.
+#[must_use]
+pub fn cell_len_uncached(text: &str) -> usize {
     text.width()
 }
 
@@ -416,5 +461,30 @@ mod tests {
         assert_eq!(get_character_cell_size('！'), 2); // Full-width exclamation
         assert_eq!(get_character_cell_size('Ａ'), 2); // Full-width A
         assert_eq!(cell_len("！Ａ"), 4);
+    }
+
+    // LRU cache behavior (per RICH_SPEC.md Section 12.4)
+    #[test]
+    fn test_cell_len_caching() {
+        // Short strings (< 8 chars) bypass cache
+        let short = "hello";
+        assert_eq!(cell_len(short), 5);
+        assert_eq!(cell_len(short), 5); // Same result
+
+        // Long strings use cache
+        let long = "Hello, this is a longer string for testing";
+        let width1 = cell_len(long);
+        let width2 = cell_len(long); // Should hit cache
+        assert_eq!(width1, width2);
+        assert_eq!(width1, 42);
+
+        // Verify uncached version gives same result
+        assert_eq!(cell_len_uncached(long), 42);
+
+        // CJK strings
+        let cjk_long = "日本語テスト文字列";
+        let cjk_width = cell_len(cjk_long);
+        assert_eq!(cjk_width, 18); // 9 chars * 2 cells
+        assert_eq!(cell_len(cjk_long), cjk_width); // Cache hit
     }
 }

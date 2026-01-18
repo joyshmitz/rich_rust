@@ -309,24 +309,31 @@ impl Style {
         }
 
         let codes = self.make_ansi_codes(color_system);
-        if codes.is_empty() {
+        let has_link = self.link.is_some();
+
+        // Early return only if no codes AND no link
+        if codes.is_empty() && !has_link {
             return text.to_string();
         }
 
-        let mut result = String::with_capacity(text.len() + codes.len() + 10);
+        let mut result = String::with_capacity(text.len() + codes.len() + 50);
 
         // Handle hyperlinks (OSC 8)
         if let Some(link) = &self.link {
             result.push_str(&format!("\x1b]8;;{link}\x1b\\"));
         }
 
-        // Apply style
-        result.push_str(&format!("\x1b[{codes}m"));
+        // Apply style (only if there are codes)
+        if !codes.is_empty() {
+            result.push_str(&format!("\x1b[{codes}m"));
+        }
         result.push_str(text);
-        result.push_str("\x1b[0m");
+        if !codes.is_empty() {
+            result.push_str("\x1b[0m");
+        }
 
         // Close hyperlink
-        if self.link.is_some() {
+        if has_link {
             result.push_str("\x1b]8;;\x1b\\");
         }
 
@@ -848,5 +855,241 @@ mod tests {
 
         assert!(combined.attributes.contains(Attributes::BOLD));
         assert!(combined.attributes.contains(Attributes::ITALIC));
+    }
+
+    // --- Additional Comprehensive Tests ---
+
+    #[test]
+    fn test_style_combine_associativity() {
+        // (a + b) + c should equal a + (b + c)
+        let a = Style::new().bold();
+        let b = Style::new().italic().color(Color::from_ansi(1));
+        let c = Style::new().underline().bgcolor(Color::from_ansi(4));
+
+        let left = (a.clone() + b.clone()) + c.clone();
+        let right = a + (b + c);
+
+        assert_eq!(left.attributes, right.attributes);
+        assert_eq!(left.color, right.color);
+        assert_eq!(left.bgcolor, right.bgcolor);
+    }
+
+    #[test]
+    fn test_style_parse_invalid_unknown_token() {
+        let result = Style::parse("completely_invalid_token_xyz");
+        assert!(result.is_err());
+        if let Err(StyleParseError::UnknownToken(token)) = result {
+            assert_eq!(token, "completely_invalid_token_xyz");
+        } else {
+            panic!("Expected UnknownToken error");
+        }
+    }
+
+    #[test]
+    fn test_style_parse_invalid_not_without_attribute() {
+        let result = Style::parse("not");
+        assert!(result.is_err());
+        if let Err(StyleParseError::InvalidFormat(msg)) = result {
+            assert!(msg.contains("requires an attribute"));
+        } else {
+            panic!("Expected InvalidFormat error");
+        }
+    }
+
+    #[test]
+    fn test_style_parse_invalid_on_without_color() {
+        let result = Style::parse("on");
+        assert!(result.is_err());
+        if let Err(StyleParseError::InvalidFormat(msg)) = result {
+            assert!(msg.contains("requires a color"));
+        } else {
+            panic!("Expected InvalidFormat error");
+        }
+    }
+
+    #[test]
+    fn test_style_parse_empty_is_null() {
+        let style = Style::parse("").unwrap();
+        assert!(style.is_null());
+    }
+
+    #[test]
+    fn test_style_parse_none_is_null() {
+        let style = Style::parse("none").unwrap();
+        assert!(style.is_null());
+    }
+
+    #[test]
+    fn test_style_render_null_returns_text_unchanged() {
+        let style = Style::null();
+        let rendered = style.render("hello", ColorSystem::TrueColor);
+        assert_eq!(rendered, "hello");
+    }
+
+    #[test]
+    fn test_style_render_foreground_color_truecolor() {
+        let style = Style::new().color(Color::from_rgb(255, 0, 0));
+        let rendered = style.render("text", ColorSystem::TrueColor);
+        assert!(rendered.contains("\x1b["));
+        assert!(rendered.contains("38;2;255;0;0"));
+    }
+
+    #[test]
+    fn test_style_render_background_color_truecolor() {
+        let style = Style::new().bgcolor(Color::from_rgb(0, 255, 0));
+        let rendered = style.render("text", ColorSystem::TrueColor);
+        assert!(rendered.contains("\x1b["));
+        assert!(rendered.contains("48;2;0;255;0"));
+    }
+
+    #[test]
+    fn test_style_render_foreground_color_256() {
+        let style = Style::new().color(Color::from_ansi(196));
+        let rendered = style.render("text", ColorSystem::EightBit);
+        assert!(rendered.contains("\x1b["));
+        assert!(rendered.contains("38;5;196"));
+    }
+
+    #[test]
+    fn test_style_render_combined_attributes_and_colors() {
+        let style = Style::new()
+            .bold()
+            .italic()
+            .color(Color::from_ansi(1))
+            .bgcolor(Color::from_ansi(4));
+        let rendered = style.render("text", ColorSystem::TrueColor);
+
+        // Should contain SGR codes for bold (1), italic (3)
+        assert!(rendered.contains("1"));
+        assert!(rendered.contains("3"));
+        // Should contain reset at end
+        assert!(rendered.contains("\x1b[0m"));
+    }
+
+    #[test]
+    fn test_style_render_with_hyperlink() {
+        let style = Style::new().link("https://example.com");
+        let rendered = style.render("click", ColorSystem::TrueColor);
+
+        // Should contain OSC 8 opening and closing sequences
+        assert!(rendered.contains("\x1b]8;;https://example.com"));
+        assert!(rendered.contains("\x1b]8;;\x1b\\"));
+    }
+
+    #[test]
+    fn test_style_all_attributes() {
+        // Test each attribute individually
+        let bold = Style::new().bold();
+        let dim = Style::new().dim();
+        let italic = Style::new().italic();
+        let underline = Style::new().underline();
+        let blink = Style::new().blink();
+        let reverse = Style::new().reverse();
+        let conceal = Style::new().conceal();
+        let strike = Style::new().strike();
+        let overline = Style::new().overline();
+
+        assert!(bold.attributes.contains(Attributes::BOLD));
+        assert!(dim.attributes.contains(Attributes::DIM));
+        assert!(italic.attributes.contains(Attributes::ITALIC));
+        assert!(underline.attributes.contains(Attributes::UNDERLINE));
+        assert!(blink.attributes.contains(Attributes::BLINK));
+        assert!(reverse.attributes.contains(Attributes::REVERSE));
+        assert!(conceal.attributes.contains(Attributes::CONCEAL));
+        assert!(strike.attributes.contains(Attributes::STRIKE));
+        assert!(overline.attributes.contains(Attributes::OVERLINE));
+    }
+
+    #[test]
+    fn test_style_not_removes_attribute() {
+        let style = Style::new().bold().not(Attributes::BOLD);
+        assert!(!style.attributes.contains(Attributes::BOLD));
+        assert!(style.set_attributes.contains(Attributes::BOLD));
+    }
+
+    #[test]
+    fn test_style_display() {
+        let style = Style::new().bold().italic();
+        let display = format!("{}", style);
+        assert!(display.contains("bold"));
+        assert!(display.contains("italic"));
+    }
+
+    #[test]
+    fn test_style_display_null() {
+        let style = Style::null();
+        assert_eq!(format!("{}", style), "none");
+    }
+
+    #[test]
+    fn test_style_from_color() {
+        let style: Style = Color::from_ansi(1).into();
+        assert!(style.color.is_some());
+        assert_eq!(style.color.unwrap().number, Some(1));
+    }
+
+    #[test]
+    fn test_style_from_tuple() {
+        let style: Style = (255u8, 128u8, 0u8).into();
+        assert!(style.color.is_some());
+    }
+
+    #[test]
+    fn test_style_parse_hex_color() {
+        let style = Style::parse("#ff0000").unwrap();
+        assert!(style.color.is_some());
+    }
+
+    #[test]
+    fn test_style_parse_attribute_aliases() {
+        // Test short aliases
+        let bold = Style::parse("b").unwrap();
+        let dim = Style::parse("d").unwrap();
+        let italic = Style::parse("i").unwrap();
+        let underline = Style::parse("u").unwrap();
+
+        assert!(bold.attributes.contains(Attributes::BOLD));
+        assert!(dim.attributes.contains(Attributes::DIM));
+        assert!(italic.attributes.contains(Attributes::ITALIC));
+        assert!(underline.attributes.contains(Attributes::UNDERLINE));
+    }
+
+    #[test]
+    fn test_attributes_empty() {
+        let attrs = Attributes::empty();
+        assert!(attrs.to_sgr_codes().is_empty());
+    }
+
+    #[test]
+    fn test_style_render_ansi_tuple() {
+        let style = Style::new().bold();
+        let (prefix, suffix) = style.render_ansi(ColorSystem::TrueColor);
+
+        assert!(prefix.contains("\x1b[1m"));
+        assert!(suffix.contains("\x1b[0m"));
+    }
+
+    #[test]
+    fn test_style_render_ansi_with_link() {
+        let style = Style::new().bold().link("https://test.com");
+        let (prefix, suffix) = style.render_ansi(ColorSystem::TrueColor);
+
+        assert!(prefix.contains("\x1b]8;;https://test.com"));
+        assert!(suffix.contains("\x1b]8;;\x1b\\"));
+    }
+
+    #[test]
+    fn test_style_stack_empty() {
+        let stack = StyleStack::default();
+        assert!(stack.is_empty());
+        assert_eq!(stack.len(), 1); // Base style always exists
+    }
+
+    #[test]
+    fn test_style_parse_caching() {
+        // Parse same style twice - should return same result (cached)
+        let style1 = Style::parse("bold red").unwrap();
+        let style2 = Style::parse("bold red").unwrap();
+        assert_eq!(style1, style2);
     }
 }

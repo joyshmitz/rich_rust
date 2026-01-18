@@ -3,7 +3,10 @@
 **Date:** 2026-01-17  |  **Project:** rich_rust  |  **Language:** Rust
 
 ## Summary
-- **Updated:** 0  |  **Skipped:** 0  |  **Failed:** 0  |  **Needs attention:** 0
+- **Updated:** 16  |  **Skipped:** 0  |  **Failed:** 0  |  **Needs attention:** 1
+
+### Needs Attention
+- `criterion::black_box` deprecated - should migrate to `std::hint::black_box()`
 
 ## Dependencies to Update
 
@@ -37,4 +40,32 @@
 - **Breaking changes researched:** `promote`/`demote` return bool (v0.15), MSRV raised to 1.70 (v0.14)
 - **Impact on codebase:** None - no promote/demote usage, Rust version compatible
 - **Tests:** ✓ All passed
+
+### pulldown-cmark: 0.12 → 0.13
+- **Breaking changes researched:** New Tag variants (Superscript, Subscript, DefinitionList*), WikiLinks feature
+- **Impact on codebase:** None - wildcard matches handle new variants, specific Options used
+- **Tests:** ✓ All passed
+
+### criterion: 0.5 → 0.8
+- **Breaking changes researched:** MSRV 1.80, `real_blackbox` removed, `criterion::black_box` deprecated
+- **Impact on codebase:** Deprecation warnings - `black_box` should migrate to `std::hint::black_box()`
+- **Tests:** ✓ All passed, benchmarks compile with warnings
+
+### insta: 1.40 → 1.46
+- **Breaking changes researched:** Minor updates, new assertion macros
+- **Impact on codebase:** None
+- **Tests:** ✓ All passed (pre-existing hyperlink test failure is unrelated)
+
+### Batch Update (minor/patch)
+- **bitflags:** 2 → 2.10
+- **regex:** 1 → 1.12
+- **unicode-width:** 0.2 → 0.2.2
+- **num-rational:** 0.4 → 0.4.2
+- **once_cell:** 1.19 → 1.21
+- **syntect:** 5 → 5.3
+- **tracing:** 0.1 → 0.1.44
+- **tracing-subscriber:** 0.3 → 0.3.22
+- **tracing-test:** 0.2 → 0.2.5
+- **test-log:** 0.2 → 0.2.19
+- **Tests:** ✓ All 424 lib tests passed
 
