@@ -127,21 +127,33 @@ The entire codebase uses safe Rust. No segfaults, no data races, no undefined be
 
 API and behavior closely follow Python Rich. If you know Rich, you know rich_rust. The [RICH_SPEC.md](RICH_SPEC.md) documents every behavioral detail.
 
-### 3. Trait-Based Extensibility
+### 3. Renderable Extensibility
 
-Instead of Python's duck typing, rich_rust uses Rust traits:
+Instead of Python's duck typing, rich_rust uses explicit render methods and an
+optional measurement trait:
 
 ```rust
-pub trait ConsoleRender {
-    fn render(&self, width: usize) -> Vec<Segment>;
+use rich_rust::console::{Console, ConsoleOptions};
+use rich_rust::measure::{Measurement, RichMeasure};
+use rich_rust::segment::Segment;
+
+struct MyRenderable;
+
+impl MyRenderable {
+    fn render(&self, width: usize) -> Vec<Segment> {
+        vec![Segment::plain(format!("width={width}"))]
+    }
 }
 
-pub trait Measure {
-    fn measure(&self) -> Measurement;
+impl RichMeasure for MyRenderable {
+    fn rich_measure(&self, _console: &Console, _options: &ConsoleOptions) -> Measurement {
+        Measurement::exact(10)
+    }
 }
 ```
 
-Implement these traits to create custom renderables.
+Renderables expose `render(...) -> Vec<Segment>`. Implement `RichMeasure` to
+participate in layout width calculations.
 
 ### 4. Automatic Terminal Detection
 
@@ -418,7 +430,7 @@ for seg in md.render(80) {
 ┌─────────────────────────────────────────────────────────────┐
 │                      Renderables                             │
 │  (Text, Table, Panel, Rule, Tree, Progress, Syntax, etc.)   │
-│  Implement: ConsoleRender + Measure traits                   │
+│  Expose render() + optional RichMeasure for sizing           │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼

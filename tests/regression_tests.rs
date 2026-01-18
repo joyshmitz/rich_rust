@@ -31,6 +31,9 @@ use common::{init_test_logging, log_test_context, test_phase};
 use rich_rust::r#box::SQUARE;
 use rich_rust::color::ColorSystem;
 use rich_rust::prelude::*;
+use rich_rust::segment::{ControlCode, ControlType};
+use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 
 // =============================================================================
 // PARSING REGRESSION TESTS
@@ -944,4 +947,124 @@ fn regression_rendering_control_character_width() {
     }
 
     tracing::info!("Regression test PASSED: control character width");
+}
+
+/// Regression test: Console control segments emit ANSI/control sequences
+///
+/// Bug: Control segments were silently skipped in Console output
+/// Fixed: Control segments now emit ANSI/control sequences in order
+///
+/// This test ensures control codes are written to the output stream.
+#[test]
+fn regression_console_control_segments_emit_sequences() {
+    init_test_logging();
+    log_test_context(
+        "regression_console_control_segments_emit_sequences",
+        "Ensures control segments are emitted in order",
+    );
+
+    let _phase = test_phase("control_segments");
+
+    #[derive(Clone)]
+    struct SharedBuffer {
+        inner: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl Write for SharedBuffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let mut guard = self.inner.lock().expect("buffer lock poisoned");
+            guard.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let buffer = Arc::new(Mutex::new(Vec::new()));
+    let writer = Box::new(SharedBuffer {
+        inner: Arc::clone(&buffer),
+    });
+
+    let console = Console::builder().file(writer).build();
+
+    let segments = vec![
+        Segment::control(vec![ControlCode::new(ControlType::Bell)]),
+        Segment::control(vec![ControlCode::with_params(
+            ControlType::CursorUp,
+            vec![2],
+        )]),
+        Segment::control(vec![ControlCode::with_params(
+            ControlType::CursorMoveTo,
+            vec![3, 4],
+        )]),
+        Segment::control(vec![ControlCode::with_params(
+            ControlType::EraseInLine,
+            vec![2],
+        )]),
+    ];
+
+    console.print_segments(&segments);
+
+    let output = String::from_utf8(buffer.lock().expect("buffer lock poisoned").clone())
+        .expect("output should be valid UTF-8");
+    let expected = "\x07\x1b[2A\x1b[3;4H\x1b[2K";
+    assert_eq!(
+        output, expected,
+        "Control sequence output should match expected ANSI codes"
+    );
+
+    tracing::info!("Regression test PASSED: control segments emit sequences");
+}
+
+/// Regression test: SetWindowTitle uses segment text when provided
+#[test]
+fn regression_console_control_set_window_title() {
+    init_test_logging();
+    log_test_context(
+        "regression_console_control_set_window_title",
+        "Ensures SetWindowTitle emits OSC title sequence",
+    );
+
+    let _phase = test_phase("control_title");
+
+    #[derive(Clone)]
+    struct SharedBuffer {
+        inner: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl Write for SharedBuffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let mut guard = self.inner.lock().expect("buffer lock poisoned");
+            guard.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let buffer = Arc::new(Mutex::new(Vec::new()));
+    let writer = Box::new(SharedBuffer {
+        inner: Arc::clone(&buffer),
+    });
+
+    let console = Console::builder().file(writer).build();
+
+    let segment = Segment {
+        text: "rich_rust".to_string(),
+        style: None,
+        control: Some(vec![ControlCode::new(ControlType::SetWindowTitle)]),
+    };
+
+    console.print_segments(&[segment]);
+
+    let output = String::from_utf8(buffer.lock().expect("buffer lock poisoned").clone())
+        .expect("output should be valid UTF-8");
+    let expected = "\x1b]0;rich_rust\x07";
+    assert_eq!(output, expected, "Window title OSC sequence should match");
+
+    tracing::info!("Regression test PASSED: set window title control");
 }

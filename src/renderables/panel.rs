@@ -85,21 +85,12 @@ impl Panel {
     /// Create a panel from a Text object.
     #[must_use]
     pub fn from_rich_text(text: &Text, width: usize) -> Self {
-        // Render text to lines
-        let segments = text.render("");
-        let mut lines = Vec::new();
-        let mut current_line = Vec::new();
-
-        for segment in segments {
-            if segment.is_control() && segment.text == "\n" {
-                lines.push(std::mem::take(&mut current_line));
-            } else {
-                current_line.push(segment);
-            }
-        }
-        if !current_line.is_empty() {
-            lines.push(current_line);
-        }
+        // Split into logical lines first, then render each line to segments.
+        let lines = text
+            .split_lines()
+            .into_iter()
+            .map(|line| line.render(""))
+            .collect();
 
         Self {
             content_lines: lines,

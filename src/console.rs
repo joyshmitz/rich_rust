@@ -78,7 +78,7 @@
 //!
 //! You can override these with the builder pattern or by setting explicit values.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::{self, Write};
 
 use crate::color::ColorSystem;
@@ -311,7 +311,7 @@ pub struct Console {
     /// Tab expansion size.
     tab_size: usize,
     /// Buffer output for export.
-    record: bool,
+    record: Cell<bool>,
     /// Parse markup by default.
     markup: bool,
     /// Enable emoji rendering.
@@ -327,7 +327,7 @@ pub struct Console {
     /// Output stream (defaults to stdout).
     file: RefCell<Box<dyn Write + Send>>,
     /// Recording buffer.
-    buffer: Vec<Segment>,
+    buffer: RefCell<Vec<Segment>>,
     /// Cached terminal detection.
     is_terminal: bool,
     /// Detected/configured color system.
@@ -340,7 +340,7 @@ impl std::fmt::Debug for Console {
             .field("color_system", &self.color_system)
             .field("force_terminal", &self.force_terminal)
             .field("tab_size", &self.tab_size)
-            .field("record", &self.record)
+            .field("record", &self.record.get())
             .field("markup", &self.markup)
             .field("emoji", &self.emoji)
             .field("highlight", &self.highlight)
@@ -348,7 +348,7 @@ impl std::fmt::Debug for Console {
             .field("height", &self.height)
             .field("safe_box", &self.safe_box)
             .field("file", &"<dyn Write>")
-            .field("buffer", &self.buffer)
+            .field("buffer_len", &self.buffer.borrow().len())
             .field("is_terminal", &self.is_terminal)
             .field("detected_color_system", &self.detected_color_system)
             .finish()
@@ -376,7 +376,7 @@ impl Console {
             color_system: None,
             force_terminal: None,
             tab_size: 8,
-            record: false,
+            record: Cell::new(false),
             markup: true,
             emoji: true,
             highlight: true,
@@ -384,7 +384,7 @@ impl Console {
             height: None,
             safe_box: false,
             file: RefCell::new(Box::new(io::stdout())),
-            buffer: Vec::new(),
+            buffer: RefCell::new(Vec::new()),
             is_terminal,
             detected_color_system,
         }
@@ -463,14 +463,14 @@ impl Console {
 
     /// Enable recording mode.
     pub fn begin_capture(&mut self) {
-        self.record = true;
-        self.buffer.clear();
+        self.record.set(true);
+        self.buffer.borrow_mut().clear();
     }
 
     /// End recording and return captured segments.
     pub fn end_capture(&mut self) -> Vec<Segment> {
-        self.record = false;
-        std::mem::take(&mut self.buffer)
+        self.record.set(false);
+        std::mem::take(&mut *self.buffer.borrow_mut())
     }
 
     /// Print styled text to the console.
@@ -563,11 +563,15 @@ impl Console {
 
     /// Write segments to a writer.
     fn write_segments<W: Write>(&self, writer: &mut W, segments: &[Segment]) -> io::Result<()> {
+        if self.record.get() {
+            self.buffer.borrow_mut().extend(segments.iter().cloned());
+        }
+
         let color_system = self.color_system();
 
         for segment in segments {
             if segment.is_control() {
-                // Handle control codes
+                self.write_control_codes(writer, segment)?;
                 continue;
             }
 
@@ -589,6 +593,77 @@ impl Console {
         writer.flush()
     }
 
+    fn write_control_codes<W: Write>(&self, writer: &mut W, segment: &Segment) -> io::Result<()> {
+        let Some(ref controls) = segment.control else {
+            return Ok(());
+        };
+
+        for control in controls {
+            match control.control_type {
+                crate::segment::ControlType::Bell => {
+                    write!(writer, "\x07")?;
+                }
+                crate::segment::ControlType::CarriageReturn => {
+                    write!(writer, "\r")?;
+                }
+                crate::segment::ControlType::Home => {
+                    write!(writer, "\x1b[H")?;
+                }
+                crate::segment::ControlType::Clear => {
+                    write!(writer, "\x1b[2J")?;
+                }
+                crate::segment::ControlType::ShowCursor => {
+                    write!(writer, "\x1b[?25h")?;
+                }
+                crate::segment::ControlType::HideCursor => {
+                    write!(writer, "\x1b[?25l")?;
+                }
+                crate::segment::ControlType::EnableAltScreen => {
+                    write!(writer, "\x1b[?1049h")?;
+                }
+                crate::segment::ControlType::DisableAltScreen => {
+                    write!(writer, "\x1b[?1049l")?;
+                }
+                crate::segment::ControlType::CursorUp => {
+                    let n = control_param(&control.params, 0, 1);
+                    write!(writer, "\x1b[{n}A")?;
+                }
+                crate::segment::ControlType::CursorDown => {
+                    let n = control_param(&control.params, 0, 1);
+                    write!(writer, "\x1b[{n}B")?;
+                }
+                crate::segment::ControlType::CursorForward => {
+                    let n = control_param(&control.params, 0, 1);
+                    write!(writer, "\x1b[{n}C")?;
+                }
+                crate::segment::ControlType::CursorBackward => {
+                    let n = control_param(&control.params, 0, 1);
+                    write!(writer, "\x1b[{n}D")?;
+                }
+                crate::segment::ControlType::CursorMoveToColumn => {
+                    let column = control_param(&control.params, 0, 1);
+                    write!(writer, "\x1b[{column}G")?;
+                }
+                crate::segment::ControlType::CursorMoveTo => {
+                    let row = control_param(&control.params, 0, 1);
+                    let column = control_param(&control.params, 1, 1);
+                    write!(writer, "\x1b[{row};{column}H")?;
+                }
+                crate::segment::ControlType::EraseInLine => {
+                    let mode = erase_in_line_mode(&control.params);
+                    write!(writer, "\x1b[{mode}K")?;
+                }
+                crate::segment::ControlType::SetWindowTitle => {
+                    if let Some(title) = control_title(segment, control) {
+                        write!(writer, "\x1b]0;{title}\x07")?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Print a blank line.
     pub fn line(&self) {
         let mut file = self.file.borrow_mut();
@@ -603,11 +678,11 @@ impl Console {
         let mut file = self.file.borrow_mut();
         if let Some(title) = title {
             let title_len = crate::cells::cell_len(title);
-            let padding = width.saturating_sub(title_len + 4) / 2;
-            let left = line_char.to_string().repeat(padding);
-            let right = line_char
-                .to_string()
-                .repeat(width - padding - title_len - 4);
+            let available = width.saturating_sub(title_len + 2);
+            let left_pad = available / 2;
+            let right_pad = available - left_pad;
+            let left = line_char.to_string().repeat(left_pad);
+            let right = line_char.to_string().repeat(right_pad);
             let _ = writeln!(file, "{left} {title} {right}");
         } else {
             let _ = writeln!(file, "{}", line_char.to_string().repeat(width));
@@ -675,6 +750,42 @@ impl Console {
             &PrintOptions::new().with_markup(self.markup),
         );
     }
+}
+
+fn control_param(params: &[i32], index: usize, default: i32) -> i32 {
+    params
+        .get(index)
+        .copied()
+        .filter(|value| *value > 0)
+        .unwrap_or(default)
+}
+
+fn erase_in_line_mode(params: &[i32]) -> i32 {
+    if let Some(value) = params.first().copied()
+        && (0..=2).contains(&value)
+    {
+        return value;
+    }
+    2
+}
+
+fn control_title(segment: &Segment, control: &crate::segment::ControlCode) -> Option<String> {
+    if !segment.text.is_empty() {
+        return Some(segment.text.clone());
+    }
+
+    if control.params.is_empty() {
+        return None;
+    }
+
+    let mut title = String::with_capacity(control.params.len());
+    for param in &control.params {
+        if let Ok(byte) = u8::try_from(*param) {
+            title.push(byte as char);
+        }
+    }
+
+    if title.is_empty() { None } else { Some(title) }
 }
 
 /// Log level for `console.log()`.
@@ -888,6 +999,37 @@ mod tests {
         // For testing, we just verify the mechanism
         let segments = console.end_capture();
         assert!(segments.is_empty()); // Nothing captured in this test
+    }
+
+    #[test]
+    fn test_capture_collects_segments() {
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+        impl Write for SharedBuffer {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().write(buf)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.0.lock().unwrap().flush()
+            }
+        }
+
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let mut console = Console::builder()
+            .width(40)
+            .markup(false)
+            .file(Box::new(buffer))
+            .build();
+
+        console.begin_capture();
+        console.print_plain("Hello");
+        let segments = console.end_capture();
+
+        let captured: String = segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(captured.contains("Hello"));
     }
 
     #[test]

@@ -319,30 +319,69 @@ impl Text {
 
     /// Highlight specific words with a style.
     pub fn highlight_words(&mut self, words: &[&str], style: &Style, case_sensitive: bool) {
-        let text = if case_sensitive {
-            self.plain.clone()
-        } else {
-            self.plain.to_lowercase()
-        };
+        if words.is_empty() {
+            return;
+        }
+
+        if case_sensitive {
+            for word in words {
+                if word.is_empty() {
+                    continue;
+                }
+                let mut search_start = 0;
+                while let Some(pos) = self.plain[search_start..].find(word) {
+                    let byte_start = search_start + pos;
+                    let byte_end = byte_start + word.len();
+
+                    // Convert to char indices
+                    let char_start = self.plain[..byte_start].chars().count();
+                    let char_end = self.plain[..byte_end].chars().count();
+
+                    if char_start < char_end {
+                        self.spans
+                            .push(Span::new(char_start, char_end, style.clone()));
+                    }
+                    search_start = byte_end;
+                }
+            }
+            return;
+        }
+
+        // Case-insensitive matching requires stable index mapping between
+        // the lowercased string and the original string.
+        let mut lowered = String::new();
+        let mut lower_to_original: Vec<usize> = Vec::new();
+
+        for (orig_idx, c) in self.plain.chars().enumerate() {
+            for lower in c.to_lowercase() {
+                lowered.push(lower);
+                lower_to_original.push(orig_idx);
+            }
+        }
 
         for word in words {
-            let search_word = if case_sensitive {
-                word.to_string()
-            } else {
-                word.to_lowercase()
-            };
+            let search_word = word.to_lowercase();
+            if search_word.is_empty() {
+                continue;
+            }
 
             let mut search_start = 0;
-            while let Some(pos) = text[search_start..].find(&search_word) {
+            while let Some(pos) = lowered[search_start..].find(&search_word) {
                 let byte_start = search_start + pos;
-                let byte_end = byte_start + word.len();
+                let byte_end = byte_start + search_word.len();
 
-                // Convert to char indices
-                let char_start = self.plain[..byte_start].chars().count();
-                let char_end = self.plain[..byte_end].chars().count();
+                let char_start = lowered[..byte_start].chars().count();
+                let char_end = lowered[..byte_end].chars().count();
 
-                self.spans
-                    .push(Span::new(char_start, char_end, style.clone()));
+                if char_start < char_end && char_end <= lower_to_original.len() {
+                    let orig_start = lower_to_original[char_start];
+                    let orig_end = lower_to_original[char_end - 1] + 1;
+                    if orig_start < orig_end {
+                        self.spans
+                            .push(Span::new(orig_start, orig_end, style.clone()));
+                    }
+                }
+
                 search_start = byte_end;
             }
         }
@@ -641,26 +680,51 @@ impl Text {
     /// Convert text to lowercase.
     #[must_use]
     pub fn to_lowercase(&self) -> Self {
-        Self {
-            plain: self.plain.to_lowercase(),
-            spans: self.spans.clone(),
-            length: self.length, // Character count unchanged for most cases
-            style: self.style.clone(),
-            justify: self.justify,
-            overflow: self.overflow,
-            no_wrap: self.no_wrap,
-            end: self.end.clone(),
-            tab_size: self.tab_size,
-        }
+        self.map_case(char::to_lowercase)
     }
 
     /// Convert text to uppercase.
     #[must_use]
     pub fn to_uppercase(&self) -> Self {
+        self.map_case(char::to_uppercase)
+    }
+
+    /// Map text case while remapping spans to updated character positions.
+    fn map_case<I, F>(&self, mut mapper: F) -> Self
+    where
+        I: Iterator<Item = char>,
+        F: FnMut(char) -> I,
+    {
+        let old_len = self.plain.chars().count();
+        let mut positions = Vec::with_capacity(old_len + 1);
+        let mut new_plain = String::new();
+        let mut new_len = 0usize;
+
+        positions.push(0);
+        for c in self.plain.chars() {
+            for mapped in mapper(c) {
+                new_plain.push(mapped);
+                new_len += 1;
+            }
+            positions.push(new_len);
+        }
+
+        let mut new_spans = Vec::new();
+        for span in &self.spans {
+            let start = span.start.min(old_len);
+            let end = span.end.min(old_len);
+            let new_start = positions[start];
+            let new_end = positions[end];
+
+            if new_start < new_end {
+                new_spans.push(Span::new(new_start, new_end, span.style.clone()));
+            }
+        }
+
         Self {
-            plain: self.plain.to_uppercase(),
-            spans: self.spans.clone(),
-            length: self.length,
+            plain: new_plain,
+            spans: new_spans,
+            length: new_len,
             style: self.style.clone(),
             justify: self.justify,
             overflow: self.overflow,
@@ -1585,6 +1649,31 @@ mod tests {
     }
 
     #[test]
+    fn test_to_uppercase_updates_length_and_clamps_spans() {
+        let mut text = Text::new("ß");
+        text.stylize_all(Style::new().bold());
+
+        let upper = text.to_uppercase();
+
+        assert_eq!(upper.plain(), "SS");
+        assert_eq!(upper.len(), 2);
+        assert!(upper.spans().iter().all(|span| span.end <= upper.len()));
+    }
+
+    #[test]
+    fn test_to_uppercase_remaps_spans_for_expansion() {
+        let mut text = Text::new("aßb");
+        text.stylize(1, 2, Style::new().bold());
+
+        let upper = text.to_uppercase();
+
+        assert_eq!(upper.plain(), "ASSB");
+        assert_eq!(upper.spans().len(), 1);
+        assert_eq!(upper.spans()[0].start, 1);
+        assert_eq!(upper.spans()[0].end, 3);
+    }
+
+    #[test]
     fn test_append_text_merges_spans() {
         let mut a = Text::new("hello");
         a.stylize(0, 5, Style::new().bold());
@@ -1614,6 +1703,20 @@ mod tests {
         let mut text = Text::new("Hello World HELLO");
         text.highlight_words(&["hello"], &Style::new().bold(), false);
         // Case insensitive - should find 2 matches
+        assert_eq!(text.spans().len(), 2);
+    }
+
+    #[test]
+    fn test_highlight_words_empty_word_ignored() {
+        let mut text = Text::new("Hello");
+        text.highlight_words(&[""], &Style::new().bold(), false);
+        assert!(text.spans().is_empty());
+    }
+
+    #[test]
+    fn test_highlight_words_case_insensitive_unicode() {
+        let mut text = Text::new("Ångström ångström");
+        text.highlight_words(&["ÅNGSTRÖM"], &Style::new().bold(), false);
         assert_eq!(text.spans().len(), 2);
     }
 

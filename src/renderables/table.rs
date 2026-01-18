@@ -847,12 +847,14 @@ impl Table {
         if self.show_header && !self.columns.is_empty() {
             let header_cells: Vec<&Text> = self.columns.iter().map(|c| &c.header).collect();
             let header_styles: Vec<&Style> = self.columns.iter().map(|c| &c.header_style).collect();
+            let header_overrides: Vec<Option<Style>> = vec![None; self.columns.len()];
             segments.extend(self.render_row_content(
                 box_chars,
                 &widths,
                 &header_cells,
                 &header_styles,
                 &self.header_style,
+                &header_overrides,
             ));
 
             // Header separator
@@ -870,13 +872,17 @@ impl Table {
             };
 
             // Pad cells to match column count
-            let cells: Vec<Text> = (0..self.columns.len())
-                .map(|i| {
-                    row.cells
-                        .get(i)
-                        .map_or_else(|| Text::new(""), |c| c.content.clone())
-                })
-                .collect();
+            let mut cells: Vec<Text> = Vec::with_capacity(self.columns.len());
+            let mut overrides: Vec<Option<Style>> = Vec::with_capacity(self.columns.len());
+            for i in 0..self.columns.len() {
+                if let Some(cell) = row.cells.get(i) {
+                    cells.push(cell.content.clone());
+                    overrides.push(cell.style.clone());
+                } else {
+                    cells.push(Text::new(""));
+                    overrides.push(None);
+                }
+            }
             let cell_refs: Vec<&Text> = cells.iter().collect();
 
             let col_styles: Vec<&Style> = self.columns.iter().map(|c| &c.style).collect();
@@ -886,6 +892,7 @@ impl Table {
                 &cell_refs,
                 &col_styles,
                 row_style,
+                &overrides,
             ));
 
             // Row separator
@@ -910,12 +917,14 @@ impl Table {
 
             let footer_cells: Vec<&Text> = self.columns.iter().map(|c| &c.footer).collect();
             let footer_styles: Vec<&Style> = self.columns.iter().map(|c| &c.footer_style).collect();
+            let footer_overrides: Vec<Option<Style>> = vec![None; self.columns.len()];
             segments.extend(self.render_row_content(
                 box_chars,
                 &widths,
                 &footer_cells,
                 &footer_styles,
                 &self.footer_style,
+                &footer_overrides,
             ));
         }
 
@@ -1009,6 +1018,7 @@ impl Table {
         cells: &[&Text],
         cell_styles: &[&Style],
         row_style: &Style,
+        cell_overrides: &[Option<Style>],
     ) -> Vec<Segment> {
         let mut segments = Vec::new();
         let pad_str = " ".repeat(self.padding.0);
@@ -1023,7 +1033,13 @@ impl Table {
 
         for (i, (&width, &cell)) in widths.iter().zip(cells.iter()).enumerate() {
             let cell_style = cell_styles.get(i).copied().unwrap_or(&self.style);
-            let combined_style = row_style.combine(cell_style);
+            let override_style = cell_overrides.get(i).and_then(|style| style.as_ref());
+
+            let mut combined_style = self.style.combine(row_style).combine(cell_style);
+            if let Some(override_style) = override_style {
+                combined_style = combined_style.combine(override_style);
+            }
+            combined_style = combined_style.combine(cell.style());
 
             // Left padding
             if self.pad_edge || i > 0 {
@@ -1031,15 +1047,25 @@ impl Table {
             }
 
             // Cell content
-            let content = cell.plain();
-            let content_width = cells::cell_len(content);
             let justify = self
                 .columns
                 .get(i)
                 .map_or(JustifyMethod::Left, |c| c.justify);
+            let overflow = self
+                .columns
+                .get(i)
+                .map_or(OverflowMethod::Crop, |c| c.overflow);
 
-            // Calculate padding for justification
-            let space = width.saturating_sub(content_width);
+            let mut cell_text = cell.clone();
+            cell_text.set_style(combined_style.clone());
+
+            let content_width = cell_text.cell_len();
+            if content_width > width {
+                cell_text.truncate(width, overflow, false);
+            }
+
+            let displayed_width = cell_text.cell_len();
+            let space = width.saturating_sub(displayed_width);
             let (left_space, right_space) = match justify {
                 JustifyMethod::Left | JustifyMethod::Default => (0, space),
                 JustifyMethod::Right => (space, 0),
@@ -1057,21 +1083,7 @@ impl Table {
                 ));
             }
 
-            // Truncate content if needed
-            let displayed = if content_width > width {
-                truncate_to_width(content, width)
-            } else {
-                content.to_string()
-            };
-
-            // Use combined_style if cell has default style, otherwise use cell's style
-            let cell_text_style = cell.style();
-            let display_style = if cell_text_style.is_null() {
-                combined_style.clone()
-            } else {
-                cell_text_style.clone()
-            };
-            segments.push(Segment::new(&displayed, Some(display_style)));
+            segments.extend(cell_text.render(""));
 
             if right_space > 0 {
                 segments.push(Segment::new(
@@ -1152,26 +1164,11 @@ impl Table {
     }
 }
 
-/// Truncate a string to fit within a cell width.
-fn truncate_to_width(s: &str, max_width: usize) -> String {
-    let mut result = String::new();
-    let mut width = 0;
-
-    for ch in s.chars() {
-        let ch_width = cells::get_character_cell_size(ch);
-        if width + ch_width > max_width {
-            break;
-        }
-        result.push(ch);
-        width += ch_width;
-    }
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::Color;
+    use crate::style::Attributes;
 
     #[test]
     fn test_column_new() {
@@ -1298,5 +1295,42 @@ mod tests {
     fn test_row_end_section() {
         let row = Row::new(vec![Cell::new("X")]).end_section();
         assert!(row.end_section);
+    }
+
+    #[test]
+    fn test_table_cell_style_applies_with_column_style() {
+        let red = Style::new().color(Color::parse("red").unwrap());
+        let bold = Style::new().bold();
+
+        let mut table = Table::new().with_column(Column::new("Col").style(red.clone()));
+        table.add_row(Row::new(vec![Cell::new("X").style(bold.clone())]));
+
+        let segments = table.render(20);
+        let cell_seg = segments
+            .iter()
+            .find(|seg| seg.text.contains('X'))
+            .expect("expected cell content segment");
+
+        let style = cell_seg.style.as_ref().expect("expected styled segment");
+        assert!(style.attributes.contains(Attributes::BOLD));
+        assert_eq!(style.color, red.color);
+    }
+
+    #[test]
+    fn test_table_preserves_text_spans() {
+        let mut text = Text::new("ab");
+        text.stylize(0, 1, Style::new().italic());
+
+        let mut table = Table::new().with_column(Column::new("Col"));
+        table.add_row(Row::new(vec![Cell::new(text)]));
+
+        let segments = table.render(20);
+        let styled_seg = segments
+            .iter()
+            .find(|seg| seg.text.contains('a'))
+            .expect("expected styled text segment");
+
+        let style = styled_seg.style.as_ref().expect("expected styled segment");
+        assert!(style.attributes.contains(Attributes::ITALIC));
     }
 }
