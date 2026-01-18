@@ -1011,6 +1011,78 @@ fn regression_rule_title_exact_width_no_rule_chars() {
     tracing::info!("Regression test PASSED: rule exact width");
 }
 
+/// Regression test: Table title preserves span styles
+///
+/// Bug: Rich text spans in titles could be flattened to plain text
+/// Fixed: Rendering preserves span styles and combines with title style
+#[test]
+fn regression_table_title_preserves_spans() {
+    init_test_logging();
+    log_test_context(
+        "regression_table_title_preserves_spans",
+        "Ensures table titles preserve span styles",
+    );
+
+    let _phase = test_phase("table_title_spans");
+
+    let mut title = Text::new("Title");
+    title.stylize(0, 5, Style::new().bold());
+
+    let mut table = Table::new()
+        .with_column(Column::new("Col"))
+        .title(title)
+        .title_style(Style::new().color(Color::parse("red").unwrap()));
+
+    table.add_row_cells(["1"]);
+
+    let segments = table.render(30);
+    let has_bold_red = segments.iter().any(|seg| {
+        seg.text.contains("Title")
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.attributes.contains(Attributes::BOLD))
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.color.is_some())
+    });
+
+    assert!(has_bold_red, "title should preserve bold + color style");
+    tracing::info!("Regression test PASSED: table title spans preserved");
+}
+
+/// Regression test: Tree label preserves span styles
+///
+/// Bug: Tree labels could lose span styling during render
+/// Fixed: Rendering uses Text::render() and retains span styles
+#[test]
+fn regression_tree_label_preserves_spans() {
+    init_test_logging();
+    log_test_context(
+        "regression_tree_label_preserves_spans",
+        "Ensures tree labels preserve span styles",
+    );
+
+    let _phase = test_phase("tree_label_spans");
+
+    let mut label = Text::new("root");
+    label.stylize(0, 4, Style::new().bold());
+    let tree = Tree::new(TreeNode::new(label));
+
+    let segments = tree.render();
+    let has_bold = segments.iter().any(|seg| {
+        seg.text.contains("root")
+            && seg
+                .style
+                .as_ref()
+                .is_some_and(|style| style.attributes.contains(Attributes::BOLD))
+    });
+
+    assert!(has_bold, "tree label should preserve bold style");
+    tracing::info!("Regression test PASSED: tree label spans preserved");
+}
+
 /// Regression test: Console control segments emit ANSI/control sequences
 ///
 /// Bug: Control segments were silently skipped in Console output
