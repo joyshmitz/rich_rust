@@ -378,7 +378,7 @@ impl Style {
 
     /// Generate ANSI escape codes for this style, appending to an existing buffer.
     ///
-    /// This is more efficient than [`make_ansi_codes`] when you need to reuse buffers
+    /// This is more efficient than [`Self::make_ansi_codes`] when you need to reuse buffers
     /// or avoid allocations in hot paths.
     pub fn make_ansi_codes_into(&self, color_system: ColorSystem, buf: &mut String) {
         use std::fmt::Write;

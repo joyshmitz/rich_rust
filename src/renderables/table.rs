@@ -1,10 +1,66 @@
 //! Table - structured data display with columns and rows.
 //!
-//! A Table renders data in a grid with configurable columns,
-//! optional headers/footers, and flexible styling.
+//! A [`Table`] renders data in a grid with configurable columns,
+//! optional headers/footers, and flexible styling. Tables support:
+//!
+//! - Automatic column width calculation
+//! - Fixed, minimum, and maximum column widths
+//! - Text wrapping and overflow handling
+//! - Header and footer rows
+//! - Cell-level styling and alignment
+//! - Unicode and ASCII box characters
+//!
+//! # Examples
+//!
+//! ## Basic Table
+//!
+//! ```
+//! use rich_rust::renderables::table::{Table, Column, Row, Cell};
+//!
+//! let mut table = Table::new()
+//!     .with_column(Column::new("Name"))
+//!     .with_column(Column::new("Age"));
+//! table.add_row_cells(["Alice", "30"]);
+//! table.add_row_cells(["Bob", "25"]);
+//!
+//! // Render at 40 characters width
+//! let segments = table.render(40);
+//! for seg in segments {
+//!     print!("{}", seg.text);
+//! }
+//! ```
+//!
+//! ## Styled Table
+//!
+//! ```
+//! use rich_rust::renderables::table::{Table, Column, Row, VerticalAlign};
+//! use rich_rust::style::Style;
+//! use rich_rust::text::JustifyMethod;
+//!
+//! let table = Table::new()
+//!     .title("Employee Directory")
+//!     .with_column(Column::new("Name")
+//!         .style(Style::new().bold())
+//!         .min_width(15))
+//!     .with_column(Column::new("Department")
+//!         .justify(JustifyMethod::Center))
+//!     .with_column(Column::new("Salary")
+//!         .justify(JustifyMethod::Right));
+//! ```
+//!
+//! ## Column Configuration
+//!
+//! Columns support various configuration options:
+//!
+//! - `width(n)`: Fixed width in characters
+//! - `min_width(n)`: Minimum width
+//! - `max_width(n)`: Maximum width
+//! - `justify(method)`: Left, right, center, or full justification
+//! - `no_wrap`: Disable text wrapping
+//! - `style(s)`: Apply a style to cell content
 
+use crate::r#box::{ASCII, BoxChars, RowLevel, SQUARE};
 use crate::cells;
-use crate::r#box::{BoxChars, RowLevel, SQUARE, ASCII};
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::{JustifyMethod, OverflowMethod, Text};
@@ -607,27 +663,32 @@ impl Table {
         let available = max_width.saturating_sub(overhead);
 
         // Calculate natural widths for each column
-        let mut widths: Vec<usize> = self.columns.iter().enumerate().map(|(i, col)| {
-            // Get max width from header, footer, and all cells
-            let mut max_w = col.header_width();
-            max_w = max_w.max(col.footer_width());
+        let mut widths: Vec<usize> = self
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, col)| {
+                // Get max width from header, footer, and all cells
+                let mut max_w = col.header_width();
+                max_w = max_w.max(col.footer_width());
 
-            for row in &self.rows {
-                if let Some(cell) = row.cells.get(i) {
-                    max_w = max_w.max(cell.width());
+                for row in &self.rows {
+                    if let Some(cell) = row.cells.get(i) {
+                        max_w = max_w.max(cell.width());
+                    }
                 }
-            }
 
-            // Apply column constraints
-            if let Some(fixed) = col.width {
-                return fixed;
-            }
+                // Apply column constraints
+                if let Some(fixed) = col.width {
+                    return fixed;
+                }
 
-            let min_w = col.min_width.unwrap_or(1);
-            let max_col_w = col.max_width.unwrap_or(usize::MAX);
+                let min_w = col.min_width.unwrap_or(1);
+                let max_col_w = col.max_width.unwrap_or(usize::MAX);
 
-            max_w.max(min_w).min(max_col_w)
-        }).collect();
+                max_w.max(min_w).min(max_col_w)
+            })
+            .collect();
 
         // Calculate total and adjust if needed
         let total: usize = widths.iter().sum();
@@ -654,12 +715,15 @@ impl Table {
         let excess = total - available;
 
         // Get minimum widths
-        let minimums: Vec<usize> = self.columns.iter()
+        let minimums: Vec<usize> = self
+            .columns
+            .iter()
             .map(|col| col.min_width.unwrap_or(1))
             .collect();
 
         // Calculate shrinkable amount per column
-        let shrinkable: Vec<usize> = result.iter()
+        let shrinkable: Vec<usize> = result
+            .iter()
             .zip(minimums.iter())
             .map(|(w, m)| w.saturating_sub(*m))
             .collect();
@@ -762,7 +826,12 @@ impl Table {
         // Title
         if let Some(title) = &self.title {
             let total_width = self.total_row_width(&widths);
-            segments.extend(self.render_title_or_caption(title, total_width, &self.title_style, self.title_justify));
+            segments.extend(self.render_title_or_caption(
+                title,
+                total_width,
+                &self.title_style,
+                self.title_justify,
+            ));
             segments.push(Segment::line());
         }
 
@@ -777,7 +846,13 @@ impl Table {
         if self.show_header && !self.columns.is_empty() {
             let header_cells: Vec<&Text> = self.columns.iter().map(|c| &c.header).collect();
             let header_styles: Vec<&Style> = self.columns.iter().map(|c| &c.header_style).collect();
-            segments.extend(self.render_row_content(box_chars, &widths, &header_cells, &header_styles, &self.header_style));
+            segments.extend(self.render_row_content(
+                box_chars,
+                &widths,
+                &header_cells,
+                &header_styles,
+                &self.header_style,
+            ));
 
             // Header separator
             let sep = self.build_separator(box_chars, &widths, RowLevel::HeadRow);
@@ -796,7 +871,8 @@ impl Table {
             // Pad cells to match column count
             let cells: Vec<Text> = (0..self.columns.len())
                 .map(|i| {
-                    row.cells.get(i)
+                    row.cells
+                        .get(i)
                         .map(|c| c.content.clone())
                         .unwrap_or_else(|| Text::new(""))
                 })
@@ -804,7 +880,13 @@ impl Table {
             let cell_refs: Vec<&Text> = cells.iter().collect();
 
             let col_styles: Vec<&Style> = self.columns.iter().map(|c| &c.style).collect();
-            segments.extend(self.render_row_content(box_chars, &widths, &cell_refs, &col_styles, row_style));
+            segments.extend(self.render_row_content(
+                box_chars,
+                &widths,
+                &cell_refs,
+                &col_styles,
+                row_style,
+            ));
 
             // Row separator
             if self.show_lines || row.end_section {
@@ -828,7 +910,13 @@ impl Table {
 
             let footer_cells: Vec<&Text> = self.columns.iter().map(|c| &c.footer).collect();
             let footer_styles: Vec<&Style> = self.columns.iter().map(|c| &c.footer_style).collect();
-            segments.extend(self.render_row_content(box_chars, &widths, &footer_cells, &footer_styles, &self.footer_style));
+            segments.extend(self.render_row_content(
+                box_chars,
+                &widths,
+                &footer_cells,
+                &footer_styles,
+                &self.footer_style,
+            ));
         }
 
         // Bottom border
@@ -841,7 +929,12 @@ impl Table {
         // Caption
         if let Some(caption) = &self.caption {
             let total_width = self.total_row_width(&widths);
-            segments.extend(self.render_title_or_caption(caption, total_width, &self.caption_style, self.caption_justify));
+            segments.extend(self.render_title_or_caption(
+                caption,
+                total_width,
+                &self.caption_style,
+                self.caption_justify,
+            ));
             segments.push(Segment::line());
         }
 
@@ -899,7 +992,11 @@ impl Table {
     fn total_row_width(&self, widths: &[usize]) -> usize {
         let content: usize = widths.iter().sum();
         let padding = widths.len() * self.padding.0 * 2;
-        let separators = if widths.len() > 1 { widths.len() - 1 } else { 0 };
+        let separators = if widths.len() > 1 {
+            widths.len() - 1
+        } else {
+            0
+        };
         let edges = if self.show_edge { 2 } else { 0 };
         content + padding + separators + edges
     }
@@ -936,7 +1033,11 @@ impl Table {
             // Cell content
             let content = cell.plain();
             let content_width = cells::cell_len(content);
-            let justify = self.columns.get(i).map(|c| c.justify).unwrap_or(JustifyMethod::Left);
+            let justify = self
+                .columns
+                .get(i)
+                .map(|c| c.justify)
+                .unwrap_or(JustifyMethod::Left);
 
             // Calculate padding for justification
             let space = width.saturating_sub(content_width);
@@ -951,7 +1052,10 @@ impl Table {
             };
 
             if left_space > 0 {
-                segments.push(Segment::new(&" ".repeat(left_space), Some(combined_style.clone())));
+                segments.push(Segment::new(
+                    &" ".repeat(left_space),
+                    Some(combined_style.clone()),
+                ));
             }
 
             // Truncate content if needed
@@ -971,7 +1075,10 @@ impl Table {
             segments.push(Segment::new(&displayed, Some(display_style)));
 
             if right_space > 0 {
-                segments.push(Segment::new(&" ".repeat(right_space), Some(combined_style.clone())));
+                segments.push(Segment::new(
+                    &" ".repeat(right_space),
+                    Some(combined_style.clone()),
+                ));
             }
 
             // Right padding
@@ -1119,9 +1226,7 @@ mod tests {
 
     #[test]
     fn test_table_ascii() {
-        let mut table = Table::new()
-            .with_column(Column::new("X"))
-            .ascii();
+        let mut table = Table::new().with_column(Column::new("X")).ascii();
 
         table.add_row_cells(["1"]);
 
@@ -1145,9 +1250,7 @@ mod tests {
 
     #[test]
     fn test_table_with_title() {
-        let mut table = Table::new()
-            .with_column(Column::new("X"))
-            .title("My Table");
+        let mut table = Table::new().with_column(Column::new("X")).title("My Table");
 
         table.add_row_cells(["1"]);
 
