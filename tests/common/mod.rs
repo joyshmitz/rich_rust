@@ -25,6 +25,11 @@
 //! - `RUST_LOG=debug` - Enable debug logging in tests
 //! - `RUST_LOG=rich_rust::color=trace` - Module-specific tracing
 //! - `TEST_LOG_JSON=1` - Output JSON format for CI parsing
+//!
+//! Note: Not all test utilities are used in every test module, but they're available
+//! for consistent test infrastructure across the suite.
+
+#![allow(dead_code)]
 
 pub mod assertions;
 
