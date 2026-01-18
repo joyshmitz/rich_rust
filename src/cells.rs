@@ -223,4 +223,198 @@ mod tests {
         assert_eq!(get_character_cell_size('\0'), 0);
         assert_eq!(get_character_cell_size('\x1b'), 0); // ESC
     }
+
+    // ============================================================================
+    // SPEC VALIDATION TESTS - RICH_SPEC.md Section 12 (Unicode Cell Width)
+    // ============================================================================
+
+    // 12.1 Cell Width Concept - Most characters = 1 cell, CJK/emoji = 2 cells
+    #[test]
+    fn test_spec_basic_width_concept() {
+        // ASCII printable = 1 cell
+        for c in ' '..='~' {
+            assert_eq!(get_character_cell_size(c), 1, "ASCII '{c}' should be 1 cell");
+        }
+
+        // CJK = 2 cells per character
+        let cjk_chars = ['日', '本', '語', '中', '文', '한', '국', '어'];
+        for c in cjk_chars {
+            assert_eq!(get_character_cell_size(c), 2, "CJK '{c}' should be 2 cells");
+        }
+
+        // Control characters = 0 cells
+        assert_eq!(get_character_cell_size('\x00'), 0); // NULL
+        assert_eq!(get_character_cell_size('\x01'), 0); // SOH
+        assert_eq!(get_character_cell_size('\x1f'), 0); // US
+    }
+
+    // 12.2 Cell Width Table - Verify specific Unicode ranges
+    #[test]
+    fn test_spec_cell_width_ranges() {
+        // Combining diacritical marks (768-879) = 0 width
+        assert_eq!(get_character_cell_size('\u{0300}'), 0); // Combining grave accent
+        assert_eq!(get_character_cell_size('\u{0301}'), 0); // Combining acute accent
+
+        // Hangul Jamo (4352-4447) = 2 width
+        assert_eq!(get_character_cell_size('\u{1100}'), 2); // Hangul Choseong Kiyeok
+
+        // Ideographic space (12288) = 2 width
+        assert_eq!(get_character_cell_size('\u{3000}'), 2); // Ideographic space
+
+        // CJK Unified Ideographs (19968-40956) = 2 width
+        assert_eq!(get_character_cell_size('\u{4E00}'), 2); // CJK character "one"
+        assert_eq!(get_character_cell_size('\u{9FCC}'), 2); // Another CJK character
+    }
+
+    // 12.3 Fast-Path Detection - ASCII should be efficient
+    #[test]
+    fn test_spec_ascii_fast_path() {
+        // Printable ASCII (0x20-0x7E) = 1 cell
+        assert_eq!(get_character_cell_size(' '), 1);  // 0x20
+        assert_eq!(get_character_cell_size('~'), 1);  // 0x7E
+        assert_eq!(get_character_cell_size('A'), 1);
+        assert_eq!(get_character_cell_size('z'), 1);
+        assert_eq!(get_character_cell_size('0'), 1);
+        assert_eq!(get_character_cell_size('!'), 1);
+
+        // Latin Extended (0xA0-0x02FF) = 1 cell
+        assert_eq!(get_character_cell_size('\u{00A0}'), 1); // Non-breaking space
+        assert_eq!(get_character_cell_size('é'), 1);        // e with acute
+        assert_eq!(get_character_cell_size('ñ'), 1);        // n with tilde
+    }
+
+    // 12.4 Cell Width Algorithm - Total string width
+    #[test]
+    fn test_spec_cell_len_algorithm() {
+        // Pure ASCII
+        assert_eq!(cell_len("hello"), 5);
+        assert_eq!(cell_len(""), 0);
+
+        // Pure CJK (each char = 2 cells)
+        assert_eq!(cell_len("日本語"), 6);  // 3 chars * 2 cells
+        assert_eq!(cell_len("中文测试"), 8); // 4 chars * 2 cells
+
+        // Mixed ASCII and CJK
+        assert_eq!(cell_len("Hello日本"), 9);  // 5 + 2*2
+        assert_eq!(cell_len("a中b"), 4);       // 1 + 2 + 1
+
+        // With control characters (0 width)
+        assert_eq!(cell_len("\x1b[31mred"), 3); // ESC [ 3 1 m are 0-width, "red" is 3
+    }
+
+    // 12.5 Cell-Based String Operations - set_cell_size
+    #[test]
+    fn test_spec_set_cell_size_operations() {
+        // Exact fit
+        assert_eq!(set_cell_size("hello", 5), "hello");
+
+        // Padding needed
+        let padded = set_cell_size("hi", 5);
+        assert_eq!(padded, "hi   ");
+        assert_eq!(cell_len(&padded), 5);
+
+        // Truncation needed
+        let truncated = set_cell_size("hello world", 5);
+        assert_eq!(truncated, "hello");
+        assert_eq!(cell_len(&truncated), 5);
+
+        // CJK truncation - must handle partial wide characters
+        let cjk_trunc = set_cell_size("日本語", 5);
+        // Can only fit 2 full characters (4 cells), need 1 space to reach 5
+        assert_eq!(cell_len(&cjk_trunc), 5);
+        assert!(cjk_trunc.starts_with("日本"));
+
+        // Mixed truncation
+        let mixed = set_cell_size("Hello日本", 7);
+        assert_eq!(cell_len(&mixed), 7);
+    }
+
+    // 12.5 Cell-Based String Operations - chop_cells
+    #[test]
+    fn test_spec_chop_cells_operations() {
+        // ASCII chopping
+        let (left, right) = chop_cells("hello world", 5);
+        assert_eq!(left, "hello");
+        assert_eq!(right, " world");
+
+        // CJK chopping - stops before exceeding width
+        let (left, right) = chop_cells("日本語", 3);
+        assert_eq!(left, "日");  // 2 cells, next would be 4
+        assert_eq!(right, "本語");
+        assert_eq!(cell_len(left), 2);
+
+        // Exact width boundary
+        let (left, right) = chop_cells("日本語", 4);
+        assert_eq!(left, "日本");  // Exactly 4 cells
+        assert_eq!(right, "語");
+
+        // Zero width
+        let (left, right) = chop_cells("hello", 0);
+        assert_eq!(left, "");
+        assert_eq!(right, "hello");
+    }
+
+    // Additional: cell_positions mapping
+    #[test]
+    fn test_spec_cell_positions_mapping() {
+        // Pure ASCII - byte pos = cell pos
+        let pos = cell_positions("abc");
+        assert_eq!(pos, vec![(0, 0), (1, 1), (2, 2)]);
+
+        // Mixed content - cell positions account for wide chars
+        let pos = cell_positions("a日b");
+        assert_eq!(pos[0], (0, 0));  // 'a' at byte 0, cell 0
+        assert_eq!(pos[1], (1, 1));  // '日' at byte 1, cell 1
+        assert_eq!(pos[2], (4, 3));  // 'b' at byte 4 (日 is 3 bytes), cell 3 (日 is 2 cells)
+    }
+
+    // Additional: cell_to_byte_index conversion
+    #[test]
+    fn test_spec_cell_to_byte_index() {
+        // ASCII
+        assert_eq!(cell_to_byte_index("hello", 0), Some(0));
+        assert_eq!(cell_to_byte_index("hello", 3), Some(3));
+        assert_eq!(cell_to_byte_index("hello", 5), Some(5));
+        assert_eq!(cell_to_byte_index("hello", 10), None);
+
+        // With wide characters
+        let s = "a日b";
+        assert_eq!(cell_to_byte_index(s, 0), Some(0)); // 'a'
+        assert_eq!(cell_to_byte_index(s, 1), Some(1)); // '日' starts
+        assert_eq!(cell_to_byte_index(s, 3), Some(4)); // 'b'
+    }
+
+    // Additional: has_wide_chars detection
+    #[test]
+    fn test_spec_has_wide_chars() {
+        // ASCII only
+        assert!(!has_wide_chars("hello world"));
+        assert!(!has_wide_chars("Hello, World! 123"));
+        assert!(!has_wide_chars(""));
+
+        // Contains wide chars
+        assert!(has_wide_chars("日"));
+        assert!(has_wide_chars("Hello日本"));
+        assert!(has_wide_chars("a中b文c"));
+    }
+
+    // Edge case: Empty strings
+    #[test]
+    fn test_spec_empty_string_handling() {
+        assert_eq!(cell_len(""), 0);
+        assert_eq!(set_cell_size("", 5), "     ");
+        let (left, right) = chop_cells("", 5);
+        assert_eq!(left, "");
+        assert_eq!(right, "");
+        assert!(cell_positions("").is_empty());
+    }
+
+    // Edge case: Full-width punctuation
+    #[test]
+    fn test_spec_fullwidth_punctuation() {
+        // Full-width forms (U+FF00-U+FF5E) should be 2 cells
+        assert_eq!(get_character_cell_size('！'), 2); // Full-width exclamation
+        assert_eq!(get_character_cell_size('Ａ'), 2); // Full-width A
+        assert_eq!(cell_len("！Ａ"), 4);
+    }
 }

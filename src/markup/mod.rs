@@ -14,7 +14,7 @@ use crate::text::Text;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MarkupError {
     /// Closing tag with nothing to close.
-    UnmatchedClosingTag(String),
+    UnmatchedClosingTag(Option<String>),
     /// Invalid tag syntax.
     InvalidTag(String),
 }
@@ -22,8 +22,11 @@ pub enum MarkupError {
 impl fmt::Display for MarkupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnmatchedClosingTag(tag) => {
-                write!(f, "closing tag '[/{tag}]' has nothing to close")
+            Self::UnmatchedClosingTag(None) => {
+                write!(f, "closing tag '[/]' has nothing to close")
+            }
+            Self::UnmatchedClosingTag(Some(tag)) => {
+                write!(f, "closing tag '[/{tag}]' doesn't match any open tag")
             }
             Self::InvalidTag(msg) => write!(f, "invalid tag: {msg}"),
         }
@@ -201,11 +204,13 @@ pub fn render(markup: &str) -> Result<Text, MarkupError> {
                     // Implicit close [/]
                     style_stack
                         .pop()
-                        .ok_or_else(|| MarkupError::UnmatchedClosingTag("/".to_string()))?
+                        .ok_or(MarkupError::UnmatchedClosingTag(None))?
                 } else {
                     // Explicit close [/name] - search stack
                     pop_matching(&mut style_stack, style_name)
-                        .ok_or_else(|| MarkupError::UnmatchedClosingTag(style_name.to_string()))?
+                        .ok_or_else(|| {
+                            MarkupError::UnmatchedClosingTag(Some(style_name.to_string()))
+                        })?
                 };
 
                 // Apply style from the opening tag
@@ -345,13 +350,18 @@ mod tests {
     #[test]
     fn test_unmatched_closing_tag() {
         let result = render("[/bold]");
-        assert!(result.is_err());
+        let err = result.expect_err("expected error for unmatched closing tag");
+        assert_eq!(
+            err.to_string(),
+            "closing tag '[/bold]' doesn't match any open tag"
+        );
     }
 
     #[test]
     fn test_empty_close_nothing_to_close() {
         let result = render("hello[/]");
-        assert!(result.is_err());
+        let err = result.expect_err("expected error for empty close");
+        assert_eq!(err.to_string(), "closing tag '[/]' has nothing to close");
     }
 
     #[test]

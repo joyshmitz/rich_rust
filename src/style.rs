@@ -11,7 +11,7 @@ use lru::LruCache;
 use std::sync::Mutex;
 use std::num::NonZeroUsize;
 
-use crate::color::{Color, ColorSystem, ColorParseError};
+use crate::color::{Color, ColorParseError, ColorSystem, ColorTriplet};
 
 bitflags! {
     /// Text attribute flags.
@@ -576,6 +576,46 @@ impl FromStr for Style {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
+    }
+}
+
+impl TryFrom<&str> for Style {
+    type Error = StyleParseError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+
+impl TryFrom<String> for Style {
+    type Error = StyleParseError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(value.as_str())
+    }
+}
+
+impl From<Color> for Style {
+    fn from(color: Color) -> Self {
+        Self::new().color(color)
+    }
+}
+
+impl From<ColorTriplet> for Style {
+    fn from(triplet: ColorTriplet) -> Self {
+        Self::new().color(Color::from(triplet))
+    }
+}
+
+impl From<(u8, u8, u8)> for Style {
+    fn from((red, green, blue): (u8, u8, u8)) -> Self {
+        Self::new().color(Color::from((red, green, blue)))
+    }
+}
+
+impl From<[u8; 3]> for Style {
+    fn from([red, green, blue]: [u8; 3]) -> Self {
+        Self::new().color(Color::from((red, green, blue)))
     }
 }
 

@@ -154,6 +154,76 @@ impl PrintOptions {
         self.style = Some(style);
         self
     }
+
+    /// Set the separator between objects.
+    #[must_use]
+    pub fn with_sep(mut self, sep: impl Into<String>) -> Self {
+        self.sep = sep.into();
+        self
+    }
+
+    /// Set the end string appended after output.
+    #[must_use]
+    pub fn with_end(mut self, end: impl Into<String>) -> Self {
+        self.end = end.into();
+        self
+    }
+
+    /// Override justification.
+    #[must_use]
+    pub fn with_justify(mut self, justify: JustifyMethod) -> Self {
+        self.justify = Some(justify);
+        self
+    }
+
+    /// Override overflow handling.
+    #[must_use]
+    pub fn with_overflow(mut self, overflow: OverflowMethod) -> Self {
+        self.overflow = Some(overflow);
+        self
+    }
+
+    /// Override no_wrap.
+    #[must_use]
+    pub fn with_no_wrap(mut self, no_wrap: bool) -> Self {
+        self.no_wrap = Some(no_wrap);
+        self
+    }
+
+    /// Suppress newline at end.
+    #[must_use]
+    pub fn with_no_newline(mut self, no_newline: bool) -> Self {
+        self.no_newline = no_newline;
+        self
+    }
+
+    /// Enable/disable highlighting.
+    #[must_use]
+    pub fn with_highlight(mut self, highlight: bool) -> Self {
+        self.highlight = highlight;
+        self
+    }
+
+    /// Override width.
+    #[must_use]
+    pub fn with_width(mut self, width: usize) -> Self {
+        self.width = Some(width);
+        self
+    }
+
+    /// Crop output to width.
+    #[must_use]
+    pub fn with_crop(mut self, crop: bool) -> Self {
+        self.crop = crop;
+        self
+    }
+
+    /// Soft wrap at width.
+    #[must_use]
+    pub fn with_soft_wrap(mut self, soft_wrap: bool) -> Self {
+        self.soft_wrap = soft_wrap;
+        self
+    }
 }
 
 /// The main Console for rendering styled output.
@@ -316,6 +386,33 @@ impl Console {
     /// ```
     pub fn print(&self, content: &str) {
         self.print_with_options(content, &PrintOptions::new().with_markup(self.markup));
+    }
+
+    /// Print a prepared Text object.
+    pub fn print_text(&self, text: &Text) {
+        let mut stdout = io::stdout();
+        let _ = self.print_text_to(&mut stdout, text);
+    }
+
+    /// Print a prepared Text object to a specific writer.
+    pub fn print_text_to<W: Write>(&self, writer: &mut W, text: &Text) -> io::Result<()> {
+        let segments = text.render(&text.end);
+        self.write_segments(writer, &segments)
+    }
+
+    /// Print prepared segments.
+    pub fn print_segments(&self, segments: &[Segment]) {
+        let mut stdout = io::stdout();
+        let _ = self.print_segments_to(&mut stdout, segments);
+    }
+
+    /// Print prepared segments to a specific writer.
+    pub fn print_segments_to<W: Write>(
+        &self,
+        writer: &mut W,
+        segments: &[Segment],
+    ) -> io::Result<()> {
+        self.write_segments(writer, segments)
     }
 
     /// Print with custom options.

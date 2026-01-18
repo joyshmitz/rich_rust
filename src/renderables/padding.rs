@@ -86,8 +86,20 @@ impl From<(usize, usize)> for PaddingDimensions {
     }
 }
 
+impl From<[usize; 2]> for PaddingDimensions {
+    fn from([vertical, horizontal]: [usize; 2]) -> Self {
+        Self::symmetric(vertical, horizontal)
+    }
+}
+
 impl From<(usize, usize, usize, usize)> for PaddingDimensions {
     fn from((top, right, bottom, left): (usize, usize, usize, usize)) -> Self {
+        Self::new(top, right, bottom, left)
+    }
+}
+
+impl From<[usize; 4]> for PaddingDimensions {
+    fn from([top, right, bottom, left]: [usize; 4]) -> Self {
         Self::new(top, right, bottom, left)
     }
 }
@@ -335,12 +347,20 @@ mod tests {
 
     #[test]
     fn test_padding_nested_accumulates() {
+        // Nested padding should add top/bottom lines additively
+        // Inner: 1 content line + 1 top + 1 bottom = 3 lines
+        // Outer: 3 content lines + 1 top + 1 bottom = 5 lines
         let content = vec![vec![Segment::new("Hi", None)]];
         let inner = Padding::new(content, 1, 4).render();
         let outer = Padding::new(inner, 1, 6).render();
 
-        assert_eq!(outer.len(), 3);
-        assert_eq!(line_width(&outer[1]), 6);
-        assert_eq!(line_text(&outer[1]), "  Hi  ");
+        assert_eq!(outer.len(), 5);
+        // Line 0: outer top padding
+        // Line 1: inner top padding (wrapped with outer horizontal padding)
+        // Line 2: content "Hi" (wrapped with both paddings)
+        // Line 3: inner bottom padding (wrapped with outer horizontal padding)
+        // Line 4: outer bottom padding
+        assert_eq!(line_width(&outer[2]), 6);
+        assert_eq!(line_text(&outer[2]), "  Hi  ");
     }
 }

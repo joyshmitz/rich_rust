@@ -177,6 +177,18 @@ impl Segment {
     }
 }
 
+impl From<&str> for Segment {
+    fn from(value: &str) -> Self {
+        Self::plain(value)
+    }
+}
+
+impl From<String> for Segment {
+    fn from(value: String) -> Self {
+        Self::plain(value)
+    }
+}
+
 impl fmt::Display for Segment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.text)

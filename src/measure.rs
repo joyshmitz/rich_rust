@@ -6,6 +6,8 @@
 
 use std::cmp::{max, min};
 
+use crate::console::{Console, ConsoleOptions};
+
 /// Measurement of a renderable's width requirements.
 ///
 /// A `Measurement` captures the minimum and maximum cell widths that a
@@ -23,7 +25,14 @@ impl Measurement {
     /// Create a new measurement.
     #[must_use]
     pub const fn new(minimum: usize, maximum: usize) -> Self {
-        Self { minimum, maximum }
+        if minimum <= maximum {
+            Self { minimum, maximum }
+        } else {
+            Self {
+                minimum: maximum,
+                maximum: minimum,
+            }
+        }
     }
 
     /// Create a measurement where min equals max.
@@ -53,12 +62,7 @@ impl Measurement {
     /// Normalize the measurement to ensure min <= max and both >= 0.
     #[must_use]
     pub fn normalize(&self) -> Self {
-        let min_val = min(self.minimum, self.maximum);
-        let max_val = max(self.minimum, self.maximum);
-        Self {
-            minimum: min_val,
-            maximum: max_val,
-        }
+        Self::new(self.minimum, self.maximum)
     }
 
     /// Constrain the maximum to a given width.
@@ -149,6 +153,40 @@ impl Measurement {
     pub fn fits(&self, width: usize) -> bool {
         width >= self.minimum && width <= self.maximum
     }
+
+    /// Compute measurement with optional renderable measurement logic.
+    ///
+    /// If no measurement is provided, defaults to (0, max_width).
+    #[must_use]
+    pub fn get(
+        console: &Console,
+        options: &ConsoleOptions,
+        renderable: Option<&dyn RichMeasure>,
+    ) -> Self {
+        let max_width = options.max_width;
+        if max_width < 1 {
+            return Self::zero();
+        }
+
+        if let Some(renderable) = renderable {
+            renderable
+                .rich_measure(console, options)
+                .normalize()
+                .with_maximum(max_width)
+                .normalize()
+        } else {
+            Self {
+                minimum: 0,
+                maximum: max_width,
+            }
+        }
+    }
+}
+
+/// Trait for renderables that can provide a measurement.
+pub trait RichMeasure {
+    /// Measure minimum and maximum width requirements for a renderable.
+    fn rich_measure(&self, console: &Console, options: &ConsoleOptions) -> Measurement;
 }
 
 impl std::ops::Add for Measurement {
@@ -180,8 +218,16 @@ pub fn measure_union(measurements: &[Measurement]) -> Measurement {
     }
 
     Measurement {
-        minimum: measurements.iter().map(|m| m.minimum).max().unwrap_or(0),
-        maximum: measurements.iter().map(|m| m.maximum).max().unwrap_or(0),
+        minimum: measurements
+            .iter()
+            .map(|m| m.normalize().minimum)
+            .max()
+            .unwrap_or(0),
+        maximum: measurements
+            .iter()
+            .map(|m| m.normalize().maximum)
+            .max()
+            .unwrap_or(0),
     }
 }
 
@@ -195,20 +241,64 @@ pub fn measure_sum(measurements: &[Measurement]) -> Measurement {
     }
 
     Measurement {
-        minimum: measurements.iter().map(|m| m.minimum).sum(),
-        maximum: measurements.iter().map(|m| m.maximum).sum(),
+        minimum: measurements
+            .iter()
+            .map(|m| m.normalize().minimum)
+            .sum(),
+        maximum: measurements
+            .iter()
+            .map(|m| m.normalize().maximum)
+            .sum(),
     }
+}
+
+/// Measure a list of renderables and combine their measurements.
+#[must_use]
+pub fn measure_renderables(
+    console: &Console,
+    options: &ConsoleOptions,
+    renderables: &[&dyn RichMeasure],
+) -> Measurement {
+    if renderables.is_empty() {
+        return Measurement::zero();
+    }
+
+    let mut minimum = 0;
+    let mut maximum = 0;
+
+    for renderable in renderables {
+        let measurement = Measurement::get(console, options, Some(*renderable));
+        minimum = minimum.max(measurement.minimum);
+        maximum = maximum.max(measurement.maximum);
+    }
+
+    Measurement { minimum, maximum }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::console::Console;
+
+    struct DummyMeasure {
+        measurement: Measurement,
+    }
+
+    impl RichMeasure for DummyMeasure {
+        fn rich_measure(&self, _console: &Console, _options: &ConsoleOptions) -> Measurement {
+            self.measurement
+        }
+    }
 
     #[test]
     fn test_measurement_new() {
         let m = Measurement::new(5, 10);
         assert_eq!(m.minimum, 5);
         assert_eq!(m.maximum, 10);
+
+        let reversed = Measurement::new(10, 5);
+        assert_eq!(reversed.minimum, 5);
+        assert_eq!(reversed.maximum, 10);
     }
 
     #[test]
@@ -262,6 +352,14 @@ mod tests {
         let m = Measurement::new(3, 30);
         let clamped = m.clamp(Some(5), Some(20));
         assert_eq!(clamped.minimum, 5);
+        assert_eq!(clamped.maximum, 20);
+    }
+
+    #[test]
+    fn test_clamp_inverted_bounds() {
+        let m = Measurement::new(3, 30);
+        let clamped = m.clamp(Some(40), Some(20));
+        assert_eq!(clamped.minimum, 20);
         assert_eq!(clamped.maximum, 20);
     }
 
@@ -353,5 +451,67 @@ mod tests {
         let sum = measure_sum(&measurements);
         assert_eq!(sum.minimum, 8);
         assert_eq!(sum.maximum, 17);
+    }
+
+    #[test]
+    fn test_measurement_get_none() {
+        let console = Console::new();
+        let mut options = console.options();
+        options.max_width = 10;
+
+        let m = Measurement::get(&console, &options, None);
+        assert_eq!(m.minimum, 0);
+        assert_eq!(m.maximum, 10);
+    }
+
+    #[test]
+    fn test_measurement_get_clamped_and_normalized() {
+        let console = Console::new();
+        let mut options = console.options();
+        options.max_width = 12;
+
+        let dummy = DummyMeasure {
+            measurement: Measurement {
+                minimum: 20,
+                maximum: 10,
+            },
+        };
+
+        let m = Measurement::get(&console, &options, Some(&dummy));
+        assert_eq!(m.minimum, 10);
+        assert_eq!(m.maximum, 12);
+    }
+
+    #[test]
+    fn test_measurement_get_zero_width() {
+        let console = Console::new();
+        let mut options = console.options();
+        options.max_width = 0;
+
+        let dummy = DummyMeasure {
+            measurement: Measurement::new(5, 10),
+        };
+
+        let m = Measurement::get(&console, &options, Some(&dummy));
+        assert_eq!(m.minimum, 0);
+        assert_eq!(m.maximum, 0);
+    }
+
+    #[test]
+    fn test_measure_renderables() {
+        let console = Console::new();
+        let mut options = console.options();
+        options.max_width = 15;
+
+        let a = DummyMeasure {
+            measurement: Measurement::new(5, 50),
+        };
+        let b = DummyMeasure {
+            measurement: Measurement::new(8, 12),
+        };
+
+        let combined = measure_renderables(&console, &options, &[&a, &b]);
+        assert_eq!(combined.minimum, 8);
+        assert_eq!(combined.maximum, 15);
     }
 }

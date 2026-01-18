@@ -606,7 +606,8 @@ mod tests {
         let tree = Tree::with_label("");
         let plain = tree.render_plain();
         // Should render without panic
-        assert!(!plain.is_empty() || plain.len() >= 0); // Just verify it doesn't panic
+        // Just verify it doesn't panic - the test passing is proof enough
+        let _ = plain;
     }
 
     #[test]
