@@ -856,6 +856,14 @@ impl Table {
             let header_cells: Vec<&Text> = self.columns.iter().map(|c| &c.header).collect();
             let header_styles: Vec<&Style> = self.columns.iter().map(|c| &c.header_style).collect();
             let header_overrides: Vec<Option<Style>> = vec![None; self.columns.len()];
+            if self.padding.1 > 0 {
+                segments.extend(self.render_leading_lines(
+                    box_chars,
+                    &widths,
+                    &self.header_style,
+                    self.padding.1,
+                ));
+            }
             segments.extend(self.render_row_content(
                 box_chars,
                 &widths,
@@ -864,6 +872,14 @@ impl Table {
                 &self.header_style,
                 &header_overrides,
             ));
+            if self.padding.1 > 0 {
+                segments.extend(self.render_leading_lines(
+                    box_chars,
+                    &widths,
+                    &self.header_style,
+                    self.padding.1,
+                ));
+            }
 
             if self.leading > 0 && (has_body_rows || has_footer) {
                 segments.extend(self.render_leading_lines(
@@ -903,6 +919,14 @@ impl Table {
             let cell_refs: Vec<&Text> = cells.iter().collect();
 
             let col_styles: Vec<&Style> = self.columns.iter().map(|c| &c.style).collect();
+            if self.padding.1 > 0 {
+                segments.extend(self.render_leading_lines(
+                    box_chars,
+                    &widths,
+                    row_style,
+                    self.padding.1,
+                ));
+            }
             segments.extend(self.render_row_content(
                 box_chars,
                 &widths,
@@ -911,6 +935,14 @@ impl Table {
                 row_style,
                 &overrides,
             ));
+            if self.padding.1 > 0 {
+                segments.extend(self.render_leading_lines(
+                    box_chars,
+                    &widths,
+                    row_style,
+                    self.padding.1,
+                ));
+            }
 
             let is_last = row_idx == self.rows.len() - 1;
             let has_next_row = row_idx + 1 < self.rows.len() || has_footer;
@@ -945,6 +977,14 @@ impl Table {
             let footer_cells: Vec<&Text> = self.columns.iter().map(|c| &c.footer).collect();
             let footer_styles: Vec<&Style> = self.columns.iter().map(|c| &c.footer_style).collect();
             let footer_overrides: Vec<Option<Style>> = vec![None; self.columns.len()];
+            if self.padding.1 > 0 {
+                segments.extend(self.render_leading_lines(
+                    box_chars,
+                    &widths,
+                    &self.footer_style,
+                    self.padding.1,
+                ));
+            }
             segments.extend(self.render_row_content(
                 box_chars,
                 &widths,
@@ -953,6 +993,14 @@ impl Table {
                 &self.footer_style,
                 &footer_overrides,
             ));
+            if self.padding.1 > 0 {
+                segments.extend(self.render_leading_lines(
+                    box_chars,
+                    &widths,
+                    &self.footer_style,
+                    self.padding.1,
+                ));
+            }
         }
 
         // Bottom border
