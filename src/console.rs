@@ -1,8 +1,84 @@
 //! Console - the central entry point for styled terminal output.
 //!
-//! The `Console` handles rendering styled content to the terminal,
+//! The [`Console`] handles rendering styled content to the terminal,
 //! including color detection, width calculation, and ANSI code generation.
+//!
+//! # Examples
+//!
+//! ## Basic Printing with Markup
+//!
+//! ```rust,ignore
+//! use rich_rust::Console;
+//!
+//! let console = Console::new();
+//!
+//! // Print with markup syntax
+//! console.print("[bold red]Error:[/] Something went wrong");
+//! console.print("[green]Success![/] Operation completed");
+//!
+//! // Markup supports colors, attributes, and combinations
+//! console.print("[bold italic #ff8800 on blue]Custom styling[/]");
+//! ```
+//!
+//! ## Console Builder
+//!
+//! ```rust,ignore
+//! use rich_rust::console::{Console, ConsoleBuilder};
+//! use rich_rust::color::ColorSystem;
+//!
+//! let console = Console::builder()
+//!     .color_system(ColorSystem::EightBit)  // Force 256 colors
+//!     .width(80)                            // Fixed width
+//!     .markup(true)                         // Enable markup parsing
+//!     .build();
+//! ```
+//!
+//! ## Print Options
+//!
+//! ```rust,ignore
+//! use rich_rust::console::{Console, PrintOptions};
+//! use rich_rust::style::Style;
+//! use rich_rust::text::JustifyMethod;
+//!
+//! let console = Console::new();
+//!
+//! let options = PrintOptions::new()
+//!     .with_style(Style::new().bold())
+//!     .with_justify(JustifyMethod::Center)
+//!     .with_markup(true);
+//!
+//! console.print_with_options("Centered bold text", &options);
+//! ```
+//!
+//! ## Capturing Output
+//!
+//! ```rust,ignore
+//! use rich_rust::Console;
+//!
+//! let mut console = Console::new();
+//!
+//! // Start capturing
+//! console.begin_capture();
+//! console.print("[bold]Hello[/]");
+//!
+//! // Get captured segments
+//! let segments = console.end_capture();
+//! for seg in &segments {
+//!     println!("Text: {:?}, Style: {:?}", seg.text, seg.style);
+//! }
+//! ```
+//!
+//! # Terminal Detection
+//!
+//! The Console automatically detects terminal capabilities:
+//!
+//! - **Color system**: TrueColor (24-bit), 256 colors, or 16 colors
+//! - **Terminal dimensions**: Width and height in character cells
+//! - **TTY status**: Whether output is to an interactive terminal
+//!
+//! You can override these with the builder pattern or by setting explicit values.
 
+use std::cell::RefCell;
 use std::io::{self, Write};
 
 use crate::color::ColorSystem;
@@ -227,7 +303,6 @@ impl PrintOptions {
 }
 
 /// The main Console for rendering styled output.
-#[derive(Debug)]
 pub struct Console {
     /// Color system to use (None = auto-detect).
     color_system: Option<ColorSystem>,
@@ -249,12 +324,35 @@ pub struct Console {
     height: Option<usize>,
     /// Use ASCII-safe box characters.
     safe_box: bool,
+    /// Output stream (defaults to stdout).
+    file: RefCell<Box<dyn Write + Send>>,
     /// Recording buffer.
     buffer: Vec<Segment>,
     /// Cached terminal detection.
     is_terminal: bool,
     /// Detected/configured color system.
     detected_color_system: Option<ColorSystem>,
+}
+
+impl std::fmt::Debug for Console {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Console")
+            .field("color_system", &self.color_system)
+            .field("force_terminal", &self.force_terminal)
+            .field("tab_size", &self.tab_size)
+            .field("record", &self.record)
+            .field("markup", &self.markup)
+            .field("emoji", &self.emoji)
+            .field("highlight", &self.highlight)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("safe_box", &self.safe_box)
+            .field("file", &"<dyn Write>")
+            .field("buffer", &self.buffer)
+            .field("is_terminal", &self.is_terminal)
+            .field("detected_color_system", &self.detected_color_system)
+            .finish()
+    }
 }
 
 impl Default for Console {
@@ -285,6 +383,7 @@ impl Console {
             width: None,
             height: None,
             safe_box: false,
+            file: RefCell::new(Box::new(io::stdout())),
             buffer: Vec::new(),
             is_terminal,
             detected_color_system,
@@ -390,8 +489,8 @@ impl Console {
 
     /// Print a prepared Text object.
     pub fn print_text(&self, text: &Text) {
-        let mut stdout = io::stdout();
-        let _ = self.print_text_to(&mut stdout, text);
+        let mut file = self.file.borrow_mut();
+        let _ = self.print_text_to(&mut *file, text);
     }
 
     /// Print a prepared Text object to a specific writer.
@@ -402,8 +501,8 @@ impl Console {
 
     /// Print prepared segments.
     pub fn print_segments(&self, segments: &[Segment]) {
-        let mut stdout = io::stdout();
-        let _ = self.print_segments_to(&mut stdout, segments);
+        let mut file = self.file.borrow_mut();
+        let _ = self.print_segments_to(&mut *file, segments);
     }
 
     /// Print prepared segments to a specific writer.
@@ -417,9 +516,9 @@ impl Console {
 
     /// Print with custom options.
     pub fn print_with_options(&self, content: &str, options: &PrintOptions) {
-        let mut stdout = io::stdout();
-        self.print_to(&mut stdout, content, options)
-            .expect("failed to write to stdout");
+        let mut file = self.file.borrow_mut();
+        self.print_to(&mut *file, content, options)
+            .expect("failed to write to output stream");
     }
 
     /// Print to a specific writer.
@@ -492,7 +591,8 @@ impl Console {
 
     /// Print a blank line.
     pub fn line(&self) {
-        println!();
+        let mut file = self.file.borrow_mut();
+        let _ = writeln!(file);
     }
 
     /// Print a rule (horizontal line).
@@ -500,39 +600,42 @@ impl Console {
         let width = self.width();
         let line_char = if self.safe_box { '-' } else { '\u{2500}' };
 
+        let mut file = self.file.borrow_mut();
         if let Some(title) = title {
             let title_len = crate::cells::cell_len(title);
             let padding = width.saturating_sub(title_len + 4) / 2;
             let left = line_char.to_string().repeat(padding);
-            let right = line_char.to_string().repeat(width - padding - title_len - 4);
-            println!("{left} {title} {right}");
+            let right = line_char
+                .to_string()
+                .repeat(width - padding - title_len - 4);
+            let _ = writeln!(file, "{left} {title} {right}");
         } else {
-            println!("{}", line_char.to_string().repeat(width));
+            let _ = writeln!(file, "{}", line_char.to_string().repeat(width));
         }
     }
 
     /// Clear the screen.
     pub fn clear(&self) {
-        let mut stdout = io::stdout();
-        let _ = terminal::control::clear_screen(&mut stdout);
+        let mut file = self.file.borrow_mut();
+        let _ = terminal::control::clear_screen(&mut *file);
     }
 
     /// Clear the current line.
     pub fn clear_line(&self) {
-        let mut stdout = io::stdout();
-        let _ = terminal::control::clear_line(&mut stdout);
+        let mut file = self.file.borrow_mut();
+        let _ = terminal::control::clear_line(&mut *file);
     }
 
     /// Set the terminal title.
     pub fn set_title(&self, title: &str) {
-        let mut stdout = io::stdout();
-        let _ = terminal::control::set_title(&mut stdout, title);
+        let mut file = self.file.borrow_mut();
+        let _ = terminal::control::set_title(&mut *file, title);
     }
 
     /// Ring the terminal bell.
     pub fn bell(&self) {
-        let mut stdout = io::stdout();
-        let _ = terminal::control::bell(&mut stdout);
+        let mut file = self.file.borrow_mut();
+        let _ = terminal::control::bell(&mut *file);
     }
 
     /// Print text without parsing markup.
@@ -544,40 +647,30 @@ impl Console {
     pub fn print_styled(&self, content: &str, style: Style) {
         self.print_with_options(
             content,
-            &PrintOptions::new().with_markup(self.markup).with_style(style),
+            &PrintOptions::new()
+                .with_markup(self.markup)
+                .with_style(style),
         );
     }
 
     /// Print a log message with a level indicator.
     pub fn log(&self, message: &str, level: LogLevel) {
         let (prefix, style) = match level {
-            LogLevel::Debug => (
-                "[DEBUG]",
-                Style::parse("cyan").unwrap_or_default(),
-            ),
-            LogLevel::Info => (
-                "[INFO]",
-                Style::parse("green").unwrap_or_default(),
-            ),
-            LogLevel::Warning => (
-                "[WARNING]",
-                Style::parse("yellow").unwrap_or_default(),
-            ),
-            LogLevel::Error => (
-                "[ERROR]",
-                Style::parse("bold red").unwrap_or_default(),
-            ),
+            LogLevel::Debug => ("[DEBUG]", Style::parse("cyan").unwrap_or_default()),
+            LogLevel::Info => ("[INFO]", Style::parse("green").unwrap_or_default()),
+            LogLevel::Warning => ("[WARNING]", Style::parse("yellow").unwrap_or_default()),
+            LogLevel::Error => ("[ERROR]", Style::parse("bold red").unwrap_or_default()),
         };
 
-        let mut stdout = io::stdout();
+        let mut file = self.file.borrow_mut();
         let _ = self.print_to(
-            &mut stdout,
+            &mut *file,
             prefix,
             &PrintOptions::new().with_markup(false).with_style(style),
         );
-        print!(" ");
+        let _ = write!(file, " ");
         let _ = self.print_to(
-            &mut stdout,
+            &mut *file,
             message,
             &PrintOptions::new().with_markup(self.markup),
         );
@@ -594,7 +687,6 @@ pub enum LogLevel {
 }
 
 /// Builder for creating a Console with custom settings.
-#[derive(Debug, Default)]
 pub struct ConsoleBuilder {
     color_system: Option<ColorSystem>,
     force_terminal: Option<bool>,
@@ -605,6 +697,41 @@ pub struct ConsoleBuilder {
     width: Option<usize>,
     height: Option<usize>,
     safe_box: Option<bool>,
+    file: Option<Box<dyn Write + Send>>,
+}
+
+impl Default for ConsoleBuilder {
+    fn default() -> Self {
+        Self {
+            color_system: None,
+            force_terminal: None,
+            tab_size: None,
+            markup: None,
+            emoji: None,
+            highlight: None,
+            width: None,
+            height: None,
+            safe_box: None,
+            file: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for ConsoleBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConsoleBuilder")
+            .field("color_system", &self.color_system)
+            .field("force_terminal", &self.force_terminal)
+            .field("tab_size", &self.tab_size)
+            .field("markup", &self.markup)
+            .field("emoji", &self.emoji)
+            .field("highlight", &self.highlight)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("safe_box", &self.safe_box)
+            .field("file", &self.file.as_ref().map(|_| "<dyn Write>"))
+            .finish()
+    }
 }
 
 impl ConsoleBuilder {
@@ -678,6 +805,13 @@ impl ConsoleBuilder {
         self
     }
 
+    /// Set the output stream.
+    #[must_use]
+    pub fn file(mut self, writer: Box<dyn Write + Send>) -> Self {
+        self.file = Some(writer);
+        self
+    }
+
     /// Build the console.
     #[must_use]
     pub fn build(self) -> Console {
@@ -709,6 +843,9 @@ impl ConsoleBuilder {
         }
         if let Some(sb) = self.safe_box {
             console.safe_box = sb;
+        }
+        if let Some(f) = self.file {
+            console.file = RefCell::new(f);
         }
 
         console
@@ -774,5 +911,69 @@ mod tests {
         let dims = ConsoleDimensions::default();
         assert_eq!(dims.width, 80);
         assert_eq!(dims.height, 24);
+    }
+
+    #[test]
+    fn test_custom_output_stream() {
+        use std::sync::{Arc, Mutex};
+
+        // Thread-safe buffer that implements Write + Send
+        #[derive(Clone)]
+        struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+        impl Write for SharedBuffer {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().write(buf)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.0.lock().unwrap().flush()
+            }
+        }
+
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .width(80)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build();
+
+        console.print_plain("Hello, World!");
+
+        let output = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&output);
+        assert!(
+            text.contains("Hello, World!"),
+            "Expected 'Hello, World!' in output, got: {}",
+            text
+        );
+    }
+
+    #[test]
+    fn test_custom_output_stream_line() {
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+        impl Write for SharedBuffer {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().write(buf)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.0.lock().unwrap().flush()
+            }
+        }
+
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .width(80)
+            .file(Box::new(buffer.clone()))
+            .build();
+
+        console.line();
+
+        let output = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&output);
+        assert_eq!(text, "\n", "Expected single newline, got: {:?}", text);
     }
 }
