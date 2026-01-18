@@ -8,16 +8,14 @@ use std::sync::{LazyLock, Mutex};
 
 use lru::LruCache;
 use unicode_width::UnicodeWidthChar;
-use unicode_width::UnicodeWidthStr;
 
 /// Minimum string length to cache (shorter strings have minimal overhead).
 const CACHE_MIN_LEN: usize = 8;
 
-/// LRU cache for cell_len calculations.
-/// Per RICH_SPEC.md Section 12.4, string widths should be cached.
-static CELL_LEN_CACHE: LazyLock<Mutex<LruCache<String, usize>>> = LazyLock::new(|| {
-    Mutex::new(LruCache::new(NonZeroUsize::new(1024).expect("non-zero")))
-});
+/// LRU cache for `cell_len` calculations.
+/// Per `RICH_SPEC.md` Section 12.4, string widths should be cached.
+static CELL_LEN_CACHE: LazyLock<Mutex<LruCache<String, usize>>> =
+    LazyLock::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1024).expect("non-zero"))));
 
 /// Get the cell width of a single character.
 ///
@@ -28,29 +26,38 @@ pub fn get_character_cell_size(c: char) -> usize {
     c.width().unwrap_or(0)
 }
 
+/// Compute cell width by summing character widths.
+///
+/// This ensures consistent handling of control characters (width 0)
+/// using the same logic as `get_character_cell_size`.
+#[inline]
+fn compute_cell_width(text: &str) -> usize {
+    text.chars().map(get_character_cell_size).sum()
+}
+
 /// Get the total cell width of a string (cached for longer strings).
 ///
 /// This is the sum of the widths of all characters, accounting for
-/// wide characters that take 2 cells.
+/// wide characters that take 2 cells. Control characters have 0 width.
 ///
-/// Per RICH_SPEC.md Section 12.4, results are cached using an LRU cache
+/// Per `RICH_SPEC.md` Section 12.4, results are cached using an LRU cache
 /// for strings of 8+ characters to avoid repeated calculations.
 #[must_use]
 pub fn cell_len(text: &str) -> usize {
     // Short strings: compute directly (cache overhead not worth it)
     if text.len() < CACHE_MIN_LEN {
-        return text.width();
+        return compute_cell_width(text);
     }
 
     // Check cache first
-    if let Ok(mut cache) = CELL_LEN_CACHE.lock() {
-        if let Some(&cached) = cache.get(text) {
-            return cached;
-        }
+    if let Ok(mut cache) = CELL_LEN_CACHE.lock()
+        && let Some(&cached) = cache.get(text)
+    {
+        return cached;
     }
 
-    // Compute width
-    let width = text.width();
+    // Compute width using character-level function for consistency
+    let width = compute_cell_width(text);
 
     // Store in cache
     if let Ok(mut cache) = CELL_LEN_CACHE.lock() {
@@ -66,7 +73,7 @@ pub fn cell_len(text: &str) -> usize {
 /// avoid cache overhead for single-use calculations.
 #[must_use]
 pub fn cell_len_uncached(text: &str) -> usize {
-    text.width()
+    compute_cell_width(text)
 }
 
 /// Truncate a string to fit within a maximum cell width.
@@ -140,7 +147,7 @@ pub fn chop_cells(text: &str, max_size: usize) -> (&str, &str) {
 
 /// Get the cell position for each character in a string.
 ///
-/// Returns a vector of (byte_index, cell_position) pairs.
+/// Returns a vector of (`byte_index`, `cell_position`) pairs.
 #[must_use]
 pub fn cell_positions(text: &str) -> Vec<(usize, usize)> {
     let mut positions = Vec::new();
@@ -201,7 +208,7 @@ mod tests {
     fn test_cjk_width() {
         // CJK characters are 2 cells wide
         assert_eq!(cell_len("日本語"), 6); // 3 characters * 2 cells
-        assert_eq!(cell_len("中文"), 4);   // 2 characters * 2 cells
+        assert_eq!(cell_len("中文"), 4); // 2 characters * 2 cells
     }
 
     #[test]
@@ -278,7 +285,11 @@ mod tests {
     fn test_spec_basic_width_concept() {
         // ASCII printable = 1 cell
         for c in ' '..='~' {
-            assert_eq!(get_character_cell_size(c), 1, "ASCII '{c}' should be 1 cell");
+            assert_eq!(
+                get_character_cell_size(c),
+                1,
+                "ASCII '{c}' should be 1 cell"
+            );
         }
 
         // CJK = 2 cells per character
@@ -315,8 +326,8 @@ mod tests {
     #[test]
     fn test_spec_ascii_fast_path() {
         // Printable ASCII (0x20-0x7E) = 1 cell
-        assert_eq!(get_character_cell_size(' '), 1);  // 0x20
-        assert_eq!(get_character_cell_size('~'), 1);  // 0x7E
+        assert_eq!(get_character_cell_size(' '), 1); // 0x20
+        assert_eq!(get_character_cell_size('~'), 1); // 0x7E
         assert_eq!(get_character_cell_size('A'), 1);
         assert_eq!(get_character_cell_size('z'), 1);
         assert_eq!(get_character_cell_size('0'), 1);
@@ -324,8 +335,8 @@ mod tests {
 
         // Latin Extended (0xA0-0x02FF) = 1 cell
         assert_eq!(get_character_cell_size('\u{00A0}'), 1); // Non-breaking space
-        assert_eq!(get_character_cell_size('é'), 1);        // e with acute
-        assert_eq!(get_character_cell_size('ñ'), 1);        // n with tilde
+        assert_eq!(get_character_cell_size('é'), 1); // e with acute
+        assert_eq!(get_character_cell_size('ñ'), 1); // n with tilde
     }
 
     // 12.4 Cell Width Algorithm - Total string width
@@ -336,12 +347,12 @@ mod tests {
         assert_eq!(cell_len(""), 0);
 
         // Pure CJK (each char = 2 cells)
-        assert_eq!(cell_len("日本語"), 6);  // 3 chars * 2 cells
+        assert_eq!(cell_len("日本語"), 6); // 3 chars * 2 cells
         assert_eq!(cell_len("中文测试"), 8); // 4 chars * 2 cells
 
         // Mixed ASCII and CJK
-        assert_eq!(cell_len("Hello日本"), 9);  // 5 + 2*2
-        assert_eq!(cell_len("a中b"), 4);       // 1 + 2 + 1
+        assert_eq!(cell_len("Hello日本"), 9); // 5 + 2*2
+        assert_eq!(cell_len("a中b"), 4); // 1 + 2 + 1
 
         // Note: Control character handling is tested in test_control_characters
         // The behavior can vary between char.width() and str.width() in unicode_width
@@ -384,13 +395,13 @@ mod tests {
 
         // CJK chopping - stops before exceeding width
         let (left, right) = chop_cells("日本語", 3);
-        assert_eq!(left, "日");  // 2 cells, next would be 4
+        assert_eq!(left, "日"); // 2 cells, next would be 4
         assert_eq!(right, "本語");
         assert_eq!(cell_len(left), 2);
 
         // Exact width boundary
         let (left, right) = chop_cells("日本語", 4);
-        assert_eq!(left, "日本");  // Exactly 4 cells
+        assert_eq!(left, "日本"); // Exactly 4 cells
         assert_eq!(right, "語");
 
         // Zero width
@@ -408,9 +419,9 @@ mod tests {
 
         // Mixed content - cell positions account for wide chars
         let pos = cell_positions("a日b");
-        assert_eq!(pos[0], (0, 0));  // 'a' at byte 0, cell 0
-        assert_eq!(pos[1], (1, 1));  // '日' at byte 1, cell 1
-        assert_eq!(pos[2], (4, 3));  // 'b' at byte 4 (日 is 3 bytes), cell 3 (日 is 2 cells)
+        assert_eq!(pos[0], (0, 0)); // 'a' at byte 0, cell 0
+        assert_eq!(pos[1], (1, 1)); // '日' at byte 1, cell 1
+        assert_eq!(pos[2], (4, 3)); // 'b' at byte 4 (日 is 3 bytes), cell 3 (日 is 2 cells)
     }
 
     // Additional: cell_to_byte_index conversion
