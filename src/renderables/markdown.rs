@@ -101,6 +101,7 @@
 
 use std::fmt::Write;
 
+use crate::cells;
 use crate::segment::Segment;
 use crate::style::Style;
 
@@ -570,7 +571,7 @@ impl Markdown {
         if let Some(hdr) = header {
             for (i, cell) in hdr.iter().enumerate() {
                 if i < col_widths.len() {
-                    col_widths[i] = col_widths[i].max(cell.chars().count());
+                    col_widths[i] = col_widths[i].max(cells::cell_len(cell));
                 }
             }
         }
@@ -579,7 +580,7 @@ impl Markdown {
         for row in rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < col_widths.len() {
-                    col_widths[i] = col_widths[i].max(cell.chars().count());
+                    col_widths[i] = col_widths[i].max(cells::cell_len(cell));
                 }
             }
         }
@@ -646,7 +647,7 @@ impl Markdown {
 
     /// Pad a cell's content according to alignment.
     fn pad_cell(content: &str, width: usize, alignment: Alignment) -> String {
-        let content_len = content.chars().count();
+        let content_len = cells::cell_len(content);
         if content_len >= width {
             return content.to_string();
         }
@@ -828,6 +829,24 @@ mod tests {
         assert!(text.contains("┌")); // Top left corner
         assert!(text.contains("│")); // Vertical border
         assert!(text.contains("─")); // Horizontal border
+    }
+
+    #[test]
+    fn test_render_table_unicode_width_alignment() {
+        let md = Markdown::new("| A | B |\n| --- | --- |\n| 日本 | x |");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let lines: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
+
+        assert!(lines.len() >= 3, "expected table output lines");
+        let expected_width = cells::cell_len(lines[0]);
+        for line in lines {
+            assert_eq!(
+                cells::cell_len(line),
+                expected_width,
+                "table lines should have consistent cell width"
+            );
+        }
     }
 
     #[test]
