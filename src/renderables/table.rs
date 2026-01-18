@@ -873,7 +873,8 @@ impl Table {
             let cells: Vec<Text> = (0..self.columns.len())
                 .map(|i| {
                     row.cells
-                        .get(i).map_or_else(|| Text::new(""), |c| c.content.clone())
+                        .get(i)
+                        .map_or_else(|| Text::new(""), |c| c.content.clone())
                 })
                 .collect();
             let cell_refs: Vec<&Text> = cells.iter().collect();

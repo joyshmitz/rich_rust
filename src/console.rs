@@ -701,7 +701,6 @@ pub struct ConsoleBuilder {
     file: Option<Box<dyn Write + Send>>,
 }
 
-
 impl std::fmt::Debug for ConsoleBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConsoleBuilder")

@@ -193,7 +193,10 @@ impl Json {
     /// # Errors
     ///
     /// Returns an error if the string is not valid JSON.
-    #[expect(clippy::should_implement_trait, reason = "returns Result with custom error, not FromStr pattern")]
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "returns Result with custom error, not FromStr pattern"
+    )]
     pub fn from_str(s: &str) -> Result<Self, JsonError> {
         let value: Value = serde_json::from_str(s).map_err(JsonError::Parse)?;
         Ok(Self::new(value))

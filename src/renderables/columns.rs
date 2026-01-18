@@ -238,7 +238,10 @@ impl Columns {
         for row_idx in 0..num_rows {
             let mut row_segments = Vec::new();
 
-            #[expect(clippy::needless_range_loop, reason = "col_idx used for multiple purposes")]
+            #[expect(
+                clippy::needless_range_loop,
+                reason = "col_idx used for multiple purposes"
+            )]
             for col_idx in 0..num_columns {
                 let item_idx = row_idx * num_columns + col_idx;
                 let column_width = column_widths[col_idx];

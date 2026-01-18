@@ -480,8 +480,14 @@ impl Style {
     ///
     /// Results are cached for performance when the same style is rendered repeatedly.
     #[must_use]
-    #[expect(clippy::items_after_statements, reason = "static cache placed close to usage for clarity")]
-    #[expect(clippy::type_complexity, reason = "LRU cache type is inherently complex")]
+    #[expect(
+        clippy::items_after_statements,
+        reason = "static cache placed close to usage for clarity"
+    )]
+    #[expect(
+        clippy::type_complexity,
+        reason = "LRU cache type is inherently complex"
+    )]
     pub fn render_ansi(&self, color_system: ColorSystem) -> (String, String) {
         // Fast path: null style returns empty strings without cache lookup
         if self.is_null() {
@@ -848,7 +854,10 @@ impl StyleStack {
     }
 
     /// Push a new style onto the stack, combining with current.
-    #[expect(clippy::needless_pass_by_value, reason = "style ownership simplifies API")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "style ownership simplifies API"
+    )]
     pub fn push(&mut self, style: Style) {
         let combined = self.current().combine(&style);
         self.stack.push(combined);

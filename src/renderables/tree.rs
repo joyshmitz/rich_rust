@@ -300,7 +300,10 @@ impl Tree {
     }
 
     /// Render a single node and its children recursively.
-    #[expect(clippy::cast_possible_wrap, reason = "tree depth will never exceed isize::MAX")]
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "tree depth will never exceed isize::MAX"
+    )]
     fn render_node(
         &self,
         node: &TreeNode,

@@ -54,13 +54,13 @@ impl Tag {
     }
 
     /// Check if this is a closing tag.
-    #[must_use] 
+    #[must_use]
     pub fn is_closing(&self) -> bool {
         self.name.starts_with('/')
     }
 
     /// Get the tag name without the leading slash for closing tags.
-    #[must_use] 
+    #[must_use]
     pub fn base_name(&self) -> &str {
         if self.is_closing() {
             &self.name[1..]
@@ -150,11 +150,12 @@ fn parse_tag(content: &str) -> Tag {
     // Check for handler syntax @handler(args)
     if (trimmed.starts_with('@') || trimmed.starts_with("/@"))
         && let Some(paren_start) = trimmed.find('(')
-            && let Some(paren_end) = trimmed.rfind(')') {
-                let name = trimmed[..paren_start].to_string();
-                let param = trimmed[paren_start + 1..paren_end].to_string();
-                return Tag::new(name, Some(param));
-            }
+        && let Some(paren_end) = trimmed.rfind(')')
+    {
+        let name = trimmed[..paren_start].to_string();
+        let param = trimmed[paren_start + 1..paren_end].to_string();
+        return Tag::new(name, Some(param));
+    }
 
     Tag::new(trimmed, None)
 }
@@ -248,9 +249,10 @@ fn pop_matching(stack: &mut Vec<(usize, Tag)>, name: &str) -> Option<(usize, Tag
 fn tag_to_style(tag: &Tag) -> Style {
     // Handle link tag specially
     if tag.name.eq_ignore_ascii_case("link")
-        && let Some(ref url) = tag.parameters {
-            return Style::new().link(url);
-        }
+        && let Some(ref url) = tag.parameters
+    {
+        return Style::new().link(url);
+    }
 
     // Parse tag name as style string
     // The tag name can contain multiple style parts like "bold red on blue"
@@ -260,7 +262,7 @@ fn tag_to_style(tag: &Tag) -> Style {
 /// Escape text for use in markup.
 ///
 /// This escapes any `[` characters so they are treated as literal text.
-#[must_use] 
+#[must_use]
 pub fn escape(text: &str) -> String {
     text.replace('[', "\\[")
 }
@@ -269,7 +271,7 @@ pub fn escape(text: &str) -> String {
 ///
 /// This is a convenience function that never fails - on parse error,
 /// it returns the original markup as plain text.
-#[must_use] 
+#[must_use]
 pub fn render_or_plain(markup: &str) -> Text {
     render(markup).unwrap_or_else(|_| Text::new(markup))
 }

@@ -322,10 +322,12 @@ pub fn simplify(segments: impl Iterator<Item = Segment>) -> Vec<Segment> {
         }
 
         if let Some(last) = result.last_mut()
-            && !last.is_control() && last.style == segment.style {
-                last.text.push_str(&segment.text);
-                continue;
-            }
+            && !last.is_control()
+            && last.style == segment.style
+        {
+            last.text.push_str(&segment.text);
+            continue;
+        }
 
         result.push(segment);
     }
@@ -394,7 +396,10 @@ pub fn divide(segments: Vec<Segment>, cuts: &[usize]) -> Vec<Vec<Segment>> {
 
 /// Align lines to the top of a given height.
 #[must_use]
-#[expect(clippy::needless_pass_by_value, reason = "style ownership allows caller to avoid clone")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "style ownership allows caller to avoid clone"
+)]
 pub fn align_top(
     lines: Vec<Vec<Segment>>,
     width: usize,
@@ -424,7 +429,10 @@ pub fn align_top(
 
 /// Align lines to the bottom of a given height.
 #[must_use]
-#[expect(clippy::needless_pass_by_value, reason = "style ownership allows caller to avoid clone")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "style ownership allows caller to avoid clone"
+)]
 pub fn align_bottom(
     lines: Vec<Vec<Segment>>,
     width: usize,

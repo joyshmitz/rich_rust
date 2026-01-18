@@ -54,7 +54,10 @@ pub struct BoxChars {
 impl BoxChars {
     /// Create a new box from character arrays.
     #[must_use]
-    #[expect(clippy::too_many_arguments, reason = "struct constructor needs all fields")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "struct constructor needs all fields"
+    )]
     pub const fn new(
         top: [char; 4],
         head: [char; 4],

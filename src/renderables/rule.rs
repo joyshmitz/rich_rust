@@ -315,9 +315,6 @@ mod tests {
             .collect();
         // The rule chars are repeated to fill width, minus any trailing newline
         let rule_width = cells::cell_len(&text);
-        assert!(
-            rule_width >= 10,
-            "Rule should fill width: got {rule_width}"
-        );
+        assert!(rule_width >= 10, "Rule should fill width: got {rule_width}");
     }
 }

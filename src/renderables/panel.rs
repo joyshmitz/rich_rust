@@ -440,7 +440,10 @@ impl Panel {
                     box_chars.bottom[1].to_string(),
                     Some(self.border_style.clone()),
                 ));
-                segments.push(Segment::new(truncated.clone(), Some(subtitle.style().clone())));
+                segments.push(Segment::new(
+                    truncated.clone(),
+                    Some(subtitle.style().clone()),
+                ));
                 let remaining = inner_width.saturating_sub(cells::cell_len(&truncated) + 1);
                 segments.push(Segment::new(
                     box_chars.bottom[1].to_string().repeat(remaining),

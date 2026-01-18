@@ -789,7 +789,10 @@ fn generate_eight_bit_palette() -> [ColorTriplet; 256] {
 
     // 232-255: Grayscale ramp
     for i in 0..24 {
-        #[expect(clippy::cast_possible_truncation, reason = "max value is 8+23*10=238 which fits in u8")]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "max value is 8+23*10=238 which fits in u8"
+        )]
         let gray = (8 + i * 10) as u8;
         palette[232 + i] = ColorTriplet::new(gray, gray, gray);
     }
@@ -820,7 +823,10 @@ pub fn rgb_to_eight_bit(triplet: ColorTriplet) -> u8 {
             return 231; // Near white
         }
         #[expect(clippy::cast_possible_truncation, reason = "result is 0-24 range")]
-        #[expect(clippy::cast_sign_loss, reason = "lightness is positive so result is positive")]
+        #[expect(
+            clippy::cast_sign_loss,
+            reason = "lightness is positive so result is positive"
+        )]
         let gray_index = ((lightness - 0.04) / 0.92 * 24.0).round() as u8;
         return 232 + gray_index.min(23);
     }
@@ -859,7 +865,10 @@ pub fn rgb_to_standard(triplet: ColorTriplet) -> u8 {
         let distance = color_distance(triplet, palette_color);
         if distance < best_distance {
             best_distance = distance;
-            #[expect(clippy::cast_possible_truncation, reason = "STANDARD_PALETTE has 16 entries")]
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "STANDARD_PALETTE has 16 entries"
+            )]
             {
                 best_index = i as u8;
             }
