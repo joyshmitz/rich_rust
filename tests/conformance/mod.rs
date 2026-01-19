@@ -28,6 +28,8 @@
 use rich_rust::segment::Segment;
 use std::fmt::Debug;
 
+pub mod rule_tests;
+pub mod table_tests;
 pub mod text_tests;
 
 /// A test case that can be used for integration tests, conformance, and benchmarks.
@@ -59,7 +61,8 @@ pub fn strip_ansi(s: &str) -> String {
     ansi_regex.replace_all(s, "").to_string()
 }
 
-/// Normalize whitespace and line endings for comparison.
+/// Normalize output for comparison (strip newlines, trim).
+#[allow(dead_code)]
 pub fn normalize_output(s: &str) -> String {
     s.lines()
         .map(|line| line.trim_end())
@@ -69,7 +72,8 @@ pub fn normalize_output(s: &str) -> String {
         .to_string()
 }
 
-/// Compare two outputs, ignoring trailing whitespace and normalizing line endings.
+/// Check if two outputs match after normalization.
+#[allow(dead_code)]
 pub fn outputs_match(actual: &str, expected: &str) -> bool {
     normalize_output(actual) == normalize_output(expected)
 }

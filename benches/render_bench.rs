@@ -14,7 +14,9 @@ fn benchmark_text_render(c: &mut Criterion) {
     text.stylize(7, 12, Style::new().italic());
 
     c.bench_function("text_render", |b| {
-        b.iter(|| black_box(text.render("")));
+        b.iter(|| {
+            black_box(text.render(""));
+        });
     });
 }
 
@@ -24,11 +26,15 @@ fn benchmark_text_wrap(c: &mut Criterion) {
     );
 
     c.bench_function("text_wrap_80", |b| {
-        b.iter(|| black_box(text.wrap(80)));
+        b.iter(|| {
+            black_box(text.wrap(80));
+        });
     });
 
     c.bench_function("text_wrap_40", |b| {
-        b.iter(|| black_box(text.wrap(40)));
+        b.iter(|| {
+            black_box(text.wrap(40));
+        });
     });
 }
 
@@ -55,15 +61,21 @@ fn benchmark_style_render(c: &mut Criterion) {
     let text = "Hello, World!";
 
     c.bench_function("style_render_simple", |b| {
-        b.iter(|| black_box(simple_style.render(text, ColorSystem::TrueColor)));
+        b.iter(|| {
+            black_box(simple_style.render(text, ColorSystem::TrueColor));
+        });
     });
 
     c.bench_function("style_render_complex", |b| {
-        b.iter(|| black_box(complex_style.render(text, ColorSystem::TrueColor)));
+        b.iter(|| {
+            black_box(complex_style.render(text, ColorSystem::TrueColor));
+        });
     });
 
     c.bench_function("style_render_with_link", |b| {
-        b.iter(|| black_box(link_style.render(text, ColorSystem::TrueColor)));
+        b.iter(|| {
+            black_box(link_style.render(text, ColorSystem::TrueColor));
+        });
     });
 
     c.bench_function("style_make_ansi_codes", |b| {
@@ -185,6 +197,70 @@ fn benchmark_panel_render(c: &mut Criterion) {
     });
 }
 
+// =============================================================================
+// Conformance Test Benchmarks
+// =============================================================================
+// These benchmarks reuse the conformance test cases for consistent performance
+// baselines. See tests/conformance/ for test definitions.
+
+fn benchmark_conformance_text(c: &mut Criterion) {
+    use rich_rust::markup;
+    use rich_rust::segment::Segment;
+
+    // Plain text
+    c.bench_function("conformance_text_plain", |b| {
+        b.iter(|| {
+            let text = markup::render_or_plain("Hello, World!");
+            let segments: Vec<Segment<'static>> = text
+                .render("")
+                .into_iter()
+                .map(Segment::into_owned)
+                .collect();
+            black_box(segments)
+        });
+    });
+
+    // Styled text
+    c.bench_function("conformance_text_styled", |b| {
+        b.iter(|| {
+            let text = markup::render_or_plain("[bold]Bold [italic]and italic[/italic] text[/bold]");
+            let segments: Vec<Segment<'static>> = text
+                .render("")
+                .into_iter()
+                .map(Segment::into_owned)
+                .collect();
+            black_box(segments)
+        });
+    });
+
+    // Colored text
+    c.bench_function("conformance_text_colored", |b| {
+        b.iter(|| {
+            let text = markup::render_or_plain("[red]Red[/] and [green]Green[/]");
+            let segments: Vec<Segment<'static>> = text
+                .render("")
+                .into_iter()
+                .map(Segment::into_owned)
+                .collect();
+            black_box(segments)
+        });
+    });
+}
+
+fn benchmark_conformance_rule(c: &mut Criterion) {
+    use rich_rust::renderables::rule::Rule;
+
+    c.bench_function("conformance_rule_simple", |b| {
+        let rule = Rule::new();
+        b.iter(|| black_box(rule.render(40)));
+    });
+
+    c.bench_function("conformance_rule_with_title", |b| {
+        let rule = Rule::with_title("Section");
+        b.iter(|| black_box(rule.render(40)));
+    });
+}
+
 criterion_group!(
     benches,
     benchmark_text_render,
@@ -195,5 +271,7 @@ criterion_group!(
     benchmark_cell_len,
     benchmark_table_render,
     benchmark_panel_render,
+    benchmark_conformance_text,
+    benchmark_conformance_rule,
 );
 criterion_main!(benches);
