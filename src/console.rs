@@ -1988,7 +1988,7 @@ mod tests {
     fn test_print_options_implements_default() {
         // Default::default() uses derived defaults (empty strings)
         // PrintOptions::new() sets explicit defaults (sep=" ", end="\n")
-        let default_options: PrintOptions = Default::default();
+        let default_options = PrintOptions::default();
         assert_eq!(default_options.sep, "");
         assert_eq!(default_options.end, "");
 
