@@ -28,9 +28,9 @@ use super::align::{Align, AlignMethod};
 
 /// A renderable that arranges items in columns.
 #[derive(Debug, Clone)]
-pub struct Columns {
+pub struct Columns<'a> {
     /// Items to arrange (each item is a list of segments representing one line).
-    items: Vec<Vec<Segment>>,
+    items: Vec<Vec<Segment<'a>>>,
     /// Number of columns (None = auto-calculate based on content width).
     column_count: Option<usize>,
     /// Space between columns.
@@ -47,7 +47,7 @@ pub struct Columns {
     gutter_style: Style,
 }
 
-impl Default for Columns {
+impl Default for Columns<'_> {
     fn default() -> Self {
         Self {
             items: Vec::new(),
@@ -62,10 +62,10 @@ impl Default for Columns {
     }
 }
 
-impl Columns {
+impl<'a> Columns<'a> {
     /// Create a new Columns layout with the given items.
     #[must_use]
-    pub fn new(items: Vec<Vec<Segment>>) -> Self {
+    pub fn new(items: Vec<Vec<Segment<'a>>>) -> Self {
         Self {
             items,
             ..Default::default()
@@ -74,8 +74,8 @@ impl Columns {
 
     /// Create columns from strings.
     #[must_use]
-    pub fn from_strings(items: &[&str]) -> Self {
-        let segments: Vec<Vec<Segment>> =
+    pub fn from_strings(items: &[&'a str]) -> Self {
+        let segments: Vec<Vec<Segment<'a>>> =
             items.iter().map(|s| vec![Segment::new(*s, None)]).collect();
         Self::new(segments)
     }
@@ -130,7 +130,7 @@ impl Columns {
     }
 
     /// Get the width of an item in cells.
-    fn item_width(item: &[Segment]) -> usize {
+    fn item_width(item: &[Segment<'_>]) -> usize {
         item.iter().map(|s| cell_len(&s.text)).sum()
     }
 
@@ -261,7 +261,7 @@ impl Columns {
 
     /// Render the columns to lines of segments.
     #[must_use]
-    pub fn render(&self, total_width: usize) -> Vec<Vec<Segment>> {
+    pub fn render(&self, total_width: usize) -> Vec<Vec<Segment<'a>>> {
         if self.items.is_empty() {
             return vec![];
         }
@@ -331,7 +331,7 @@ impl Columns {
 
     /// Render to a single flat list of segments with newlines.
     #[must_use]
-    pub fn render_flat(&self, total_width: usize) -> Vec<Segment> {
+    pub fn render_flat(&self, total_width: usize) -> Vec<Segment<'a>> {
         let lines = self.render(total_width);
         let mut result = Vec::new();
 
@@ -443,7 +443,7 @@ mod tests {
         let line = &lines[0];
 
         // Check that gutter is present (spaces between columns)
-        let text: String = line.iter().map(|s| s.text.as_str()).collect();
+        let text: String = line.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("    ")); // 4 spaces for gutter
     }
 
@@ -456,7 +456,7 @@ mod tests {
             .align(AlignMethod::Center);
 
         let lines = cols.render(20);
-        let text: String = lines[0].iter().map(|s| s.text.as_str()).collect();
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
 
         // Content should be centered
         assert!(text.starts_with(' ')); // Has leading spaces
@@ -591,7 +591,7 @@ mod tests {
             .align(AlignMethod::Right);
 
         let lines = cols.render(20);
-        let text: String = lines[0].iter().map(|s| s.text.as_str()).collect();
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
 
         // Content should be right-aligned (leading spaces)
         assert!(text.starts_with(' '));
@@ -602,7 +602,7 @@ mod tests {
         let cols = Columns::from_strings(&["X"]).column_count(1).padding(2);
 
         let lines = cols.render(20);
-        let text: String = lines[0].iter().map(|s| s.text.as_str()).collect();
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
 
         // Should have padding around content
         assert!(text.starts_with("  ")); // 2 spaces padding

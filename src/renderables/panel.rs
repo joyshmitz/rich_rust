@@ -13,9 +13,9 @@ use super::padding::PaddingDimensions;
 
 /// A bordered panel containing content.
 #[derive(Debug, Clone)]
-pub struct Panel {
+pub struct Panel<'a> {
     /// Content lines to render inside the panel.
-    content_lines: Vec<Vec<Segment>>,
+    content_lines: Vec<Vec<Segment<'a>>>,
     /// Box drawing style.
     box_style: &'static BoxChars,
     /// Use ASCII-safe characters.
@@ -42,7 +42,7 @@ pub struct Panel {
     subtitle_align: JustifyMethod,
 }
 
-impl Default for Panel {
+impl Default for Panel<'_> {
     fn default() -> Self {
         Self {
             content_lines: Vec::new(),
@@ -62,10 +62,10 @@ impl Default for Panel {
     }
 }
 
-impl Panel {
+impl<'a> Panel<'a> {
     /// Create a new panel with content lines.
     #[must_use]
-    pub fn new(content_lines: Vec<Vec<Segment>>) -> Self {
+    pub fn new(content_lines: Vec<Vec<Segment<'a>>>) -> Self {
         Self {
             content_lines,
             ..Self::default()
@@ -74,8 +74,8 @@ impl Panel {
 
     /// Create a panel from plain text content.
     #[must_use]
-    pub fn from_text(text: &str) -> Self {
-        let lines: Vec<Vec<Segment>> = text
+    pub fn from_text(text: &'a str) -> Self {
+        let lines: Vec<Vec<Segment<'a>>> = text
             .lines()
             .map(|line| vec![Segment::new(line, None)])
             .collect();
@@ -84,12 +84,12 @@ impl Panel {
 
     /// Create a panel from a Text object.
     #[must_use]
-    pub fn from_rich_text(text: &Text, width: usize) -> Self {
+    pub fn from_rich_text(text: &'a Text, width: usize) -> Self {
         // Split into logical lines first, then render each line to segments.
         let lines = text
             .split_lines()
             .into_iter()
-            .map(|line| line.render(""))
+            .map(|line| line.render("").into_iter().map(|s| s.into_owned()).collect())
             .collect();
 
         Self {
@@ -218,14 +218,14 @@ impl Panel {
     fn content_width(&self) -> usize {
         self.content_lines
             .iter()
-            .map(|line| line.iter().map(|seg| cells::cell_len(&seg.text)).sum())
+            .map(|line: &Vec<Segment<'a>>| line.iter().map(|seg| cells::cell_len(&seg.text)).sum())
             .max()
             .unwrap_or(0)
     }
 
     /// Render the panel to segments.
     #[must_use]
-    pub fn render(&self, max_width: usize) -> Vec<Segment> {
+    pub fn render(&self, max_width: usize) -> Vec<Segment<'a>> {
         let box_chars = self.effective_box();
 
         // Calculate panel width
@@ -311,10 +311,10 @@ impl Panel {
             }
 
             // Content (truncate/pad to content width)
-            let mut content_segments: Vec<Segment> = line
+            let mut content_segments: Vec<Segment<'a>> = line
                 .iter()
                 .cloned()
-                .map(|mut seg| {
+                .map(|mut seg: Segment<'a>| {
                     if !seg.is_control() {
                         seg.style = Some(match seg.style.take() {
                             Some(existing) => self.style.combine(&existing),
@@ -372,7 +372,7 @@ impl Panel {
     }
 
     /// Render the top border with optional title.
-    fn render_top_border(&self, box_chars: &BoxChars, inner_width: usize) -> Vec<Segment> {
+    fn render_top_border(&self, box_chars: &BoxChars, inner_width: usize) -> Vec<Segment<'a>> {
         let mut segments = Vec::new();
 
         // Left corner
@@ -399,7 +399,7 @@ impl Panel {
 
             let title_width = title_text.cell_len();
             if inner_width < 2 {
-                segments.extend(title_text.render(""));
+                segments.extend(title_text.render("").into_iter().map(|s| s.into_owned()));
                 let remaining = inner_width.saturating_sub(title_width);
                 if remaining > 0 {
                     segments.push(Segment::new(
@@ -433,7 +433,7 @@ impl Panel {
                 }
 
                 segments.push(Segment::new(" ", Some(title_text.style().clone())));
-                segments.extend(title_text.render(""));
+                segments.extend(title_text.render("").into_iter().map(|s| s.into_owned()));
                 segments.push(Segment::new(" ", Some(title_text.style().clone())));
 
                 if right_rule > 0 {
@@ -461,7 +461,7 @@ impl Panel {
     }
 
     /// Render the bottom border with optional subtitle.
-    fn render_bottom_border(&self, box_chars: &BoxChars, inner_width: usize) -> Vec<Segment> {
+    fn render_bottom_border(&self, box_chars: &BoxChars, inner_width: usize) -> Vec<Segment<'a>> {
         let mut segments = Vec::new();
 
         // Left corner
@@ -488,7 +488,7 @@ impl Panel {
 
             let subtitle_width = subtitle_text.cell_len();
             if inner_width < 2 {
-                segments.extend(subtitle_text.render(""));
+                segments.extend(subtitle_text.render("").into_iter().map(|s| s.into_owned()));
                 let remaining = inner_width.saturating_sub(subtitle_width);
                 if remaining > 0 {
                     segments.push(Segment::new(
@@ -522,7 +522,7 @@ impl Panel {
                 }
 
                 segments.push(Segment::new(" ", Some(subtitle_text.style().clone())));
-                segments.extend(subtitle_text.render(""));
+                segments.extend(subtitle_text.render("").into_iter().map(|s| s.into_owned()));
                 segments.push(Segment::new(" ", Some(subtitle_text.style().clone())));
 
                 if right_rule > 0 {
@@ -568,7 +568,7 @@ fn truncate_text_to_width(text: &Text, max_width: usize) -> Text {
 
 /// Create a panel with content that fits (doesn't expand).
 #[must_use]
-pub fn fit_panel(text: &str) -> Panel {
+pub fn fit_panel(text: &str) -> Panel<'_> {
     Panel::from_text(text).expand(false)
 }
 
@@ -590,7 +590,7 @@ mod tests {
         let segments = panel.render(80);
         assert!(!segments.is_empty());
 
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Hello"));
         // Should have rounded corners by default
         assert!(text.contains('\u{256D}')); // ╭
@@ -667,7 +667,7 @@ mod tests {
         assert_eq!(non_empty_lines, 4);
         let text: String = lines
             .iter()
-            .map(|line| line.iter().map(|seg| seg.text.as_str()).collect::<String>())
+            .map(|line| line.iter().map(|seg| seg.text.as_ref()).collect::<String>())
             .collect();
         assert!(!text.contains('C'));
     }
@@ -700,7 +700,7 @@ mod tests {
         assert_eq!(non_empty_lines, 4);
         let text: String = lines
             .iter()
-            .map(|line| line.iter().map(|seg| seg.text.as_str()).collect::<String>())
+            .map(|line| line.iter().map(|seg| seg.text.as_ref()).collect::<String>())
             .collect();
         assert!(text.contains('A'));
     }

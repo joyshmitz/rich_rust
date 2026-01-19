@@ -635,7 +635,7 @@ fn e2e_table_with_styles() {
     table.add_row_cells(["Data", "Here"]);
 
     let segments = table.render(40);
-    let output: String = segments.iter().map(|s| s.text.as_str()).collect();
+    let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
     tracing::debug!(output = %output, "Styled table output");
 
     // Check that styles are present (segments have style)

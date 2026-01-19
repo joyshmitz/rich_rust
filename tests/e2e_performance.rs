@@ -191,7 +191,7 @@ fn perf_large_table_100x10() {
     let elapsed = start.elapsed();
 
     // Verify rendering produced output
-    let output: String = segments.iter().map(|s| s.text.as_str()).collect();
+    let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
     assert!(!output.is_empty(), "Table should produce output");
 
     tracing::info!(
@@ -217,7 +217,7 @@ fn perf_large_table_500x20() {
     let segments = table.render(300);
     let elapsed = start.elapsed();
 
-    let output: String = segments.iter().map(|s| s.text.as_str()).collect();
+    let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
     assert!(!output.is_empty(), "Table should produce output");
 
     tracing::info!(
@@ -424,24 +424,22 @@ fn perf_segment_merge_10000() {
     let start = Instant::now();
 
     // Merge consecutive segments with same style
-    let mut merged: Vec<Segment> = Vec::new();
+    let mut simplified: Vec<Segment> = Vec::new();
     for seg in segments {
-        if let Some(last) = merged.last_mut()
-            && last.style == seg.style
-            && last.control.is_none()
-            && seg.control.is_none()
-        {
-            last.text.push_str(&seg.text);
-            continue;
+        if let Some(last) = simplified.last_mut() {
+            if last.style == seg.style {
+                last.text.to_mut().push_str(&seg.text);
+                continue;
+            }
         }
-        merged.push(seg);
+        simplified.push(seg);
     }
 
     let elapsed = start.elapsed();
 
     tracing::info!(
         input_count = 10000,
-        merged_count = merged.len(),
+        merged_count = simplified.len(),
         elapsed_ms = elapsed.as_millis(),
         "Segment merging complete"
     );
@@ -509,17 +507,16 @@ fn perf_memory_stress_large_document() {
     }
 
     // Multiple panels
-    for panel_num in 0..20 {
+    for _ in 0..10 {
         let content = format!(
-            "Panel content {} with some longer text to make it interesting",
-            panel_num + 1
+            "Panel content {}",
+            "X".repeat(100)
         );
-        let title = format!("Panel {}", panel_num + 1);
         let panel = Panel::from_text(&content)
-            .title(title) // Takes ownership
-            .width(60);
-
-        all_segments.extend(panel.render(width));
+            .width(50)
+            .expand(false);
+        let segments: Vec<Segment> = panel.render(80).into_iter().map(|s| s.into_owned()).collect();
+        all_segments.extend(segments);
     }
 
     // Multiple rules

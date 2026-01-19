@@ -28,7 +28,7 @@ pub enum BarStyle {
 impl BarStyle {
     /// Get the completed character for this style.
     #[must_use]
-    pub const fn completed_char(&self) -> &str {
+    pub const fn completed_char(&self) -> &'static str {
         match self {
             Self::Ascii => "#",
             Self::Block => "\u{2588}",    // █
@@ -40,7 +40,7 @@ impl BarStyle {
 
     /// Get the remaining character for this style.
     #[must_use]
-    pub const fn remaining_char(&self) -> &str {
+    pub const fn remaining_char(&self) -> &'static str {
         match self {
             Self::Ascii => "-",
             Self::Block => "\u{2591}",    // ░
@@ -52,7 +52,7 @@ impl BarStyle {
 
     /// Get the pulse character for this style (edge of completion).
     #[must_use]
-    pub const fn pulse_char(&self) -> &str {
+    pub const fn pulse_char(&self) -> &'static str {
         match self {
             Self::Ascii => ">",
             Self::Block => "\u{2593}",    // ▓
@@ -171,7 +171,7 @@ impl Spinner {
     }
 
     /// Advance to the next frame and return the current frame.
-    pub fn next_frame(&mut self) -> &str {
+    pub fn next_frame(&mut self) -> &'static str {
         if self.frames.is_empty() {
             return " ";
         }
@@ -182,7 +182,7 @@ impl Spinner {
 
     /// Get the current frame without advancing.
     #[must_use]
-    pub fn current_frame(&self) -> &str {
+    pub fn current_frame(&self) -> &'static str {
         if self.frames.is_empty() {
             return " ";
         }
@@ -191,7 +191,7 @@ impl Spinner {
 
     /// Render the current spinner frame as a segment.
     #[must_use]
-    pub fn render(&self) -> Segment {
+    pub fn render(&self) -> Segment<'static> {
         Segment::new(self.current_frame(), Some(self.style.clone()))
     }
 }
@@ -476,7 +476,7 @@ impl ProgressBar {
 
     /// Render the progress bar to segments for a given width.
     #[must_use]
-    pub fn render(&self, available_width: usize) -> Vec<Segment> {
+    pub fn render(&self, available_width: usize) -> Vec<Segment<'static>> {
         let mut segments = Vec::new();
 
         // If finished and has a finished message, show that
@@ -495,7 +495,7 @@ impl ProgressBar {
             let mut desc_text = desc.clone();
             desc_text.append(" ");
             let desc_width = desc_text.cell_len();
-            segments.extend(desc_text.render(""));
+            segments.extend(desc_text.render("").into_iter().map(|s| s.into_owned()));
             used_width += desc_width;
         }
 
@@ -575,7 +575,7 @@ impl ProgressBar {
         if completed_width > 0 {
             let completed_chars = self.bar_style.completed_char().repeat(completed_width);
             segments.push(Segment::new(
-                &completed_chars,
+                completed_chars,
                 Some(self.completed_style.clone()),
             ));
         }
@@ -594,14 +594,14 @@ impl ProgressBar {
             if remaining_width > 0 {
                 let remaining_chars = self.bar_style.remaining_char().repeat(remaining_width);
                 segments.push(Segment::new(
-                    &remaining_chars,
+                    remaining_chars,
                     Some(self.remaining_style.clone()),
                 ));
             }
         } else if remaining_width > 0 {
             let remaining_chars = self.bar_style.remaining_char().repeat(remaining_width);
             segments.push(Segment::new(
-                &remaining_chars,
+                remaining_chars,
                 Some(self.remaining_style.clone()),
             ));
         }
@@ -612,7 +612,7 @@ impl ProgressBar {
 
         // Suffix (percentage, ETA, etc.)
         if !suffix.is_empty() {
-            segments.push(Segment::new(&suffix, None));
+            segments.push(Segment::new(suffix, None));
         }
 
         segments.push(Segment::line());
@@ -699,7 +699,7 @@ mod tests {
         bar.set_progress(0.5);
         let segments = bar.render(80);
         assert!(!segments.is_empty());
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('['));
         assert!(text.contains(']'));
         assert!(text.contains('%'));

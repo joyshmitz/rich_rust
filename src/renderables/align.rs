@@ -45,10 +45,10 @@ pub enum VerticalAlignMethod {
 
 /// A wrapper that aligns content within a given width.
 #[derive(Debug, Clone)]
-pub struct Align {
+pub struct Align<'a> {
     /// Content segments to align.
-    content: Vec<Segment>,
-    /// Total width to align within.
+    content: Vec<Segment<'a>>,
+    /// Target width.
     width: usize,
     /// Horizontal alignment method.
     method: AlignMethod,
@@ -56,12 +56,12 @@ pub struct Align {
     pad_style: Style,
 }
 
-impl Align {
+impl<'a> Align<'a> {
     /// Create a new Align wrapper for single-line content.
     #[must_use]
-    pub fn new(content: Vec<Segment>, width: usize) -> Self {
+    pub fn new(content: impl IntoIterator<Item = Segment<'a>>, width: usize) -> Self {
         Self {
-            content,
+            content: content.into_iter().collect(),
             width,
             method: AlignMethod::Left,
             pad_style: Style::new(),
@@ -70,7 +70,7 @@ impl Align {
 
     /// Create an Align wrapper from a string.
     #[must_use]
-    pub fn from_str(text: &str, width: usize) -> Self {
+    pub fn from_str(text: &'a str, width: usize) -> Self {
         Self::new(vec![Segment::new(text, None)], width)
     }
 
@@ -114,7 +114,7 @@ impl Align {
 
     /// Render the aligned content.
     #[must_use]
-    pub fn render(self) -> Vec<Segment> {
+    pub fn render(self) -> Vec<Segment<'a>> {
         let content_width = self.content_width();
 
         // If content is wider than or equal to target width, return as-is
@@ -170,10 +170,10 @@ impl Align {
 
 /// A wrapper that aligns multiple lines of content.
 #[derive(Debug, Clone)]
-pub struct AlignLines {
+pub struct AlignLines<'a> {
     /// Lines of content (each line is a Vec of Segments).
-    lines: Vec<Vec<Segment>>,
-    /// Total width to align within.
+    lines: Vec<Vec<Segment<'a>>>,
+    /// Target width.
     width: usize,
     /// Horizontal alignment method.
     method: AlignMethod,
@@ -181,10 +181,10 @@ pub struct AlignLines {
     pad_style: Style,
 }
 
-impl AlignLines {
+impl<'a> AlignLines<'a> {
     /// Create a new `AlignLines` wrapper.
     #[must_use]
-    pub fn new(lines: Vec<Vec<Segment>>, width: usize) -> Self {
+    pub fn new(lines: Vec<Vec<Segment<'a>>>, width: usize) -> Self {
         Self {
             lines,
             width,
@@ -233,7 +233,7 @@ impl AlignLines {
 
     /// Render all lines with alignment applied.
     #[must_use]
-    pub fn render(self) -> Vec<Vec<Segment>> {
+    pub fn render(self) -> Vec<Vec<Segment<'a>>> {
         self.lines
             .into_iter()
             .map(|line| {
@@ -286,7 +286,7 @@ mod tests {
         let content = vec![Segment::new("Hi", None)];
         let aligned = Align::new(content, 10).left().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "Hi        ");
         assert_eq!(cell_len(&text), 10);
     }
@@ -296,7 +296,7 @@ mod tests {
         let content = vec![Segment::new("Hi", None)];
         let aligned = Align::new(content, 10).center().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "    Hi    ");
         assert_eq!(cell_len(&text), 10);
     }
@@ -306,7 +306,7 @@ mod tests {
         let content = vec![Segment::new("Hi", None)];
         let aligned = Align::new(content, 10).right().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "        Hi");
         assert_eq!(cell_len(&text), 10);
     }
@@ -317,7 +317,7 @@ mod tests {
         let aligned = Align::new(content, 5).center().render();
 
         // Should return content as-is when wider than target
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "Hello World");
     }
 
@@ -326,7 +326,7 @@ mod tests {
         let content = vec![Segment::new("Hello", None)];
         let aligned = Align::new(content, 5).center().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "Hello");
     }
 
@@ -339,7 +339,7 @@ mod tests {
         ];
         let aligned = Align::new(content, 20).center().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(cell_len(&text), 20);
         assert!(text.contains("Hello World"));
     }
@@ -351,7 +351,7 @@ mod tests {
         let content = vec![Segment::new("abc", None)];
         let aligned = Align::new(content, 10).center().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "   abc    ");
         assert_eq!(cell_len(&text), 10);
     }
@@ -360,7 +360,7 @@ mod tests {
     fn test_align_from_str() {
         let aligned = Align::from_str("Test", 10).right().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "      Test");
     }
 
@@ -377,7 +377,7 @@ mod tests {
 
         // Each line should be 15 chars wide
         for line in &aligned {
-            let text: String = line.iter().map(|s| s.text.as_str()).collect();
+            let text: String = line.iter().map(|s| s.text.as_ref()).collect();
             assert_eq!(cell_len(&text), 15);
         }
     }
@@ -395,7 +395,7 @@ mod tests {
         let content = vec![Segment::new("日本", None)]; // 4 cells wide
         let aligned = Align::new(content, 10).center().render();
 
-        let text: String = aligned.iter().map(|s| s.text.as_str()).collect();
+        let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(cell_len(&text), 10);
         // 10 - 4 = 6 padding, left: 3, right: 3
         assert!(text.starts_with("   "));

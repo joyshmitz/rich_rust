@@ -5,6 +5,7 @@
 
 use crate::cells::cell_len;
 use crate::style::Style;
+use std::borrow::Cow;
 use std::fmt;
 
 /// Control codes for terminal manipulation.
@@ -62,25 +63,25 @@ impl ControlCode {
 /// The rendering pipeline breaks down complex renderables into segments
 /// for output.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Segment {
+pub struct Segment<'a> {
     /// The text content.
-    pub text: String,
+    pub text: Cow<'a, str>,
     /// The style to apply (None = no styling).
     pub style: Option<Style>,
     /// Control codes for terminal manipulation.
     pub control: Option<Vec<ControlCode>>,
 }
 
-impl Default for Segment {
+impl Default for Segment<'_> {
     fn default() -> Self {
         Self::new("", None)
     }
 }
 
-impl Segment {
+impl<'a> Segment<'a> {
     /// Create a new segment with text and optional style.
     #[must_use]
-    pub fn new(text: impl Into<String>, style: Option<Style>) -> Self {
+    pub fn new(text: impl Into<Cow<'a, str>>, style: Option<Style>) -> Self {
         Self {
             text: text.into(),
             style,
@@ -90,13 +91,13 @@ impl Segment {
 
     /// Create a segment with a style.
     #[must_use]
-    pub fn styled(text: impl Into<String>, style: Style) -> Self {
+    pub fn styled(text: impl Into<Cow<'a, str>>, style: Style) -> Self {
         Self::new(text, Some(style))
     }
 
     /// Create a plain segment with no style.
     #[must_use]
-    pub fn plain(text: impl Into<String>) -> Self {
+    pub fn plain(text: impl Into<Cow<'a, str>>) -> Self {
         Self::new(text, None)
     }
 
@@ -110,9 +111,19 @@ impl Segment {
     #[must_use]
     pub fn control(control_codes: Vec<ControlCode>) -> Self {
         Self {
-            text: String::new(),
+            text: Cow::Borrowed(""),
             style: None,
             control: Some(control_codes),
+        }
+    }
+
+    /// Convert to an owned segment (static lifetime).
+    #[must_use]
+    pub fn into_owned(self) -> Segment<'static> {
+        Segment {
+            text: Cow::Owned(self.text.into_owned()),
+            style: self.style,
+            control: self.control,
         }
     }
 
@@ -168,28 +179,38 @@ impl Segment {
             byte_pos = i + c.len_utf8();
         }
 
-        let (left_text, right_text) = self.text.split_at(byte_pos);
+        // Optimized split using Cow
+        let (left, right) = match &self.text {
+            Cow::Borrowed(s) => {
+                let (l, r) = s.split_at(byte_pos);
+                (Cow::Borrowed(l), Cow::Borrowed(r))
+            }
+            Cow::Owned(s) => {
+                let (l, r) = s.split_at(byte_pos);
+                (Cow::Owned(l.to_string()), Cow::Owned(r.to_string()))
+            }
+        };
 
         (
-            Self::new(left_text, self.style.clone()),
-            Self::new(right_text, self.style.clone()),
+            Self::new(left, self.style.clone()),
+            Self::new(right, self.style.clone()),
         )
     }
 }
 
-impl From<&str> for Segment {
-    fn from(value: &str) -> Self {
+impl<'a> From<&'a str> for Segment<'a> {
+    fn from(value: &'a str) -> Self {
         Self::plain(value)
     }
 }
 
-impl From<String> for Segment {
+impl From<String> for Segment<'_> {
     fn from(value: String) -> Self {
         Self::plain(value)
     }
 }
 
-impl fmt::Display for Segment {
+impl fmt::Display for Segment<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.text)
     }
@@ -204,9 +225,9 @@ pub fn apply_style<'a, I>(
     segments: I,
     style: Option<&'a Style>,
     post_style: Option<&'a Style>,
-) -> impl Iterator<Item = Segment> + 'a
+) -> impl Iterator<Item = Segment<'a>> + 'a
 where
-    I: Iterator<Item = Segment> + 'a,
+    I: Iterator<Item = Segment<'a>> + 'a,
 {
     segments.map(move |mut seg| {
         if seg.is_control() {
@@ -232,8 +253,8 @@ where
 }
 
 /// Split segments into lines at newline characters.
-pub fn split_lines(segments: impl Iterator<Item = Segment>) -> Vec<Vec<Segment>> {
-    let mut lines: Vec<Vec<Segment>> = vec![Vec::new()];
+pub fn split_lines<'a>(segments: impl Iterator<Item = Segment<'a>>) -> Vec<Vec<Segment<'a>>> {
+    let mut lines: Vec<Vec<Segment<'a>>> = vec![Vec::new()];
 
     for segment in segments {
         if segment.is_control() {
@@ -241,17 +262,34 @@ pub fn split_lines(segments: impl Iterator<Item = Segment>) -> Vec<Vec<Segment>>
             continue;
         }
 
-        let parts: Vec<&str> = segment.text.split('\n').collect();
-        for (i, part) in parts.iter().enumerate() {
-            if i > 0 {
-                // Start a new line
-                lines.push(Vec::new());
+        match segment.text {
+            Cow::Borrowed(s) => {
+                let parts: Vec<&str> = s.split('\n').collect();
+                for (i, part) in parts.iter().enumerate() {
+                    if i > 0 {
+                        lines.push(Vec::new());
+                    }
+                    if !part.is_empty() {
+                        lines
+                            .last_mut()
+                            .expect("at least one line")
+                            .push(Segment::new(*part, segment.style.clone()));
+                    }
+                }
             }
-            if !part.is_empty() {
-                lines
-                    .last_mut()
-                    .expect("at least one line")
-                    .push(Segment::new(*part, segment.style.clone()));
+            Cow::Owned(s) => {
+                let parts: Vec<&str> = s.split('\n').collect();
+                for (i, part) in parts.iter().enumerate() {
+                    if i > 0 {
+                        lines.push(Vec::new());
+                    }
+                    if !part.is_empty() {
+                        lines
+                            .last_mut()
+                            .expect("at least one line")
+                            .push(Segment::new(part.to_string(), segment.style.clone()));
+                    }
+                }
             }
         }
     }
@@ -261,12 +299,12 @@ pub fn split_lines(segments: impl Iterator<Item = Segment>) -> Vec<Vec<Segment>>
 
 /// Adjust line length by padding or truncating.
 #[must_use]
-pub fn adjust_line_length(
-    mut line: Vec<Segment>,
+pub fn adjust_line_length<'a>(
+    mut line: Vec<Segment<'a>>,
     length: usize,
     style: Option<Style>,
     pad: bool,
-) -> Vec<Segment> {
+) -> Vec<Segment<'a>> {
     let current_length: usize = line.iter().map(Segment::cell_length).sum();
 
     if current_length < length && pad {
@@ -282,7 +320,7 @@ pub fn adjust_line_length(
 }
 
 /// Truncate a line to a maximum cell width.
-fn truncate_line(segments: Vec<Segment>, max_width: usize) -> Vec<Segment> {
+fn truncate_line<'a>(segments: Vec<Segment<'a>>, max_width: usize) -> Vec<Segment<'a>> {
     let mut result = Vec::new();
     let mut remaining = max_width;
 
@@ -312,8 +350,8 @@ fn truncate_line(segments: Vec<Segment>, max_width: usize) -> Vec<Segment> {
 
 /// Simplify segments by merging adjacent segments with identical styles.
 #[must_use]
-pub fn simplify(segments: impl Iterator<Item = Segment>) -> Vec<Segment> {
-    let mut result: Vec<Segment> = Vec::new();
+pub fn simplify<'a>(segments: impl Iterator<Item = Segment<'a>>) -> Vec<Segment<'a>> {
+    let mut result: Vec<Segment<'a>> = Vec::new();
 
     for segment in segments {
         if segment.is_control() || segment.text.is_empty() {
@@ -327,7 +365,13 @@ pub fn simplify(segments: impl Iterator<Item = Segment>) -> Vec<Segment> {
             && !last.is_control()
             && last.style == segment.style
         {
-            last.text.push_str(&segment.text);
+            // We need to merge text. If last is borrowed and segment is borrowed, 
+            // and they are adjacent, we could technically merge? No, they are str.
+            // Converting to Owned is the only way to append generally.
+            
+            let mut last_owned = last.text.clone().into_owned();
+            last_owned.push_str(&segment.text);
+            last.text = Cow::Owned(last_owned);
             continue;
         }
 
@@ -339,12 +383,12 @@ pub fn simplify(segments: impl Iterator<Item = Segment>) -> Vec<Segment> {
 
 /// Divide segments at specified cell positions.
 #[must_use]
-pub fn divide(segments: Vec<Segment>, cuts: &[usize]) -> Vec<Vec<Segment>> {
+pub fn divide<'a>(segments: Vec<Segment<'a>>, cuts: &[usize]) -> Vec<Vec<Segment<'a>>> {
     if cuts.is_empty() {
         return vec![segments];
     }
 
-    let mut result: Vec<Vec<Segment>> = vec![Vec::new(); cuts.len() + 1];
+    let mut result: Vec<Vec<Segment<'a>>> = vec![Vec::new(); cuts.len() + 1];
     let mut current_pos = 0;
     let mut cut_idx = 0;
 
@@ -402,12 +446,12 @@ pub fn divide(segments: Vec<Segment>, cuts: &[usize]) -> Vec<Vec<Segment>> {
     clippy::needless_pass_by_value,
     reason = "style ownership allows caller to avoid clone"
 )]
-pub fn align_top(
-    lines: Vec<Vec<Segment>>,
+pub fn align_top<'a>(
+    lines: Vec<Vec<Segment<'a>>>,
     width: usize,
     height: usize,
     style: Style,
-) -> Vec<Vec<Segment>> {
+) -> Vec<Vec<Segment<'a>>> {
     let mut result = lines;
 
     // Pad existing lines to width
@@ -435,12 +479,12 @@ pub fn align_top(
     clippy::needless_pass_by_value,
     reason = "style ownership allows caller to avoid clone"
 )]
-pub fn align_bottom(
-    lines: Vec<Vec<Segment>>,
+pub fn align_bottom<'a>(
+    lines: Vec<Vec<Segment<'a>>>,
     width: usize,
     height: usize,
     style: Style,
-) -> Vec<Vec<Segment>> {
+) -> Vec<Vec<Segment<'a>>> {
     let mut result = Vec::new();
     let blank_line = vec![Segment::new(" ".repeat(width), Some(style.clone()))];
 
@@ -467,12 +511,12 @@ pub fn align_bottom(
 
 /// Align lines to the middle of a given height.
 #[must_use]
-pub fn align_middle(
-    lines: Vec<Vec<Segment>>,
+pub fn align_middle<'a>(
+    lines: Vec<Vec<Segment<'a>>>,
     width: usize,
     height: usize,
     style: Style,
-) -> Vec<Vec<Segment>> {
+) -> Vec<Vec<Segment<'a>>> {
     let content_height = lines.len();
     if content_height >= height {
         return align_top(lines, width, height, style);

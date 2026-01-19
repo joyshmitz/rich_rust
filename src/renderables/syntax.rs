@@ -562,7 +562,7 @@ mod tests {
         assert!(result.is_ok());
         let segments = result.unwrap();
         // Should contain line number segments
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('1'));
         assert!(text.contains('2'));
     }
@@ -624,7 +624,7 @@ mod tests {
             .render(None)
             .expect("render should succeed")
             .iter()
-            .map(|s| s.text.as_str())
+            .map(|s| s.text.as_ref())
             .collect::<String>();
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines, vec!["  a  ", "  b  "]);
@@ -638,7 +638,7 @@ mod tests {
             .render(None)
             .expect("render should succeed")
             .iter()
-            .map(|s| s.text.as_str())
+            .map(|s| s.text.as_ref())
             .collect::<String>();
         assert!(!text.contains('\r'));
         assert!(text.contains("let x = 1;"));

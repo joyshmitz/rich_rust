@@ -873,7 +873,7 @@ impl Table {
 
     /// Render the table to segments.
     #[must_use]
-    pub fn render(&self, max_width: usize) -> Vec<Segment> {
+    pub fn render(&self, max_width: usize) -> Vec<Segment<'static>> {
         let box_chars = self.effective_box();
         let widths = self.calculate_widths(max_width);
 
@@ -900,7 +900,7 @@ impl Table {
         // Top border
         if self.show_edge {
             let top = self.build_separator(box_chars, &widths, RowLevel::Top);
-            segments.push(Segment::new(&top, Some(self.border_style.clone())));
+            segments.push(Segment::new(top, Some(self.border_style.clone())));
             segments.push(Segment::line());
         }
 
@@ -951,7 +951,7 @@ impl Table {
 
             // Header separator
             let sep = self.build_separator(box_chars, &widths, RowLevel::HeadRow);
-            segments.push(Segment::new(&sep, Some(self.border_style.clone())));
+            segments.push(Segment::new(sep, Some(self.border_style.clone())));
             segments.push(Segment::line());
         }
 
@@ -1022,10 +1022,10 @@ impl Table {
                 ));
             }
 
-            // Row separator
+            // Row separator (if show_lines or end_section)
             if (self.show_lines || row.end_section) && (!is_last || self.show_footer) {
                 let sep = self.build_separator(box_chars, &widths, RowLevel::Row);
-                segments.push(Segment::new(&sep, Some(self.border_style.clone())));
+                segments.push(Segment::new(sep, Some(self.border_style.clone())));
                 segments.push(Segment::line());
             }
         }
@@ -1035,7 +1035,7 @@ impl Table {
             // Footer separator (if not already drawn)
             if !self.show_lines {
                 let sep = self.build_separator(box_chars, &widths, RowLevel::FootRow);
-                segments.push(Segment::new(&sep, Some(self.border_style.clone())));
+                segments.push(Segment::new(sep, Some(self.border_style.clone())));
                 segments.push(Segment::line());
             }
 
@@ -1075,7 +1075,7 @@ impl Table {
         // Bottom border
         if self.show_edge {
             let bottom = self.build_separator(box_chars, &widths, RowLevel::Bottom);
-            segments.push(Segment::new(&bottom, Some(self.border_style.clone())));
+            segments.push(Segment::new(bottom, Some(self.border_style.clone())));
             segments.push(Segment::line());
         }
 
@@ -1179,7 +1179,7 @@ impl Table {
         cell_styles: &[&Style],
         row_style: &Style,
         cell_overrides: &[Option<Style>],
-    ) -> Vec<Segment> {
+    ) -> Vec<Segment<'static>> {
         let mut segments = Vec::new();
         let pad_str = " ".repeat(self.padding.0);
         let last_idx = widths.len().saturating_sub(1);
@@ -1209,7 +1209,7 @@ impl Table {
                 self.pad_edge || i > 0
             };
             if pad_left {
-                segments.push(Segment::new(&pad_str, Some(combined_style.clone())));
+                segments.push(Segment::new(pad_str.clone(), Some(combined_style.clone())));
             }
 
             // Cell content
@@ -1249,7 +1249,7 @@ impl Table {
                 ));
             }
 
-            segments.extend(cell_text.render(""));
+            segments.extend(cell_text.render("").into_iter().map(|s| s.into_owned()));
 
             if right_space > 0 {
                 segments.push(Segment::new(
@@ -1265,7 +1265,7 @@ impl Table {
                 self.pad_edge || i < widths.len() - 1
             };
             if pad_right {
-                segments.push(Segment::new(&pad_str, Some(combined_style)));
+                segments.push(Segment::new(pad_str.clone(), Some(combined_style)));
             }
 
             // Cell divider
@@ -1298,7 +1298,7 @@ impl Table {
         cell_styles: &[&Style],
         cell_overrides: &[Option<Style>],
         count: usize,
-    ) -> Vec<Segment> {
+    ) -> Vec<Segment<'static>> {
         if count == 0 {
             return Vec::new();
         }
@@ -1327,7 +1327,7 @@ impl Table {
         width: usize,
         style: &Style,
         justify: JustifyMethod,
-    ) -> Vec<Segment> {
+    ) -> Vec<Segment<'static>> {
         if width == 0 {
             return Vec::new();
         }
@@ -1354,7 +1354,7 @@ impl Table {
             segments.push(Segment::new(" ".repeat(left_space), Some(style.clone())));
         }
 
-        let mut content_segments = content_text.render("");
+        let mut content_segments = content_text.render("").into_iter().map(|s| s.into_owned()).collect::<Vec<_>>();
         for segment in &mut content_segments {
             if !segment.is_control() {
                 segment.style = Some(match segment.style.take() {
@@ -1457,7 +1457,7 @@ mod tests {
         table.add_row_cells(["Alice", "30"]);
 
         let segments = table.render(40);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
 
         assert!(text.contains("Name"));
         assert!(text.contains("Age"));

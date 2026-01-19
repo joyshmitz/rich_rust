@@ -327,7 +327,7 @@ pub struct Console {
     /// Output stream (defaults to stdout).
     file: RefCell<Box<dyn Write + Send>>,
     /// Recording buffer.
-    buffer: RefCell<Vec<Segment>>,
+    buffer: RefCell<Vec<Segment<'static>>>,
     /// Cached terminal detection.
     is_terminal: bool,
     /// Detected/configured color system.
@@ -468,7 +468,7 @@ impl Console {
     }
 
     /// End recording and return captured segments.
-    pub fn end_capture(&mut self) -> Vec<Segment> {
+    pub fn end_capture(&mut self) -> Vec<Segment<'static>> {
         self.record.set(false);
         std::mem::take(&mut *self.buffer.borrow_mut())
     }
@@ -500,7 +500,7 @@ impl Console {
     }
 
     /// Print prepared segments.
-    pub fn print_segments(&self, segments: &[Segment]) {
+    pub fn print_segments(&self, segments: &[Segment<'_>]) {
         let mut file = self.file.borrow_mut();
         let _ = self.print_segments_to(&mut *file, segments);
     }
@@ -509,7 +509,7 @@ impl Console {
     pub fn print_segments_to<W: Write>(
         &self,
         writer: &mut W,
-        segments: &[Segment],
+        segments: &[Segment<'_>],
     ) -> io::Result<()> {
         self.write_segments(writer, segments)
     }
@@ -590,7 +590,7 @@ impl Console {
                 }
 
                 let line_end = if index == last_index { end } else { "\n" };
-                rendered.extend(line.render(line_end));
+                rendered.extend(line.render(line_end).into_iter().map(|s| s.into_owned()));
             }
 
             rendered
@@ -621,9 +621,9 @@ impl Console {
     }
 
     /// Write segments to a writer.
-    fn write_segments<W: Write>(&self, writer: &mut W, segments: &[Segment]) -> io::Result<()> {
+    fn write_segments<W: Write>(&self, writer: &mut W, segments: &[Segment<'_>]) -> io::Result<()> {
         if self.record.get() {
-            self.buffer.borrow_mut().extend(segments.iter().cloned());
+            self.buffer.borrow_mut().extend(segments.iter().map(|s| s.clone().into_owned()));
         }
 
         let color_system = self.color_system();
@@ -652,7 +652,7 @@ impl Console {
         writer.flush()
     }
 
-    fn write_control_codes<W: Write>(&self, writer: &mut W, segment: &Segment) -> io::Result<()> {
+    fn write_control_codes<W: Write>(&self, writer: &mut W, segment: &Segment<'_>) -> io::Result<()> {
         let Some(ref controls) = segment.control else {
             return Ok(());
         };
@@ -840,9 +840,9 @@ fn erase_in_line_mode(params: &[i32]) -> i32 {
     2
 }
 
-fn control_title(segment: &Segment, control: &crate::segment::ControlCode) -> Option<String> {
+fn control_title(segment: &Segment<'_>, control: &crate::segment::ControlCode) -> Option<String> {
     if !segment.text.is_empty() {
-        return Some(segment.text.clone());
+        return Some(segment.text.to_string());
     }
 
     if control.params.is_empty() {
@@ -1099,7 +1099,7 @@ mod tests {
         console.print_plain("Hello");
         let segments = console.end_capture();
 
-        let captured: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let captured: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(captured.contains("Hello"));
     }
 

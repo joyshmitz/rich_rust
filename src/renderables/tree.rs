@@ -281,7 +281,7 @@ impl Tree {
 
     /// Render the tree to segments.
     #[must_use]
-    pub fn render(&self) -> Vec<Segment> {
+    pub fn render<'a>(&'a self) -> Vec<Segment<'a>> {
         let mut segments = Vec::new();
         let prefix_stack: Vec<bool> = Vec::new();
 
@@ -304,10 +304,10 @@ impl Tree {
         clippy::cast_possible_wrap,
         reason = "tree depth will never exceed isize::MAX"
     )]
-    fn render_node(
-        &self,
-        node: &TreeNode,
-        segments: &mut Vec<Segment>,
+    fn render_node<'a>(
+        &'a self,
+        node: &'a TreeNode,
+        segments: &mut Vec<Segment<'a>>,
         prefix_stack: &[bool],
         is_last: bool,
         depth: usize,
@@ -382,7 +382,7 @@ impl Tree {
     /// Render the tree as a plain string.
     #[must_use]
     pub fn render_plain(&self) -> String {
-        self.render().into_iter().map(|seg| seg.text).collect()
+        self.render().into_iter().map(|seg| seg.text.into_owned()).collect()
     }
 }
 

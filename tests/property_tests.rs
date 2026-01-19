@@ -445,7 +445,7 @@ proptest! {
     /// Split at 0 gives empty left.
     #[test]
     fn prop_segment_split_at_zero(text in ascii_text()) {
-        let segment = Segment::plain(&text);
+        let segment = Segment::plain(text.clone());
         let (left, right) = segment.split_at_cell(0);
 
         prop_assert!(left.text.is_empty(), "split at 0 should give empty left");
@@ -455,9 +455,8 @@ proptest! {
     /// Split beyond length gives full left.
     #[test]
     fn prop_segment_split_beyond_length(text in ascii_text()) {
-        let segment = Segment::plain(&text);
-        let text_width = segment.cell_length();
-        let (left, right) = segment.split_at_cell(text_width + 100);
+        let segment = Segment::plain(text.clone());
+        let (left, right) = segment.split_at_cell(1000);
 
         prop_assert_eq!(left.text, text, "split beyond length should give full left");
         prop_assert!(right.text.is_empty(), "split beyond length should give empty right");

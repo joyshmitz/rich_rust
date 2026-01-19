@@ -363,7 +363,7 @@ impl Json {
     /// Render to a plain string without ANSI codes.
     #[must_use]
     pub fn to_plain_string(&self) -> String {
-        self.render().iter().map(|s| s.text.as_str()).collect()
+        self.render().iter().map(|s| s.text.as_ref()).collect()
     }
 }
 
@@ -417,7 +417,7 @@ mod tests {
     fn test_json_null() {
         let json = Json::new(Value::Null);
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "null");
     }
 
@@ -425,7 +425,7 @@ mod tests {
     fn test_json_bool_true() {
         let json = Json::new(Value::Bool(true));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "true");
     }
 
@@ -433,7 +433,7 @@ mod tests {
     fn test_json_bool_false() {
         let json = Json::new(Value::Bool(false));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "false");
     }
 
@@ -441,7 +441,7 @@ mod tests {
     fn test_json_number_int() {
         let json = Json::new(serde_json::json!(42));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "42");
     }
 
@@ -449,7 +449,7 @@ mod tests {
     fn test_json_number_float() {
         let json = Json::new(serde_json::json!(1.23));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "1.23");
     }
 
@@ -457,7 +457,7 @@ mod tests {
     fn test_json_string() {
         let json = Json::new(serde_json::json!("hello"));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "\"hello\"");
     }
 
@@ -465,7 +465,7 @@ mod tests {
     fn test_json_string_escaped() {
         let json = Json::new(serde_json::json!("line1\nline2"));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "\"line1\\nline2\"");
     }
 
@@ -473,7 +473,7 @@ mod tests {
     fn test_json_empty_array() {
         let json = Json::new(serde_json::json!([]));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "[]");
     }
 
@@ -492,7 +492,7 @@ mod tests {
     fn test_json_empty_object() {
         let json = Json::new(serde_json::json!({}));
         let segments = json.render();
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert_eq!(text, "{}");
     }
 

@@ -795,7 +795,7 @@ mod tests {
         let md = Markdown::new("# Title");
         let segments = md.render(80);
         assert!(!segments.is_empty());
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Title"));
     }
 
@@ -803,7 +803,7 @@ mod tests {
     fn test_render_multiple_headings() {
         let md = Markdown::new("# H1\n## H2\n### H3");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("H1"));
         assert!(text.contains("H2"));
         assert!(text.contains("H3"));
@@ -814,7 +814,7 @@ mod tests {
         let md = Markdown::new("This is *italic* and **bold**.");
         let segments = md.render(80);
         assert!(!segments.is_empty());
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("italic"));
         assert!(text.contains("bold"));
     }
@@ -839,7 +839,7 @@ mod tests {
     fn test_render_code() {
         let md = Markdown::new("Use `inline code` here.");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("inline code"));
     }
 
@@ -847,7 +847,7 @@ mod tests {
     fn test_render_code_block() {
         let md = Markdown::new("```rust\nfn main() {}\n```");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("fn main"));
     }
 
@@ -855,7 +855,7 @@ mod tests {
     fn test_render_unordered_list() {
         let md = Markdown::new("- Item 1\n- Item 2\n- Item 3");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Item 1"));
         assert!(text.contains("Item 2"));
         assert!(text.contains("•")); // Default bullet
@@ -865,7 +865,7 @@ mod tests {
     fn test_render_ordered_list() {
         let md = Markdown::new("1. First\n2. Second\n3. Third");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("First"));
         assert!(text.contains("1."));
         assert!(text.contains("2."));
@@ -875,7 +875,7 @@ mod tests {
     fn test_render_list_item_multiple_paragraphs_indent() {
         let md = Markdown::new("- First\n\n  Second");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         let lines: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
 
         assert!(lines.len() >= 2, "expected list item to render two lines");
@@ -893,7 +893,7 @@ mod tests {
     fn test_render_link() {
         let md = Markdown::new("[Click here](https://example.com)");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Click here"));
         assert!(text.contains("example.com"));
     }
@@ -902,7 +902,7 @@ mod tests {
     fn test_render_link_no_url() {
         let md = Markdown::new("[Click here](https://example.com)").show_links(false);
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Click here"));
         assert!(!text.contains("example.com"));
     }
@@ -911,7 +911,7 @@ mod tests {
     fn test_render_blockquote() {
         let md = Markdown::new("> This is a quote");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("This is a quote"));
         assert!(text.contains("│")); // Quote prefix
     }
@@ -920,7 +920,7 @@ mod tests {
     fn test_render_blockquote_multiple_paragraphs_prefix() {
         let md = Markdown::new("> First\n>\n> Second");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         let lines: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
 
         assert!(lines.len() >= 2, "expected multiple blockquote lines");
@@ -934,7 +934,7 @@ mod tests {
     fn test_render_horizontal_rule() {
         let md = Markdown::new("Above\n\n---\n\nBelow");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Above"));
         assert!(text.contains("Below"));
         assert!(text.contains("─")); // Rule character
@@ -944,7 +944,7 @@ mod tests {
     fn test_render_strikethrough() {
         let md = Markdown::new("This is ~~deleted~~ text.");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("deleted"));
     }
 
@@ -952,7 +952,7 @@ mod tests {
     fn test_custom_bullet() {
         let md = Markdown::new("- Item").bullet_char('→');
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("→"));
     }
 
@@ -960,7 +960,7 @@ mod tests {
     fn test_render_table() {
         let md = Markdown::new("| Name | Age |\n|------|-----|\n| Alice | 30 |\n| Bob | 25 |");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Name"));
         assert!(text.contains("Age"));
         assert!(text.contains("Alice"));
@@ -977,7 +977,7 @@ mod tests {
     fn test_render_table_unicode_width_alignment() {
         let md = Markdown::new("| A | B |\n| --- | --- |\n| 日本 | x |");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         let lines: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
 
         assert!(lines.len() >= 3, "expected table output lines");
@@ -995,7 +995,7 @@ mod tests {
     fn test_render_nested_list() {
         let md = Markdown::new("- Item 1\n  - Nested 1\n  - Nested 2\n- Item 2");
         let segments = md.render(80);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Item 1"));
         assert!(text.contains("Nested 1"));
         assert!(text.contains("Nested 2"));

@@ -106,9 +106,9 @@ impl From<[usize; 4]> for PaddingDimensions {
 
 /// A wrapper that adds padding around content.
 #[derive(Debug, Clone)]
-pub struct Padding {
+pub struct Padding<'a> {
     /// Lines of content (each line is a Vec of Segments).
-    content_lines: Vec<Vec<Segment>>,
+    content_lines: Vec<Vec<Segment<'a>>>,
     /// Padding dimensions.
     pad: PaddingDimensions,
     /// Style for the padding (background fill).
@@ -119,11 +119,11 @@ pub struct Padding {
     expand: bool,
 }
 
-impl Padding {
+impl<'a> Padding<'a> {
     /// Create a new Padding wrapper.
     #[must_use]
     pub fn new(
-        content_lines: Vec<Vec<Segment>>,
+        content_lines: Vec<Vec<Segment<'a>>>,
         pad: impl Into<PaddingDimensions>,
         width: usize,
     ) -> Self {
@@ -151,13 +151,13 @@ impl Padding {
     }
 
     /// Get the width of a line in cells.
-    fn line_width(line: &[Segment]) -> usize {
+    fn line_width(line: &[Segment<'_>]) -> usize {
         line.iter().map(Segment::cell_length).sum()
     }
 
     /// Render with padding applied.
     #[must_use]
-    pub fn render(self) -> Vec<Vec<Segment>> {
+    pub fn render(self) -> Vec<Vec<Segment<'a>>> {
         let mut result = Vec::new();
 
         let inner_width = self.width.saturating_sub(self.pad.horizontal());
@@ -169,11 +169,11 @@ impl Padding {
         for _ in 0..self.pad.top {
             let mut line = Vec::new();
             if self.pad.left > 0 {
-                line.push(Segment::new(&left_pad, Some(self.style.clone())));
+                line.push(Segment::new(left_pad.clone(), Some(self.style.clone())));
             }
-            line.push(Segment::new(&blank_line_inner, Some(self.style.clone())));
+            line.push(Segment::new(blank_line_inner.clone(), Some(self.style.clone())));
             if self.pad.right > 0 {
-                line.push(Segment::new(&right_pad, Some(self.style.clone())));
+                line.push(Segment::new(right_pad.clone(), Some(self.style.clone())));
             }
             result.push(line);
         }
@@ -183,7 +183,7 @@ impl Padding {
             let mut line = Vec::new();
 
             if self.pad.left > 0 {
-                line.push(Segment::new(&left_pad, Some(self.style.clone())));
+                line.push(Segment::new(left_pad.clone(), Some(self.style.clone())));
             }
 
             let content_width = Self::line_width(&content_line);
@@ -197,7 +197,7 @@ impl Padding {
             }
 
             if self.pad.right > 0 {
-                line.push(Segment::new(&right_pad, Some(self.style.clone())));
+                line.push(Segment::new(right_pad.clone(), Some(self.style.clone())));
             }
 
             result.push(line);
@@ -207,11 +207,11 @@ impl Padding {
         for _ in 0..self.pad.bottom {
             let mut line = Vec::new();
             if self.pad.left > 0 {
-                line.push(Segment::new(&left_pad, Some(self.style.clone())));
+                line.push(Segment::new(left_pad.clone(), Some(self.style.clone())));
             }
-            line.push(Segment::new(&blank_line_inner, Some(self.style.clone())));
+            line.push(Segment::new(blank_line_inner.clone(), Some(self.style.clone())));
             if self.pad.right > 0 {
-                line.push(Segment::new(&right_pad, Some(self.style.clone())));
+                line.push(Segment::new(right_pad.clone(), Some(self.style.clone())));
             }
             result.push(line);
         }
@@ -302,11 +302,11 @@ mod tests {
         assert_eq!(lines.len(), 3);
     }
 
-    fn line_text(line: &[Segment]) -> String {
-        line.iter().map(|seg| seg.text.as_str()).collect::<String>()
+    fn line_text(line: &[Segment<'_>]) -> String {
+        line.iter().map(|seg| seg.text.as_ref()).collect::<String>()
     }
 
-    fn line_width(line: &[Segment]) -> usize {
+    fn line_width(line: &[Segment<'_>]) -> usize {
         line.iter().map(|seg| cell_len(&seg.text)).sum()
     }
 

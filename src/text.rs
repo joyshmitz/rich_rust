@@ -348,6 +348,8 @@ impl Text {
                     let byte_start = search_start + pos;
                     let byte_end = byte_start + word.len();
 
+                    // Convert byte indices to character indices using binary search
+                    // This is O(log N) instead of O(N) per match
                     let char_start = char_starts.binary_search(&byte_start).unwrap_or_else(|x| x);
                     let char_end = if byte_end == total_bytes {
                         total_chars
@@ -778,7 +780,7 @@ impl Text {
 
     /// Render text to segments.
     #[must_use]
-    pub fn render(&self, end: &str) -> Vec<Segment> {
+    pub fn render<'a>(&'a self, end: &'a str) -> Vec<Segment<'a>> {
         if self.plain.is_empty() {
             return if end.is_empty() {
                 Vec::new()

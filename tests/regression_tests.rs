@@ -1647,7 +1647,7 @@ fn regression_console_control_set_window_title() {
     let console = Console::builder().file(writer).build();
 
     let segment = Segment {
-        text: "rich_rust".to_string(),
+        text: "rich_rust".to_string().into(),
         style: None,
         control: Some(vec![ControlCode::new(ControlType::SetWindowTitle)]),
     };

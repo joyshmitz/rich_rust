@@ -89,7 +89,7 @@ impl Rule {
 
     /// Render the rule to segments for a given width.
     #[must_use]
-    pub fn render(&self, width: usize) -> Vec<Segment> {
+    pub fn render(&self, width: usize) -> Vec<Segment<'static>> {
         let char_width = cells::cell_len(&self.character);
         if char_width == 0 || width == 0 {
             return vec![Segment::line()];
@@ -104,7 +104,7 @@ impl Rule {
             if title_total_width > width {
                 let mut truncated = title.clone();
                 truncated.truncate(width, OverflowMethod::Crop, false);
-                segments.extend(truncated.render(""));
+                segments.extend(truncated.render("").into_iter().map(|s| s.into_owned()));
                 segments.push(Segment::line());
                 return segments;
             }
@@ -116,7 +116,7 @@ impl Rule {
             if rule_chars < 2 {
                 // Not enough space for rule, just show title
                 segments.push(Segment::new(" ", Some(title.style().clone())));
-                segments.extend(title.render(""));
+                segments.extend(title.render("").into_iter().map(|s| s.into_owned()));
                 segments.push(Segment::new(" ", Some(title.style().clone())));
             } else {
                 let (left_count, right_count) = match self.align {
@@ -131,22 +131,22 @@ impl Rule {
 
                 // Left rule section
                 let left_rule = self.character.repeat(left_count);
-                segments.push(Segment::new(&left_rule, Some(self.style.clone())));
+                segments.push(Segment::new(left_rule, Some(self.style.clone())));
 
                 // Title with surrounding spaces
                 segments.push(Segment::new(" ", Some(title.style().clone())));
-                segments.extend(title.render(""));
+                segments.extend(title.render("").into_iter().map(|s| s.into_owned()));
                 segments.push(Segment::new(" ", Some(title.style().clone())));
 
                 // Right rule section
                 let right_rule = self.character.repeat(right_count);
-                segments.push(Segment::new(&right_rule, Some(self.style.clone())));
+                segments.push(Segment::new(right_rule, Some(self.style.clone())));
             }
         } else {
             // No title, just a full-width rule
             let count = width / char_width;
             let rule_text = self.character.repeat(count);
-            segments.push(Segment::new(&rule_text, Some(self.style.clone())));
+            segments.push(Segment::new(rule_text, Some(self.style.clone())));
         }
 
         segments.push(Segment::line());
@@ -187,7 +187,7 @@ mod tests {
         let rule = Rule::new();
         let segments = rule.render(10);
         assert!(!segments.is_empty());
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('\u{2500}')); // ─
     }
 
@@ -195,7 +195,7 @@ mod tests {
     fn test_rule_with_title() {
         let rule = Rule::with_title("Test");
         let segments = rule.render(20);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Test"));
         assert!(text.contains('\u{2500}')); // ─
     }
@@ -204,7 +204,7 @@ mod tests {
     fn test_rule_custom_char() {
         let rule = Rule::new().character("=");
         let segments = rule.render(10);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('='));
     }
 
@@ -222,7 +222,7 @@ mod tests {
     fn test_ascii_rule() {
         let rule = ascii_rule();
         let segments = rule.render(10);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('-'));
     }
 
@@ -230,7 +230,7 @@ mod tests {
     fn test_heavy_rule() {
         let rule = heavy_rule();
         let segments = rule.render(10);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('\u{2501}')); // ━
     }
 
@@ -238,7 +238,7 @@ mod tests {
     fn test_double_rule() {
         let rule = double_rule();
         let segments = rule.render(10);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains('\u{2550}')); // ═
     }
 
@@ -254,7 +254,7 @@ mod tests {
     fn test_rule_width_one() {
         let rule = Rule::new();
         let segments = rule.render(1);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         // Width 1 should produce at least one rule char
         assert!(text.contains('\u{2500}') || text.is_empty() || text == "\n");
     }
@@ -263,7 +263,7 @@ mod tests {
     fn test_rule_title_narrow_width() {
         let rule = Rule::with_title("Very Long Title Text");
         let segments = rule.render(10);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         // Should handle narrow width without panicking
         assert!(!text.is_empty());
     }
@@ -273,7 +273,7 @@ mod tests {
         let rule = Rule::with_title("Test");
         // Width too small for title + surrounding rules
         let segments = rule.render(5);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         // Should handle gracefully
         assert!(!text.is_empty());
     }
@@ -301,7 +301,7 @@ mod tests {
         let title = Text::new("Styled");
         let rule = Rule::with_title(title);
         let segments = rule.render(20);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("Styled"));
     }
 
@@ -310,7 +310,7 @@ mod tests {
         // Multi-character rule string
         let rule = Rule::new().character("=-");
         let segments = rule.render(10);
-        let text: String = segments.iter().map(|s| s.text.as_str()).collect();
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("=-"));
     }
 
@@ -322,7 +322,7 @@ mod tests {
         let text: String = segments
             .iter()
             .filter(|s| !s.is_control())
-            .map(|s| s.text.as_str())
+            .map(|s| s.text.as_ref())
             .collect();
         // The rule chars are repeated to fill width, minus any trailing newline
         let rule_width = cells::cell_len(&text);

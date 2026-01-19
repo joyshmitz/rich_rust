@@ -103,7 +103,7 @@ fn e2e_panel_styled_content() {
     let has_styled = output.iter().any(|s| s.style.is_some());
     assert!(has_styled, "Should have styled segments");
 
-    let plain: String = output.iter().map(|s| s.text.as_str()).collect();
+    let plain: String = output.iter().map(|s| s.text.as_ref()).collect();
     assert!(plain.contains("Important"), "Missing styled text");
     assert!(plain.contains("message"), "Missing plain text");
 
