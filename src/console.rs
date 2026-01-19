@@ -590,7 +590,7 @@ impl Console {
                 }
 
                 let line_end = if index == last_index { end } else { "\n" };
-                rendered.extend(line.render(line_end).into_iter().map(|s| s.into_owned()));
+                rendered.extend(line.render(line_end).into_iter().map(super::segment::Segment::into_owned));
             }
 
             rendered

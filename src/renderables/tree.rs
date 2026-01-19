@@ -281,7 +281,7 @@ impl Tree {
 
     /// Render the tree to segments.
     #[must_use]
-    pub fn render<'a>(&'a self) -> Vec<Segment<'a>> {
+    pub fn render(&self) -> Vec<Segment<'_>> {
         let mut segments = Vec::new();
         let prefix_stack: Vec<bool> = Vec::new();
 

@@ -299,12 +299,12 @@ pub fn split_lines<'a>(segments: impl Iterator<Item = Segment<'a>>) -> Vec<Vec<S
 
 /// Adjust line length by padding or truncating.
 #[must_use]
-pub fn adjust_line_length<'a>(
-    mut line: Vec<Segment<'a>>,
+pub fn adjust_line_length(
+    mut line: Vec<Segment<'_>>,
     length: usize,
     style: Option<Style>,
     pad: bool,
-) -> Vec<Segment<'a>> {
+) -> Vec<Segment<'_>> {
     let current_length: usize = line.iter().map(Segment::cell_length).sum();
 
     if current_length < length && pad {
@@ -320,7 +320,7 @@ pub fn adjust_line_length<'a>(
 }
 
 /// Truncate a line to a maximum cell width.
-fn truncate_line<'a>(segments: Vec<Segment<'a>>, max_width: usize) -> Vec<Segment<'a>> {
+fn truncate_line(segments: Vec<Segment<'_>>, max_width: usize) -> Vec<Segment<'_>> {
     let mut result = Vec::new();
     let mut remaining = max_width;
 
@@ -446,12 +446,12 @@ pub fn divide<'a>(segments: Vec<Segment<'a>>, cuts: &[usize]) -> Vec<Vec<Segment
     clippy::needless_pass_by_value,
     reason = "style ownership allows caller to avoid clone"
 )]
-pub fn align_top<'a>(
-    lines: Vec<Vec<Segment<'a>>>,
+pub fn align_top(
+    lines: Vec<Vec<Segment<'_>>>,
     width: usize,
     height: usize,
     style: Style,
-) -> Vec<Vec<Segment<'a>>> {
+) -> Vec<Vec<Segment<'_>>> {
     let mut result = lines;
 
     // Pad existing lines to width
@@ -479,12 +479,12 @@ pub fn align_top<'a>(
     clippy::needless_pass_by_value,
     reason = "style ownership allows caller to avoid clone"
 )]
-pub fn align_bottom<'a>(
-    lines: Vec<Vec<Segment<'a>>>,
+pub fn align_bottom(
+    lines: Vec<Vec<Segment<'_>>>,
     width: usize,
     height: usize,
     style: Style,
-) -> Vec<Vec<Segment<'a>>> {
+) -> Vec<Vec<Segment<'_>>> {
     let mut result = Vec::new();
     let blank_line = vec![Segment::new(" ".repeat(width), Some(style.clone()))];
 
@@ -511,12 +511,12 @@ pub fn align_bottom<'a>(
 
 /// Align lines to the middle of a given height.
 #[must_use]
-pub fn align_middle<'a>(
-    lines: Vec<Vec<Segment<'a>>>,
+pub fn align_middle(
+    lines: Vec<Vec<Segment<'_>>>,
     width: usize,
     height: usize,
     style: Style,
-) -> Vec<Vec<Segment<'a>>> {
+) -> Vec<Vec<Segment<'_>>> {
     let content_height = lines.len();
     if content_height >= height {
         return align_top(lines, width, height, style);

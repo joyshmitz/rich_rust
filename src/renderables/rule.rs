@@ -104,7 +104,7 @@ impl Rule {
             if title_total_width > width {
                 let mut truncated = title.clone();
                 truncated.truncate(width, OverflowMethod::Crop, false);
-                segments.extend(truncated.render("").into_iter().map(|s| s.into_owned()));
+                segments.extend(truncated.render("").into_iter().map(super::super::segment::Segment::into_owned));
                 segments.push(Segment::line());
                 return segments;
             }
@@ -116,7 +116,7 @@ impl Rule {
             if rule_chars < 2 {
                 // Not enough space for rule, just show title
                 segments.push(Segment::new(" ", Some(title.style().clone())));
-                segments.extend(title.render("").into_iter().map(|s| s.into_owned()));
+                segments.extend(title.render("").into_iter().map(super::super::segment::Segment::into_owned));
                 segments.push(Segment::new(" ", Some(title.style().clone())));
             } else {
                 let (left_count, right_count) = match self.align {
@@ -135,7 +135,7 @@ impl Rule {
 
                 // Title with surrounding spaces
                 segments.push(Segment::new(" ", Some(title.style().clone())));
-                segments.extend(title.render("").into_iter().map(|s| s.into_owned()));
+                segments.extend(title.render("").into_iter().map(super::super::segment::Segment::into_owned));
                 segments.push(Segment::new(" ", Some(title.style().clone())));
 
                 // Right rule section

@@ -495,7 +495,7 @@ impl ProgressBar {
             let mut desc_text = desc.clone();
             desc_text.append(" ");
             let desc_width = desc_text.cell_len();
-            segments.extend(desc_text.render("").into_iter().map(|s| s.into_owned()));
+            segments.extend(desc_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
             used_width += desc_width;
         }
 

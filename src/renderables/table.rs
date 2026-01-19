@@ -1249,7 +1249,7 @@ impl Table {
                 ));
             }
 
-            segments.extend(cell_text.render("").into_iter().map(|s| s.into_owned()));
+            segments.extend(cell_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
 
             if right_space > 0 {
                 segments.push(Segment::new(
@@ -1354,7 +1354,7 @@ impl Table {
             segments.push(Segment::new(" ".repeat(left_space), Some(style.clone())));
         }
 
-        let mut content_segments = content_text.render("").into_iter().map(|s| s.into_owned()).collect::<Vec<_>>();
+        let mut content_segments = content_text.render("").into_iter().map(super::super::segment::Segment::into_owned).collect::<Vec<_>>();
         for segment in &mut content_segments {
             if !segment.is_control() {
                 segment.style = Some(match segment.style.take() {
