@@ -75,7 +75,7 @@ pub fn outputs_match(actual: &str, expected: &str) -> bool {
 }
 
 /// Run a test case and verify it produces valid output.
-pub fn run_test<T: TestCase>(test: &T) -> String {
+pub fn run_test<T: TestCase + ?Sized>(test: &T) -> String {
     let output = test.render_plain();
     let plain = strip_ansi(&output);
 
