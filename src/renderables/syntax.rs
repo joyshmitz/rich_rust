@@ -399,7 +399,7 @@ impl Syntax {
 
             // Highlight the line
             let ranges = highlighter
-                .highlight_line(&line_expanded, &ps)
+                .highlight_line(&line_expanded, ps)
                 .unwrap_or_else(|_| {
                     vec![(
                         syntect::highlighting::Style::default(),
