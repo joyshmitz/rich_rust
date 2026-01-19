@@ -1,4 +1,4 @@
-# AGENTS.md — dcg (Destructive Command Guard)
+# AGENTS.md — rich_rust
 
 > Guidelines for AI coding agents working in this Rust codebase.
 
@@ -37,11 +37,13 @@ We only use **Cargo** in this project, NEVER any other package manager.
 
 | Crate | Purpose |
 |-------|---------|
-| `serde` + `serde_json` | JSON parsing for Claude Code hook protocol |
-| `fancy-regex` | Advanced regex with lookahead/lookbehind |
-| `memchr` | SIMD-accelerated substring search |
-| `colored` | Terminal colors with TTY detection |
-| `vergen-gix` | Build metadata embedding (build.rs) |
+| `crossterm` | Terminal manipulation and capability detection |
+| `unicode-width` | Correct calculation of text width (CJK, emoji) |
+| `bitflags` | Efficient text attribute management |
+| `lru` | Caching for style and ANSI code generation |
+| `syntect` | Syntax highlighting (optional feature) |
+| `pulldown-cmark` | Markdown rendering (optional feature) |
+| `serde_json` | JSON rendering (optional feature) |
 
 ### Release Profile
 
@@ -49,7 +51,7 @@ The release build optimizes for binary size:
 
 ```toml
 [profile.release]
-opt-level = "z"     # Optimize for size (lean binary for distribution)
+opt-level = "z"     # Optimize for size
 lto = true          # Link-time optimization
 codegen-units = 1   # Single codegen unit for better optimization
 panic = "abort"     # Smaller binary, no unwinding overhead
@@ -91,23 +93,6 @@ We do not care about backwards compatibility—we're in early development with n
 
 ---
 
-## Output Style
-
-This tool has two output modes:
-
-- **JSON to stdout:** For Claude Code hook protocol (`hookSpecificOutput` with `permissionDecision: "deny"`)
-- **Colorful warning to stderr:** For human visibility when commands are blocked
-
-Output behavior:
-- **Deny:** Colorful warning to stderr + JSON to stdout
-- **Allow:** No output (silent exit)
-- **--version/-V:** Version info with build metadata to stderr
-- **--help/-h:** Usage information to stderr
-
-Colors are automatically disabled when stderr is not a TTY (e.g., piped to file).
-
----
-
 ## Compiler Checks (CRITICAL)
 
 **After any substantive code changes, you MUST verify no errors were introduced:**
@@ -131,7 +116,7 @@ If you see errors, **carefully understand and resolve each issue**. Read suffici
 
 ### Unit Tests
 
-The test suite includes 80+ tests covering all functionality:
+The test suite includes extensive tests covering all functionality:
 
 ```bash
 # Run all tests
@@ -139,207 +124,61 @@ cargo test
 
 # Run with output
 cargo test -- --nocapture
-
-# Run specific test module
-cargo test normalize_command_tests
-cargo test safe_pattern_tests
-cargo test destructive_pattern_tests
 ```
 
-### End-to-End Testing
+### Examples
+
+The `examples/` directory contains usage examples that also serve as visual verification:
 
 ```bash
-# Run the E2E test script
-./scripts/e2e_test.sh
-
-# Or test manually
-echo '{"tool_name":"Bash","tool_input":{"command":"git reset --hard"}}' | cargo run --release
-# Should output JSON denial
-
-echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | cargo run --release
-# Should output nothing (allowed)
+cargo run --example basic
+cargo run --example tables
+cargo run --example tree
+cargo run --example progress
 ```
 
-### Test Categories
-
-| Module | Tests | Purpose |
-|--------|-------|---------|
-| `normalize_command_tests` | 8 | Path stripping for git/rm binaries |
-| `quick_reject_tests` | 5 | Fast-path filtering for non-git/rm commands |
-| `safe_pattern_tests` | 16 | Whitelist accuracy |
-| `destructive_pattern_tests` | 20 | Blacklist coverage |
-| `input_parsing_tests` | 8 | JSON parsing robustness |
-| `deny_output_tests` | 2 | Output format validation |
-| `integration_tests` | 4 | End-to-end pipeline |
-| `optimization_tests` | 9 | Performance paths |
-| `edge_case_tests` | 24 | Real-world edge cases |
-
 ---
 
-## CI/CD Pipeline
+## rich_rust — This Project
 
-### Jobs Overview
+**This is the project you're working on.** `rich_rust` is a Rust port of the Python `rich` library, designed to provide beautiful terminal output with an ergonomic API.
 
-| Job | Trigger | Purpose | Blocking |
-|-----|---------|---------|----------|
-| `check` | PR, push | Format, clippy, UBS, tests | Yes |
-| `coverage` | PR, push | Coverage thresholds | Yes |
-| `memory-tests` | PR, push | Memory leak detection | Yes |
-| `benchmarks` | push to master | Performance budgets | Warn only |
-| `e2e` | PR, push | End-to-end shell tests | Yes |
-| `scan-regression` | PR, push | Scan output stability | Yes |
-| `perf-regression` | PR, push | Process-per-invocation perf | Yes |
+### Architecture
 
-### Check Job
+```
+Renderable (Table, Panel, Text) -> Segment (Text + Style) -> Console -> ANSI Output
+```
 
-Runs format, clippy, UBS static analysis, and unit tests. Includes:
-- `cargo fmt --check` - Code formatting
-- `cargo clippy --all-targets -- -D warnings` - Lints (pedantic + nursery enabled)
-- UBS analysis on changed Rust files (warning-only, non-blocking)
-- `cargo nextest run` - Full test suite with JUnit XML report
+- **Console:** Central coordinator for options, rendering, and I/O.
+- **Renderables:** High-level components that know how to layout themselves.
+- **Segments:** Atomic units of styled text.
+- **Measurement:** Protocol for calculating width requirements.
 
-### Coverage Job
+### Key Files
 
-Runs `cargo llvm-cov` and enforces thresholds:
-- **Overall:** ≥ 70%
-- **src/evaluator.rs:** ≥ 80%
-- **src/hook.rs:** ≥ 80%
+| File | Purpose |
+|------|---------|
+| `src/lib.rs` | Crate root, module exports |
+| `src/console.rs` | Main entry point (`Console` struct) |
+| `src/style.rs` | Styling system (`Style`, `Color`) |
+| `src/segment.rs` | Atomic rendering unit |
+| `src/renderables/` | Implementations of specific components |
 
-Coverage is uploaded to Codecov for trend tracking. Dashboard: https://codecov.io/gh/Dicklesworthstone/destructive_command_guard
+### Features
 
-### Memory Tests Job
-
-Runs dedicated memory leak tests with:
-- `--test-threads=1` for accurate measurements
-- Release mode for realistic performance
-- 1-2MB growth budgets per test
-
-Tests include: hook input parsing, pattern evaluation, heredoc extraction, file extractors, full pipeline, and a self-test that verifies the framework catches leaks.
-
-### Benchmarks Job
-
-Runs on push to master only (benchmarks are noisy on PRs). Checks performance budgets from `src/perf.rs`:
-- Quick reject: < 50μs panic
-- Fast path: < 500μs panic
-- Pattern match: < 1ms panic
-- Heredoc extract: < 2ms panic
-- Full pipeline: < 50ms panic
-
-### UBS Static Analysis
-
-Ultimate Bug Scanner runs on changed Rust files. Currently warning-only (non-blocking) to tune for false positives. Configuration in `.ubsignore` excludes test/bench/fuzz directories.
-
-### Dependabot
-
-Automated dependency updates configured in `.github/dependabot.yml`:
-- **Cargo dependencies:** Weekly (Monday 9am EST), 5 PR limit
-- **GitHub Actions:** Weekly (Monday 9am EST), 3 PR limit
-- **Grouping:** Minor/patch updates grouped; serde updates separate (more careful review)
-
-### Debugging CI Failures
-
-#### Coverage Threshold Failure
-1. Check which file(s) dropped below threshold in CI output
-2. Run `cargo llvm-cov --html` locally to see uncovered lines
-3. Add tests for uncovered code paths
-4. Download `coverage-report` artifact for full details
-
-#### Memory Test Failure
-1. Download `memory-test-output` artifact
-2. Check which test failed and growth amount
-3. Run locally: `cargo test --test memory_tests --release -- --nocapture --test-threads=1`
-4. Profile with valgrind if needed
-
-#### UBS Warnings
-1. Check ubs-output.log in CI summary
-2. Review flagged issues - may be false positives
-3. If valid issues, fix them; if false positives, add to `.ubsignore`
-
-#### E2E Test Failure
-1. Download `e2e-artifacts` artifact
-2. Check `e2e_output.json` for failing test details
-3. Run locally: `./scripts/e2e_test.sh --verbose`
-4. The step summary shows the first failure with output
-
-#### Benchmark Regression
-1. Download `benchmark-results` artifact
-2. Compare against budgets in `src/perf.rs`
-3. Profile locally with `cargo bench --bench heredoc_perf`
-4. Check for algorithmic regressions in hot path
-
----
-
-## Heredoc Detection Notes (for contributors)
-
-- **Rule IDs**: Heredoc patterns use stable IDs like `heredoc.python.shutil_rmtree` for allowlisting.
-- **Fail-open**: In hook mode, heredoc parse errors/timeouts must allow (do not block).
-- **Tests**: Prefer targeted tests in `src/ast_matcher.rs` and `src/heredoc.rs`.
-  - `cargo test ast_matcher`
-  - `cargo test heredoc`
-  - Add positive and negative fixtures for each new pattern.
+- **Rich Text:** Markup-based styling (`[bold red]Text[/]`).
+- **Tables:** Auto-sizing columns, borders, formatting.
+- **Panels:** Boxed content with titles/subtitles.
+- **Progress Bars:** Customizable progress tracking.
+- **Syntax Highlighting:** Using `syntect`.
+- **Markdown:** Rendering using `pulldown-cmark`.
+- **JSON:** Pretty-printing with syntax highlighting.
 
 ---
 
 ## Third-Party Library Usage
 
 If you aren't 100% sure how to use a third-party library, **SEARCH ONLINE** to find the latest documentation and mid-2025 best practices.
-
----
-
-## dcg (Destructive Command Guard) — This Project
-
-**This is the project you're working on.** dcg is a high-performance Claude Code hook that blocks destructive commands before they execute. It protects against dangerous git commands, filesystem operations, database queries, container commands, and more through a modular pack system.
-
-### Architecture
-
-```
-JSON Input → Parse → Quick Reject (memchr) → Normalize → Safe Patterns → Destructive Patterns → Default Allow
-```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/main.rs` | Complete implementation (~40KB) + 80 tests |
-| `Cargo.toml` | Dependencies and release optimizations |
-| `build.rs` | Build script for version metadata (vergen) |
-| `rust-toolchain.toml` | Nightly toolchain requirement |
-| `scripts/e2e_test.sh` | End-to-end test script (120 tests) |
-
-### Pattern System
-
-- **34 safe patterns** (whitelist, checked first)
-- **16 destructive patterns** (blacklist, checked second)
-- **Default allow** for unmatched commands
-
-### Adding New Patterns
-
-1. Identify the command to block/allow
-2. Write a regex using `fancy-regex` syntax (supports lookahead/lookbehind)
-3. Add to `SAFE_PATTERNS` or `DESTRUCTIVE_PATTERNS` using the macros:
-
-```rust
-// Safe pattern (whitelist)
-pattern!("pattern-name", r"regex-here")
-
-// Destructive pattern (blacklist)
-destructive!(
-    r"regex-here",
-    "Human-readable reason for blocking"
-)
-```
-
-4. Add tests for all variants
-5. Run `cargo test` and `./scripts/e2e_test.sh`
-
-### Performance Requirements
-
-Every Bash command passes through this hook. Performance is critical:
-
-- Quick rejection filter eliminates 99%+ of commands before regex
-- Lazy-initialized static regex patterns (compiled once, reused)
-- Sub-millisecond execution for typical commands
-- Zero allocations on the hot path for safe commands
 
 ---
 
