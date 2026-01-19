@@ -8,6 +8,8 @@ use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::Text;
 use std::time::{Duration, Instant};
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 /// Bar style variants for the progress bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -622,7 +624,13 @@ impl ProgressBar {
     /// Render the progress bar as a plain string.
     #[must_use]
     pub fn render_plain(&self, width: usize) -> String {
-        self.render(width).into_iter().map(|seg| seg.text).collect()
+        self.render(width).into_iter().map(|seg| seg.text.into_owned()).collect()
+    }
+}
+
+impl Renderable for ProgressBar {
+    fn render<'a>(&'a self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'a>> {
+        self.render(options.max_width).into_iter().collect()
     }
 }
 

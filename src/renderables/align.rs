@@ -18,6 +18,8 @@
 use crate::cells::cell_len;
 use crate::segment::Segment;
 use crate::style::Style;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 /// Horizontal alignment method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -168,6 +170,17 @@ impl<'a> Align<'a> {
     }
 }
 
+impl<'a> Renderable for Align<'a> {
+    fn render<'b>(&'b self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'b>> {
+        // Since Align consumes self in render(), we need to clone it if we want to implement Renderable for &Align
+        // But Renderable takes &self.
+        // Align::render(self).
+        // Align is cheap to clone (Vec<Segment> might be expensive if deep).
+        // Ideally Align::render should take &self.
+        self.clone().render().into_iter().collect()
+    }
+}
+
 /// A wrapper that aligns multiple lines of content.
 #[derive(Debug, Clone)]
 pub struct AlignLines<'a> {
@@ -243,6 +256,20 @@ impl<'a> AlignLines<'a> {
                     .render()
             })
             .collect()
+    }
+}
+
+impl<'a> Renderable for AlignLines<'a> {
+    fn render<'b>(&'b self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'b>> {
+        let lines = self.clone().render();
+        let mut result = Vec::new();
+        for (i, line) in lines.into_iter().enumerate() {
+            if i > 0 {
+                result.push(Segment::line());
+            }
+            result.extend(line);
+        }
+        result.into_iter().collect()
     }
 }
 

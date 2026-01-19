@@ -7,6 +7,8 @@ use crate::cells;
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::{JustifyMethod, OverflowMethod, Text};
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 /// A horizontal rule with optional title.
 #[derive(Debug, Clone)]
@@ -156,7 +158,13 @@ impl Rule {
     /// Render the rule as a string (for simple output).
     #[must_use]
     pub fn render_plain(&self, width: usize) -> String {
-        self.render(width).into_iter().map(|seg| seg.text).collect()
+        self.render(width).into_iter().map(|seg| seg.text.into_owned()).collect()
+    }
+}
+
+impl Renderable for Rule {
+    fn render<'a>(&'a self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'a>> {
+        self.render(options.max_width).into_iter().collect()
     }
 }
 

@@ -85,6 +85,15 @@
 //! - **`markdown`**: [`Markdown`] - Markdown document rendering
 //! - **`json`**: [`Json`] - JSON formatting with syntax highlighting
 
+use crate::console::{Console, ConsoleOptions};
+use crate::segment::Segment;
+
+/// Trait for objects that can be rendered to the console.
+pub trait Renderable {
+    /// Render the object to a list of segments.
+    fn render<'a>(&'a self, console: &Console, options: &ConsoleOptions) -> Vec<Segment<'a>>;
+}
+
 pub mod align;
 pub mod columns;
 pub mod padding;
@@ -103,6 +112,26 @@ pub use progress::{BarStyle, ProgressBar, Spinner};
 pub use rule::Rule;
 pub use table::{Cell, Column, Row, Table, VerticalAlign};
 pub use tree::{Tree, TreeGuides, TreeNode};
+
+impl Renderable for Table {
+    fn render<'a>(&'a self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'a>> {
+        // Table::render currently returns Vec<Segment<'static>>
+        // We can cast to Vec<Segment<'a>> via coercion? 
+        // No, Vec is invariant.
+        // We need to convert.
+        // Or change Table::render to return Vec<Segment<'a>>?
+        // Table::render implementation creates owned segments.
+        // So it returns Vec<Segment<'static>>.
+        // This is a subtype of Vec<Segment<'a>>?
+        // No, Vec<T> is invariant in T.
+        // So Vec<Segment<'static>> is NOT Vec<Segment<'a>>.
+        // We must return Vec<Segment<'a>> which can hold static segments.
+        // But we cannot simply cast the Vec.
+        // We have to map? expensive.
+        // Or change Table::render signature.
+        self.render(options.max_width).into_iter().map(|s| s).collect()
+    }
+}
 
 // Phase 3+: Syntax highlighting (requires "syntax" feature)
 #[cfg(feature = "syntax")]

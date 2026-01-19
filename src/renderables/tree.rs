@@ -6,6 +6,8 @@
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::Text;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 /// Guide character styles for tree rendering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -383,6 +385,12 @@ impl Tree {
     #[must_use]
     pub fn render_plain(&self) -> String {
         self.render().into_iter().map(|seg| seg.text.into_owned()).collect()
+    }
+}
+
+impl Renderable for Tree {
+    fn render<'a>(&'a self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'a>> {
+        self.render()
     }
 }
 

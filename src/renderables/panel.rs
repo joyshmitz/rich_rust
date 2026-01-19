@@ -8,6 +8,8 @@ use crate::cells;
 use crate::segment::{Segment, adjust_line_length};
 use crate::style::Style;
 use crate::text::{JustifyMethod, OverflowMethod, Text};
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 use super::padding::PaddingDimensions;
 
@@ -554,8 +556,14 @@ impl<'a> Panel<'a> {
     pub fn render_plain(&self, max_width: usize) -> String {
         self.render(max_width)
             .into_iter()
-            .map(|seg| seg.text)
+            .map(|seg| seg.text.into_owned())
             .collect()
+    }
+}
+
+impl<'a> Renderable for Panel<'a> {
+    fn render<'b>(&'b self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'b>> {
+        self.render(options.max_width).into_iter().collect()
     }
 }
 

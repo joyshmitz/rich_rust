@@ -83,6 +83,7 @@ use std::io::{self, Write};
 
 use crate::color::ColorSystem;
 use crate::markup;
+use crate::renderables::Renderable;
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::terminal;
@@ -512,6 +513,13 @@ impl Console {
         segments: &[Segment<'_>],
     ) -> io::Result<()> {
         self.write_segments(writer, segments)
+    }
+
+    /// Print any object implementing the Renderable trait.
+    pub fn print_renderable(&self, renderable: &impl Renderable) {
+        let options = self.options();
+        let segments = renderable.render(self, &options);
+        self.print_segments(&segments);
     }
 
     /// Print with custom options.

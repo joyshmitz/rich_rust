@@ -7,6 +7,8 @@
 
 use crate::segment::Segment;
 use crate::style::Style;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 /// CSS-style padding dimensions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -217,6 +219,20 @@ impl<'a> Padding<'a> {
         }
 
         result
+    }
+}
+
+impl<'a> Renderable for Padding<'a> {
+    fn render<'b>(&'b self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'b>> {
+        let lines = self.clone().render();
+        let mut result = Vec::new();
+        for (i, line) in lines.into_iter().enumerate() {
+            if i > 0 {
+                result.push(Segment::line());
+            }
+            result.extend(line);
+        }
+        result.into_iter().collect()
     }
 }
 

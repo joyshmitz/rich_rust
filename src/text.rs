@@ -12,6 +12,8 @@ use std::ops::{Add, AddAssign};
 use crate::cells::cell_len;
 use crate::segment::Segment;
 use crate::style::Style;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 
 /// Text justification method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -1013,6 +1015,12 @@ impl Text {
             width += char_width;
         }
         text.length
+    }
+}
+
+impl Renderable for Text {
+    fn render<'a>(&'a self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'a>> {
+        self.render("")
     }
 }
 
