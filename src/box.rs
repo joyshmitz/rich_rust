@@ -445,4 +445,194 @@ mod tests {
         assert_eq!(ROUNDED.top[0], '\u{256D}'); // ╭
         assert_eq!(ROUNDED.bottom[0], '\u{2570}'); // ╰
     }
+
+    #[test]
+    fn test_double_box() {
+        const { assert!(!DOUBLE.ascii) };
+        assert_eq!(DOUBLE.top[0], '\u{2554}'); // ╔
+        assert_eq!(DOUBLE.top[1], '\u{2550}'); // ═
+        assert_eq!(DOUBLE.bottom[3], '\u{255D}'); // ╝
+    }
+
+    #[test]
+    fn test_heavy_box() {
+        const { assert!(!HEAVY.ascii) };
+        assert_eq!(HEAVY.top[0], '\u{250F}'); // ┏
+        assert_eq!(HEAVY.top[1], '\u{2501}'); // ━
+        assert_eq!(HEAVY.bottom[0], '\u{2517}'); // ┗
+    }
+
+    #[test]
+    fn test_heavy_head_box() {
+        const { assert!(!HEAVY_HEAD.ascii) };
+        // Heavy top
+        assert_eq!(HEAVY_HEAD.top[0], '\u{250F}'); // ┏
+        // Light bottom
+        assert_eq!(HEAVY_HEAD.bottom[0], '\u{2514}'); // └
+    }
+
+    #[test]
+    fn test_minimal_box() {
+        const { assert!(!MINIMAL.ascii) };
+        // No outer border
+        assert_eq!(MINIMAL.top[0], ' ');
+        assert_eq!(MINIMAL.bottom[0], ' ');
+        // Has internal divider
+        assert_eq!(MINIMAL.head[2], '\u{2502}'); // │
+    }
+
+    #[test]
+    fn test_simple_box() {
+        const { assert!(!SIMPLE.ascii) };
+        // No outer border
+        assert_eq!(SIMPLE.top[0], ' ');
+        // Head row has horizontal line
+        assert_eq!(SIMPLE.head_row[1], '\u{2500}'); // ─
+    }
+
+    #[test]
+    fn test_simple_heavy_box() {
+        const { assert!(!SIMPLE_HEAVY.ascii) };
+        // Heavy horizontal line
+        assert_eq!(SIMPLE_HEAVY.head_row[1], '\u{2501}'); // ━
+    }
+
+    #[test]
+    fn test_ascii2_box() {
+        const { assert!(ASCII2.ascii) };
+        // Uses + at intersections
+        assert_eq!(ASCII2.head_row[0], '+');
+        assert_eq!(ASCII2.head_row[2], '+');
+    }
+
+    #[test]
+    fn test_ascii_double_head_box() {
+        const { assert!(ASCII_DOUBLE_HEAD.ascii) };
+        // Head row uses = for double line
+        assert_eq!(ASCII_DOUBLE_HEAD.head_row[1], '=');
+        // Other rows use -
+        assert_eq!(ASCII_DOUBLE_HEAD.row[1], '-');
+    }
+
+    #[test]
+    fn test_get_row_chars_all_levels() {
+        // Test that get_row_chars returns correct arrays for each level
+        assert_eq!(SQUARE.get_row_chars(RowLevel::Top), &SQUARE.top);
+        assert_eq!(SQUARE.get_row_chars(RowLevel::HeadRow), &SQUARE.head_row);
+        assert_eq!(SQUARE.get_row_chars(RowLevel::Mid), &SQUARE.mid);
+        assert_eq!(SQUARE.get_row_chars(RowLevel::Row), &SQUARE.row);
+        assert_eq!(SQUARE.get_row_chars(RowLevel::FootRow), &SQUARE.foot_row);
+        assert_eq!(SQUARE.get_row_chars(RowLevel::Bottom), &SQUARE.bottom);
+    }
+
+    #[test]
+    fn test_get_mid() {
+        let widths = [3, 3];
+        let mid = SQUARE.get_mid(&widths);
+        assert!(mid.starts_with('\u{251C}')); // ├
+        assert!(mid.ends_with('\u{2524}')); // ┤
+    }
+
+    #[test]
+    fn test_get_row() {
+        let widths = [3, 3];
+        let row = SQUARE.get_row(&widths);
+        // For SQUARE, row == mid
+        assert_eq!(row, SQUARE.get_mid(&widths));
+    }
+
+    #[test]
+    fn test_get_head_row() {
+        let widths = [3, 3];
+        let head_row = SQUARE.get_head_row(&widths);
+        assert!(head_row.contains('\u{253C}')); // ┼
+    }
+
+    #[test]
+    fn test_build_row_no_edge() {
+        let widths = [3, 3];
+        let row = MINIMAL.build_row(&widths, RowLevel::Top, false);
+        // MINIMAL has spaces for top, should produce no edge characters
+        assert!(!row.contains('\u{250C}')); // No corner
+    }
+
+    #[test]
+    fn test_build_row_single_column() {
+        let widths = [5];
+        let top = ASCII.get_top(&widths);
+        assert_eq!(top, "+-----+");
+    }
+
+    #[test]
+    fn test_display_trait() {
+        let display = format!("{ASCII}");
+        assert!(display.contains('+'));
+        assert!(display.contains('-'));
+        assert!(display.contains('|'));
+    }
+
+    #[test]
+    fn test_substitute_ascii() {
+        // ASCII box should return self
+        let subst = ASCII.substitute(true);
+        assert!(std::ptr::eq(subst, &ASCII));
+    }
+
+    #[test]
+    fn test_substitute_unicode() {
+        // Unicode box returns self (current implementation)
+        let subst = SQUARE.substitute(true);
+        assert!(std::ptr::eq(subst, &SQUARE));
+    }
+
+    #[test]
+    fn test_get_box_all_styles() {
+        // Verify all named styles are accessible
+        assert!(get_box("ascii").is_some());
+        assert!(get_box("ascii2").is_some());
+        assert!(get_box("ascii_double_head").is_some());
+        assert!(get_box("rounded").is_some());
+        assert!(get_box("square").is_some());
+        assert!(get_box("double").is_some());
+        assert!(get_box("heavy").is_some());
+        assert!(get_box("heavy_head").is_some());
+        assert!(get_box("minimal").is_some());
+        assert!(get_box("simple").is_some());
+        assert!(get_box("simple_heavy").is_some());
+    }
+
+    #[test]
+    fn test_get_box_case_insensitive() {
+        assert!(get_box("ASCII").is_some());
+        assert!(get_box("Ascii").is_some());
+        assert!(get_box("ROUNDED").is_some());
+        assert!(get_box("Rounded").is_some());
+    }
+
+    #[test]
+    fn test_get_safe_box_returns_ascii_for_ascii_input() {
+        let safe = get_safe_box("ascii");
+        assert!(safe.ascii);
+    }
+
+    #[test]
+    fn test_get_safe_box_unknown_returns_ascii() {
+        let safe = get_safe_box("nonexistent");
+        assert!(safe.ascii);
+    }
+
+    #[test]
+    fn test_cell_characters_unicode() {
+        assert_eq!(SQUARE.cell_left(), '\u{2502}'); // │
+        assert_eq!(SQUARE.cell_divider(), '\u{2502}'); // │
+        assert_eq!(SQUARE.cell_right(), '\u{2502}'); // │
+    }
+
+    #[test]
+    fn test_empty_widths() {
+        let widths: [usize; 0] = [];
+        let top = ASCII.get_top(&widths);
+        // With no columns, only left edge is emitted (no content, no right edge)
+        assert_eq!(top, "+");
+    }
 }

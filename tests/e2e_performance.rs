@@ -19,8 +19,12 @@ use std::time::Instant;
 // Configuration
 // =============================================================================
 
-/// Default regression threshold percentage (20% slower than baseline = failure)
-const DEFAULT_REGRESSION_THRESHOLD: f64 = 20.0;
+/// Default regression threshold percentage (50% slower than baseline = failure)
+///
+/// This threshold is deliberately generous to accommodate CI/shared environments
+/// where machine load varies. The goal is to catch major regressions (2x+ slowdowns)
+/// while avoiding false positives from load variability.
+const DEFAULT_REGRESSION_THRESHOLD: f64 = 50.0;
 
 /// Load baselines from JSON file
 fn load_baselines() -> serde_json::Value {
