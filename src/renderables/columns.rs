@@ -251,14 +251,15 @@ impl<'a> Columns<'a> {
         let mut columns = 1;
 
         while columns < self.items.len() {
-            let needed_width = columns * min_column_width + (columns - 1) * self.gutter;
+            let next = columns + 1;
+            let needed_width = next * min_column_width + (next - 1) * self.gutter;
             if needed_width > total_width {
                 break;
             }
-            columns += 1;
+            columns = next;
         }
 
-        columns.max(1)
+        columns
     }
 
     /// Render the columns to lines of segments.
