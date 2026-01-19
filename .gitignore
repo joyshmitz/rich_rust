@@ -12,3 +12,4 @@ legacy_rich/
 # Environment files with secrets
 .env
 .env.*
+a.out
