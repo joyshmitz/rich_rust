@@ -116,7 +116,7 @@ pub use tree::{Tree, TreeGuides, TreeNode};
 impl Renderable for Table {
     fn render<'a>(&'a self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'a>> {
         // Table::render currently returns Vec<Segment<'static>>
-        // We can cast to Vec<Segment<'a>> via coercion? 
+        // We can cast to Vec<Segment<'a>> via coercion?
         // No, Vec is invariant.
         // We need to convert.
         // Or change Table::render to return Vec<Segment<'a>>?
@@ -129,7 +129,7 @@ impl Renderable for Table {
         // But we cannot simply cast the Vec.
         // We have to map? expensive.
         // Or change Table::render signature.
-        self.render(options.max_width).into_iter().map(|s| s).collect()
+        self.render(options.max_width).into_iter().collect()
     }
 }
 

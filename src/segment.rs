@@ -365,10 +365,10 @@ pub fn simplify<'a>(segments: impl Iterator<Item = Segment<'a>>) -> Vec<Segment<
             && !last.is_control()
             && last.style == segment.style
         {
-            // We need to merge text. If last is borrowed and segment is borrowed, 
+            // We need to merge text. If last is borrowed and segment is borrowed,
             // and they are adjacent, we could technically merge? No, they are str.
             // Converting to Owned is the only way to append generally.
-            
+
             let mut last_owned = last.text.clone().into_owned();
             last_owned.push_str(&segment.text);
             last.text = Cow::Owned(last_owned);

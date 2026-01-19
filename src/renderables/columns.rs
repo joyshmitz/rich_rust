@@ -21,10 +21,10 @@
 //! ```
 
 use crate::cells::cell_len;
-use crate::segment::Segment;
-use crate::style::Style;
 use crate::console::{Console, ConsoleOptions};
 use crate::renderables::Renderable;
+use crate::segment::Segment;
+use crate::style::Style;
 
 use super::align::{Align, AlignMethod};
 
@@ -348,7 +348,7 @@ impl<'a> Columns<'a> {
     }
 }
 
-impl<'a> Renderable for Columns<'a> {
+impl Renderable for Columns<'_> {
     fn render<'b>(&'b self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'b>> {
         self.render_flat(options.max_width).into_iter().collect()
     }

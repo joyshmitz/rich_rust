@@ -3,11 +3,11 @@
 //! This module provides tree components for displaying hierarchical data
 //! in the terminal with configurable guide characters and styles.
 
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::Text;
-use crate::console::{Console, ConsoleOptions};
-use crate::renderables::Renderable;
 
 /// Guide character styles for tree rendering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -384,7 +384,10 @@ impl Tree {
     /// Render the tree as a plain string.
     #[must_use]
     pub fn render_plain(&self) -> String {
-        self.render().into_iter().map(|seg| seg.text.into_owned()).collect()
+        self.render()
+            .into_iter()
+            .map(|seg| seg.text.into_owned())
+            .collect()
     }
 }
 

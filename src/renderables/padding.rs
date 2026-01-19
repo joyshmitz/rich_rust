@@ -5,10 +5,10 @@
 //! - 2 values: (vertical, horizontal) -> top/bottom, left/right
 //! - 4 values: (top, right, bottom, left) -> individual sides
 
-use crate::segment::Segment;
-use crate::style::Style;
 use crate::console::{Console, ConsoleOptions};
 use crate::renderables::Renderable;
+use crate::segment::Segment;
+use crate::style::Style;
 
 /// CSS-style padding dimensions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -173,7 +173,10 @@ impl<'a> Padding<'a> {
             if self.pad.left > 0 {
                 line.push(Segment::new(left_pad.clone(), Some(self.style.clone())));
             }
-            line.push(Segment::new(blank_line_inner.clone(), Some(self.style.clone())));
+            line.push(Segment::new(
+                blank_line_inner.clone(),
+                Some(self.style.clone()),
+            ));
             if self.pad.right > 0 {
                 line.push(Segment::new(right_pad.clone(), Some(self.style.clone())));
             }
@@ -211,7 +214,10 @@ impl<'a> Padding<'a> {
             if self.pad.left > 0 {
                 line.push(Segment::new(left_pad.clone(), Some(self.style.clone())));
             }
-            line.push(Segment::new(blank_line_inner.clone(), Some(self.style.clone())));
+            line.push(Segment::new(
+                blank_line_inner.clone(),
+                Some(self.style.clone()),
+            ));
             if self.pad.right > 0 {
                 line.push(Segment::new(right_pad.clone(), Some(self.style.clone())));
             }
@@ -222,7 +228,7 @@ impl<'a> Padding<'a> {
     }
 }
 
-impl<'a> Renderable for Padding<'a> {
+impl Renderable for Padding<'_> {
     fn render<'b>(&'b self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'b>> {
         let lines = self.clone().render();
         let mut result = Vec::new();

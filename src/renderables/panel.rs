@@ -5,11 +5,11 @@
 
 use crate::r#box::{ASCII, BoxChars, ROUNDED, SQUARE};
 use crate::cells;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 use crate::segment::{Segment, adjust_line_length};
 use crate::style::Style;
 use crate::text::{JustifyMethod, OverflowMethod, Text};
-use crate::console::{Console, ConsoleOptions};
-use crate::renderables::Renderable;
 
 use super::padding::PaddingDimensions;
 
@@ -91,7 +91,12 @@ impl<'a> Panel<'a> {
         let lines = text
             .split_lines()
             .into_iter()
-            .map(|line| line.render("").into_iter().map(super::super::segment::Segment::into_owned).collect())
+            .map(|line| {
+                line.render("")
+                    .into_iter()
+                    .map(super::super::segment::Segment::into_owned)
+                    .collect()
+            })
             .collect();
 
         Self {
@@ -401,7 +406,12 @@ impl<'a> Panel<'a> {
 
             let title_width = title_text.cell_len();
             if inner_width < 2 {
-                segments.extend(title_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    title_text
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 let remaining = inner_width.saturating_sub(title_width);
                 if remaining > 0 {
                     segments.push(Segment::new(
@@ -435,7 +445,12 @@ impl<'a> Panel<'a> {
                 }
 
                 segments.push(Segment::new(" ", Some(title_text.style().clone())));
-                segments.extend(title_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    title_text
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 segments.push(Segment::new(" ", Some(title_text.style().clone())));
 
                 if right_rule > 0 {
@@ -490,7 +505,12 @@ impl<'a> Panel<'a> {
 
             let subtitle_width = subtitle_text.cell_len();
             if inner_width < 2 {
-                segments.extend(subtitle_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    subtitle_text
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 let remaining = inner_width.saturating_sub(subtitle_width);
                 if remaining > 0 {
                     segments.push(Segment::new(
@@ -524,7 +544,12 @@ impl<'a> Panel<'a> {
                 }
 
                 segments.push(Segment::new(" ", Some(subtitle_text.style().clone())));
-                segments.extend(subtitle_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    subtitle_text
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 segments.push(Segment::new(" ", Some(subtitle_text.style().clone())));
 
                 if right_rule > 0 {
@@ -561,7 +586,7 @@ impl<'a> Panel<'a> {
     }
 }
 
-impl<'a> Renderable for Panel<'a> {
+impl Renderable for Panel<'_> {
     fn render<'b>(&'b self, _console: &Console, options: &ConsoleOptions) -> Vec<Segment<'b>> {
         self.render(options.max_width).into_iter().collect()
     }

@@ -4,11 +4,11 @@
 //! optionally with a centered (or aligned) title.
 
 use crate::cells;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::{JustifyMethod, OverflowMethod, Text};
-use crate::console::{Console, ConsoleOptions};
-use crate::renderables::Renderable;
 
 /// A horizontal rule with optional title.
 #[derive(Debug, Clone)]
@@ -106,7 +106,12 @@ impl Rule {
             if title_total_width > width {
                 let mut truncated = title.clone();
                 truncated.truncate(width, OverflowMethod::Crop, false);
-                segments.extend(truncated.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    truncated
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 segments.push(Segment::line());
                 return segments;
             }
@@ -118,7 +123,12 @@ impl Rule {
             if rule_chars < 2 {
                 // Not enough space for rule, just show title
                 segments.push(Segment::new(" ", Some(title.style().clone())));
-                segments.extend(title.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    title
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 segments.push(Segment::new(" ", Some(title.style().clone())));
             } else {
                 let (left_count, right_count) = match self.align {
@@ -137,7 +147,12 @@ impl Rule {
 
                 // Title with surrounding spaces
                 segments.push(Segment::new(" ", Some(title.style().clone())));
-                segments.extend(title.render("").into_iter().map(super::super::segment::Segment::into_owned));
+                segments.extend(
+                    title
+                        .render("")
+                        .into_iter()
+                        .map(super::super::segment::Segment::into_owned),
+                );
                 segments.push(Segment::new(" ", Some(title.style().clone())));
 
                 // Right rule section
@@ -158,7 +173,10 @@ impl Rule {
     /// Render the rule as a string (for simple output).
     #[must_use]
     pub fn render_plain(&self, width: usize) -> String {
-        self.render(width).into_iter().map(|seg| seg.text.into_owned()).collect()
+        self.render(width)
+            .into_iter()
+            .map(|seg| seg.text.into_owned())
+            .collect()
     }
 }
 

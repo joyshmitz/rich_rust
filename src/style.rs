@@ -1266,7 +1266,9 @@ mod tests {
 
     #[test]
     fn test_style_render_ansi_with_link_id() {
-        let style = Style::new().bold().link_with_id("https://example.com", "test-id");
+        let style = Style::new()
+            .bold()
+            .link_with_id("https://example.com", "test-id");
         let rendered = style.render("click here", ColorSystem::TrueColor);
 
         // Should contain OSC 8 sequences

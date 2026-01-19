@@ -10,10 +10,10 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, AddAssign};
 
 use crate::cells::cell_len;
-use crate::segment::Segment;
-use crate::style::Style;
 use crate::console::{Console, ConsoleOptions};
 use crate::renderables::Renderable;
+use crate::segment::Segment;
+use crate::style::Style;
 
 /// Text justification method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -816,7 +816,7 @@ impl Text {
                 let start_byte = byte_indices[pos];
                 let end_char_idx = event_pos.min(self.length);
                 let end_byte = byte_indices[end_char_idx];
-                
+
                 let text_slice = &self.plain[start_byte..end_byte];
                 let style = self.compute_style(&active_spans, &mut style_cache);
                 result.push(Segment::new(text_slice, Some(style)));

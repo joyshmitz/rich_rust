@@ -672,7 +672,8 @@ fn regression_rendering_hyperlink_only_style() {
     assert!(!style.is_null(), "Style with link should not be null");
 
     // Render the style using render_ansi for (prefix, suffix) tuple
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, suffix) = &*ansi;
 
     // The prefix should contain OSC 8 sequence for the link
     // OSC 8 format: \x1b]8;;URL\x1b\\
@@ -710,7 +711,8 @@ fn regression_rendering_hyperlink_with_attributes() {
 
     let style = Style::new().bold().link("https://example.com");
 
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, _suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, _suffix) = &*ansi;
 
     // Should have both bold (SGR 1) and hyperlink (OSC 8)
     assert!(
@@ -782,7 +784,8 @@ fn regression_rendering_null_style() {
     let style = Style::null();
     assert!(style.is_null(), "Style::null() should be null");
 
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, suffix) = &*ansi;
 
     // Null style should produce empty prefix and suffix
     assert!(prefix.is_empty(), "Null style prefix should be empty");
@@ -811,7 +814,8 @@ fn regression_rendering_color_downgrade_truecolor_to_256() {
     let style = Style::parse("#ff5500").unwrap();
 
     // Render for 256-color system
-    let ansi = style.render_ansi(ColorSystem::EightBit); let (prefix, _suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::EightBit);
+    let (prefix, _suffix) = &*ansi;
 
     // Should produce 256-color code (38;5;N format)
     assert!(
@@ -942,7 +946,8 @@ fn regression_rendering_ansi_strip_completeness() {
 
     // Create styled output
     let style = Style::parse("bold red on blue").unwrap();
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, suffix) = &*ansi;
     let styled = format!("{prefix}Hello{suffix}");
 
     // Strip ANSI codes
@@ -1677,7 +1682,8 @@ fn regression_rendering_hyperlink_with_attributes_correctness() {
     let style = Style::new().bold().link("https://example.com");
 
     // Render the style using render_ansi for (prefix, suffix) tuple
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, suffix) = &*ansi;
 
     // The prefix should contain both bold (SGR 1) and hyperlink (OSC 8)
     assert!(
@@ -1720,7 +1726,8 @@ fn regression_rendering_hyperlink_only_style_correctness() {
     assert!(!style.is_null(), "Style with link should not be null");
 
     // Render the style using render_ansi for (prefix, suffix) tuple
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, suffix) = &*ansi;
 
     // The prefix should contain OSC 8 sequence for the link
     // OSC 8 format: \x1b]8;;URL\x1b\\
@@ -1772,7 +1779,7 @@ fn regression_rendering_style_combine_preserves_hyperlink_correctness() {
     let style = Style::new().bold().link("https://example.com");
     let ansi = style.render_ansi(ColorSystem::TrueColor);
     let (prefix, suffix) = &*ansi;
-    
+
     assert!(prefix.contains("\x1b]8;;https://example.com\x1b\\"));
     assert!(prefix.contains("\x1b[1m"));
     assert!(suffix.contains("\x1b]8;;\x1b\\"));
@@ -1797,7 +1804,8 @@ fn regression_rendering_color_downgrade_truecolor_to_8bit_correctness() {
     let style = Style::new().color(color);
 
     // Render for 256-color system
-    let ansi = style.render_ansi(ColorSystem::EightBit); let (prefix, _suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::EightBit);
+    let (prefix, _suffix) = &*ansi;
 
     // Should produce 256-color code (196 is standard red in 256-color)
     // The exact mapping might vary, but it should be an 8-bit code
@@ -1823,7 +1831,8 @@ fn regression_rendering_ansi_strip_completeness_correctness() {
 
     // Create styled output
     let style = Style::parse("bold red on blue").unwrap();
-    let ansi = style.render_ansi(ColorSystem::TrueColor); let (prefix, suffix) = &*ansi;
+    let ansi = style.render_ansi(ColorSystem::TrueColor);
+    let (prefix, suffix) = &*ansi;
     let styled = format!("{prefix}Hello{suffix}");
 
     // Strip ANSI codes

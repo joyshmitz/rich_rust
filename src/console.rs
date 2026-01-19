@@ -598,7 +598,11 @@ impl Console {
                 }
 
                 let line_end = if index == last_index { end } else { "\n" };
-                rendered.extend(line.render(line_end).into_iter().map(super::segment::Segment::into_owned));
+                rendered.extend(
+                    line.render(line_end)
+                        .into_iter()
+                        .map(super::segment::Segment::into_owned),
+                );
             }
 
             rendered
@@ -631,7 +635,9 @@ impl Console {
     /// Write segments to a writer.
     fn write_segments<W: Write>(&self, writer: &mut W, segments: &[Segment<'_>]) -> io::Result<()> {
         if self.record.get() {
-            self.buffer.borrow_mut().extend(segments.iter().map(|s| s.clone().into_owned()));
+            self.buffer
+                .borrow_mut()
+                .extend(segments.iter().map(|s| s.clone().into_owned()));
         }
 
         let color_system = self.color_system();
@@ -664,7 +670,11 @@ impl Console {
         writer.flush()
     }
 
-    fn write_control_codes<W: Write>(&self, writer: &mut W, segment: &Segment<'_>) -> io::Result<()> {
+    fn write_control_codes<W: Write>(
+        &self,
+        writer: &mut W,
+        segment: &Segment<'_>,
+    ) -> io::Result<()> {
         let Some(ref controls) = segment.control else {
             return Ok(());
         };

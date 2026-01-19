@@ -4,12 +4,12 @@
 //! in the terminal with various styles and features.
 
 use crate::cells;
+use crate::console::{Console, ConsoleOptions};
+use crate::renderables::Renderable;
 use crate::segment::Segment;
 use crate::style::Style;
 use crate::text::Text;
 use std::time::{Duration, Instant};
-use crate::console::{Console, ConsoleOptions};
-use crate::renderables::Renderable;
 
 /// Bar style variants for the progress bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -497,7 +497,12 @@ impl ProgressBar {
             let mut desc_text = desc.clone();
             desc_text.append(" ");
             let desc_width = desc_text.cell_len();
-            segments.extend(desc_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
+            segments.extend(
+                desc_text
+                    .render("")
+                    .into_iter()
+                    .map(super::super::segment::Segment::into_owned),
+            );
             used_width += desc_width;
         }
 
@@ -624,7 +629,10 @@ impl ProgressBar {
     /// Render the progress bar as a plain string.
     #[must_use]
     pub fn render_plain(&self, width: usize) -> String {
-        self.render(width).into_iter().map(|seg| seg.text.into_owned()).collect()
+        self.render(width)
+            .into_iter()
+            .map(|seg| seg.text.into_owned())
+            .collect()
     }
 }
 

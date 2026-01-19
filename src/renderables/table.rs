@@ -1023,7 +1023,7 @@ impl Table {
             }
 
             // Row separator (if show_lines or end_section)
-            if (self.show_lines || row.end_section) && (!is_last || self.show_footer) {
+            if (self.show_lines || row.end_section) && !is_last {
                 let sep = self.build_separator(box_chars, &widths, RowLevel::Row);
                 segments.push(Segment::new(sep, Some(self.border_style.clone())));
                 segments.push(Segment::line());
@@ -1032,12 +1032,10 @@ impl Table {
 
         // Footer
         if self.show_footer && !self.columns.is_empty() {
-            // Footer separator (if not already drawn)
-            if !self.show_lines {
-                let sep = self.build_separator(box_chars, &widths, RowLevel::FootRow);
-                segments.push(Segment::new(sep, Some(self.border_style.clone())));
-                segments.push(Segment::line());
-            }
+            // Footer separator
+            let sep = self.build_separator(box_chars, &widths, RowLevel::FootRow);
+            segments.push(Segment::new(sep, Some(self.border_style.clone())));
+            segments.push(Segment::line());
 
             let footer_cells: Vec<&Text> = self.columns.iter().map(|c| &c.footer).collect();
             let footer_styles: Vec<&Style> = self.columns.iter().map(|c| &c.footer_style).collect();
@@ -1249,7 +1247,12 @@ impl Table {
                 ));
             }
 
-            segments.extend(cell_text.render("").into_iter().map(super::super::segment::Segment::into_owned));
+            segments.extend(
+                cell_text
+                    .render("")
+                    .into_iter()
+                    .map(super::super::segment::Segment::into_owned),
+            );
 
             if right_space > 0 {
                 segments.push(Segment::new(
@@ -1354,7 +1357,11 @@ impl Table {
             segments.push(Segment::new(" ".repeat(left_space), Some(style.clone())));
         }
 
-        let mut content_segments = content_text.render("").into_iter().map(super::super::segment::Segment::into_owned).collect::<Vec<_>>();
+        let mut content_segments = content_text
+            .render("")
+            .into_iter()
+            .map(super::super::segment::Segment::into_owned)
+            .collect::<Vec<_>>();
         for segment in &mut content_segments {
             if !segment.is_control() {
                 segment.style = Some(match segment.style.take() {

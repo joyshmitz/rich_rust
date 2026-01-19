@@ -426,11 +426,11 @@ fn perf_segment_merge_10000() {
     // Merge consecutive segments with same style
     let mut simplified: Vec<Segment> = Vec::new();
     for seg in segments {
-        if let Some(last) = simplified.last_mut() {
-            if last.style == seg.style {
-                last.text.to_mut().push_str(&seg.text);
-                continue;
-            }
+        if let Some(last) = simplified.last_mut()
+            && last.style == seg.style
+        {
+            last.text.to_mut().push_str(&seg.text);
+            continue;
         }
         simplified.push(seg);
     }
@@ -508,14 +508,13 @@ fn perf_memory_stress_large_document() {
 
     // Multiple panels
     for _ in 0..10 {
-        let content = format!(
-            "Panel content {}",
-            "X".repeat(100)
-        );
-        let panel = Panel::from_text(&content)
-            .width(50)
-            .expand(false);
-        let segments: Vec<Segment> = panel.render(80).into_iter().map(|s| s.into_owned()).collect();
+        let content = format!("Panel content {}", "X".repeat(100));
+        let panel = Panel::from_text(&content).width(50).expand(false);
+        let segments: Vec<Segment> = panel
+            .render(80)
+            .into_iter()
+            .map(|s| s.into_owned())
+            .collect();
         all_segments.extend(segments);
     }
 
