@@ -30,7 +30,7 @@ impl TestCase for TableTest {
         }
 
         for row in &self.rows {
-            let cells: Vec<&str> = row.iter().copied().collect();
+            let cells: Vec<&str> = row.to_vec();
             table.add_row_cells(cells);
         }
 
