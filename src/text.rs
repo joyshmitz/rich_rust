@@ -796,7 +796,13 @@ impl Text {
             events.entry(span.end).or_default().push((idx, false));
         }
 
-        let chars: Vec<char> = self.plain.chars().collect();
+        // Map character indices to byte indices for slicing
+        let mut byte_indices: Vec<usize> = Vec::with_capacity(self.length + 1);
+        for (i, _) in self.plain.char_indices() {
+            byte_indices.push(i);
+        }
+        byte_indices.push(self.plain.len());
+
         let mut result = Vec::new();
         let mut active_spans: Vec<usize> = Vec::new();
         let mut style_cache: HashMap<u64, Style> = HashMap::new();
@@ -804,10 +810,14 @@ impl Text {
 
         for (event_pos, span_events) in events {
             // Emit text before this event
-            if event_pos > pos && pos < chars.len() {
-                let text: String = chars[pos..event_pos.min(chars.len())].iter().collect();
+            if event_pos > pos && pos < self.length {
+                let start_byte = byte_indices[pos];
+                let end_char_idx = event_pos.min(self.length);
+                let end_byte = byte_indices[end_char_idx];
+                
+                let text_slice = &self.plain[start_byte..end_byte];
                 let style = self.compute_style(&active_spans, &mut style_cache);
-                result.push(Segment::new(text, Some(style)));
+                result.push(Segment::new(text_slice, Some(style)));
                 pos = event_pos;
             }
 
@@ -833,10 +843,12 @@ impl Text {
         }
 
         // Emit remaining text
-        if pos < chars.len() {
-            let text: String = chars[pos..].iter().collect();
+        if pos < self.length {
+            let start_byte = byte_indices[pos];
+            let end_byte = byte_indices[self.length];
+            let text_slice = &self.plain[start_byte..end_byte];
             let style = self.compute_style(&active_spans, &mut style_cache);
-            result.push(Segment::new(text, Some(style)));
+            result.push(Segment::new(text_slice, Some(style)));
         }
 
         // Append end string
