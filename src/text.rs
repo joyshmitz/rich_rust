@@ -805,9 +805,10 @@ impl Text {
         }
         byte_indices.push(self.plain.len());
 
-        let mut result = Vec::new();
-        let mut active_spans: Vec<usize> = Vec::new();
-        let mut style_cache: HashMap<u64, Style> = HashMap::new();
+        // Pre-allocate based on expected sizes to minimize reallocations
+        let mut result = Vec::with_capacity(self.spans.len() + 2);
+        let mut active_spans: Vec<usize> = Vec::with_capacity(self.spans.len());
+        let mut style_cache: HashMap<u64, Style> = HashMap::with_capacity(self.spans.len() + 1);
         let mut pos = 0;
 
         for (event_pos, span_events) in events {
