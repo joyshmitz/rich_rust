@@ -1654,10 +1654,7 @@ mod tests {
             .file(Box::new(buffer.clone()))
             .build();
 
-        let segments = vec![
-            Segment::plain("Hello "),
-            Segment::plain("World"),
-        ];
+        let segments = vec![Segment::plain("Hello "), Segment::plain("World")];
         console.print_segments(&segments);
 
         let output = buffer.0.lock().unwrap();
@@ -1921,7 +1918,11 @@ mod tests {
         options.width = Some(10);
 
         console
-            .print_to(&mut output, "This is a long text that should wrap", &options)
+            .print_to(
+                &mut output,
+                "This is a long text that should wrap",
+                &options,
+            )
             .expect("failed to print");
 
         let text = String::from_utf8(output).expect("invalid utf8");
@@ -1934,8 +1935,7 @@ mod tests {
     fn test_justify_left() {
         let console = Console::builder().width(20).markup(false).build();
         let mut output = Vec::new();
-        let mut options = PrintOptions::new()
-            .with_justify(JustifyMethod::Left);
+        let mut options = PrintOptions::new().with_justify(JustifyMethod::Left);
         options.no_newline = true;
 
         console
@@ -1950,8 +1950,7 @@ mod tests {
     fn test_justify_right() {
         let console = Console::builder().width(20).markup(false).build();
         let mut output = Vec::new();
-        let mut options = PrintOptions::new()
-            .with_justify(JustifyMethod::Right);
+        let mut options = PrintOptions::new().with_justify(JustifyMethod::Right);
         options.no_newline = true;
 
         console

@@ -20,7 +20,7 @@ mod conformance;
 use conformance::rule_tests;
 use conformance::table_tests;
 use conformance::text_tests;
-use conformance::{run_test, TestCase};
+use conformance::{TestCase, run_test};
 
 // =============================================================================
 // Text Conformance Tests
@@ -67,10 +67,7 @@ fn conformance_text_nested_styles() {
         width: 80,
     };
     let output = run_test(&test);
-    assert_eq!(
-        conformance::strip_ansi(&output),
-        "Bold and italic text"
-    );
+    assert_eq!(conformance::strip_ansi(&output), "Bold and italic text");
 }
 
 #[test]

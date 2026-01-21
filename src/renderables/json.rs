@@ -299,7 +299,11 @@ impl Json {
     }
 
     /// Render an object.
-    fn render_object(&self, obj: &serde_json::Map<String, Value>, depth: usize) -> Vec<Segment<'_>> {
+    fn render_object(
+        &self,
+        obj: &serde_json::Map<String, Value>,
+        depth: usize,
+    ) -> Vec<Segment<'_>> {
         if obj.is_empty() {
             return vec![Segment::new("{}", self.style(&self.theme.bracket))];
         }

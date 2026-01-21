@@ -223,7 +223,8 @@ fn benchmark_conformance_text(c: &mut Criterion) {
     // Styled text
     c.bench_function("conformance_text_styled", |b| {
         b.iter(|| {
-            let text = markup::render_or_plain("[bold]Bold [italic]and italic[/italic] text[/bold]");
+            let text =
+                markup::render_or_plain("[bold]Bold [italic]and italic[/italic] text[/bold]");
             let segments: Vec<Segment<'static>> = text
                 .render("")
                 .into_iter()

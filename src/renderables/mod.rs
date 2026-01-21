@@ -192,9 +192,6 @@ pub use json::{Json, JsonError, JsonTheme};
 #[cfg(feature = "json")]
 impl Renderable for Json {
     fn render<'a>(&'a self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'a>> {
-        self.render()
-            .into_iter()
-            .map(Segment::into_owned)
-            .collect()
+        self.render().into_iter().map(Segment::into_owned).collect()
     }
 }
