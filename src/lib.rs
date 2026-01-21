@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 //! # `rich_rust`
 //!
 //! A Rust port of Python's Rich library for beautiful terminal output.
