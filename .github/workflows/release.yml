@@ -1,224 +1,130 @@
+# Release workflow for rich_rust
+#
+# Triggers on version tags (v*) and publishes to crates.io
+# Also creates GitHub releases
+
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g., v0.1.0)'
+        description: 'Release tag (e.g., v0.1.0)'
         required: true
         type: string
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false # Never cancel releases
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
-  id-token: write # Required for SLSA provenance
-  attestations: write # Required for artifact attestation
+  id-token: write
+  attestations: write
 
 env:
   CARGO_TERM_COLOR: always
-  CRATE_NAME: rich_rust
 
 jobs:
-  build:
-    name: Build (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux x64
-          - name: Linux x64
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: rich_rust-linux-x64
-          # Linux ARM64 - Native runner (10x faster than QEMU)
-          - name: Linux ARM64
-            os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-            artifact_name: rich_rust-linux-arm64
-          # macOS ARM64 - Native Apple Silicon
-          - name: macOS ARM64
-            os: macos-14
-            target: aarch64-apple-darwin
-            artifact_name: rich_rust-macos-arm64
-          # NOTE: macOS x64 removed - free runners (macos-13) retired
-          # and paid runners (macos-15-large) require billing setup
-          # Windows x64
-          - name: Windows x64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: rich_rust-windows-x64
-
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly
-          targets: ${{ matrix.target }}
-
-      - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
-        with:
-          key: release-${{ matrix.target }}
-
-      - name: Build release library
-        run: cargo build --release --all-features --target ${{ matrix.target }}
-
-      - name: Prepare artifact (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p dist
-          # Copy static library if it exists
-          if [ -f "target/${{ matrix.target }}/release/lib${{ env.CRATE_NAME }}.a" ]; then
-            cp "target/${{ matrix.target }}/release/lib${{ env.CRATE_NAME }}.a" "dist/${{ matrix.artifact_name }}.a"
-          fi
-          # Copy dynamic library if it exists
-          if [ -f "target/${{ matrix.target }}/release/lib${{ env.CRATE_NAME }}.so" ]; then
-            cp "target/${{ matrix.target }}/release/lib${{ env.CRATE_NAME }}.so" "dist/${{ matrix.artifact_name }}.so"
-          fi
-          if [ -f "target/${{ matrix.target }}/release/lib${{ env.CRATE_NAME }}.dylib" ]; then
-            cp "target/${{ matrix.target }}/release/lib${{ env.CRATE_NAME }}.dylib" "dist/${{ matrix.artifact_name }}.dylib"
-          fi
-          # Create tarball with library files only
-          cd target/${{ matrix.target }}/release
-          tar -czvf "../../../dist/${{ matrix.artifact_name }}.tar.gz" \
-            $(ls lib${{ env.CRATE_NAME }}.* 2>/dev/null || echo ".")
-
-      - name: Prepare artifact (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist
-          # Copy lib file if exists
-          $libPath = "target/${{ matrix.target }}/release/${{ env.CRATE_NAME }}.lib"
-          if (Test-Path $libPath) {
-            Copy-Item $libPath "dist/${{ matrix.artifact_name }}.lib"
-          }
-          # Copy dll if exists
-          $dllPath = "target/${{ matrix.target }}/release/${{ env.CRATE_NAME }}.dll"
-          if (Test-Path $dllPath) {
-            Copy-Item $dllPath "dist/${{ matrix.artifact_name }}.dll"
-          }
-          # Create zip with library files
-          $files = Get-ChildItem "target/${{ matrix.target }}/release" -Include "${{ env.CRATE_NAME }}.*" -File
-          if ($files) {
-            Compress-Archive -Path $files -DestinationPath "dist/${{ matrix.artifact_name }}.zip"
-          }
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/*
-          if-no-files-found: warn
-          retention-days: 7
-
-  release:
-    name: Create Release
-    needs: build
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          path: artifacts
-
-      - name: Prepare release assets
+      - uses: actions/checkout@v4
+      - name: Determine and validate tag
+        id: tag
         run: |
-          mkdir -p release
-          # Move all artifacts to release directory
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.a" -o -name "*.so" -o -name "*.dylib" -o -name "*.lib" -o -name "*.dll" \) -exec mv {} release/ \;
-          ls -la release/
-
-      - name: Generate checksums
-        run: |
-          cd release
-          if ls * 1> /dev/null 2>&1; then
-            sha256sum * > SHA256SUMS.txt
-            sha512sum * > SHA512SUMS.txt
-            cat SHA256SUMS.txt
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
           else
-            echo "No release files found"
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+
+          # Validate semver format
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "Error: Version '$VERSION' does not match semver format"
             exit 1
           fi
 
-      # Sign checksums with minisign (if secret key is configured)
-      - name: Install minisign
-        if: ${{ env.MINISIGN_SECRET_KEY != '' }}
-        env:
-          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
-        run: |
-          curl -sSL https://github.com/jedisct1/minisign/releases/download/0.11/minisign-0.11-linux.tar.gz | tar xz
-          sudo mv minisign-linux/x86_64/minisign /usr/local/bin/
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building release for tag: $TAG (version: $VERSION)"
 
-      - name: Sign checksums
-        if: ${{ env.MINISIGN_SECRET_KEY != '' }}
-        env:
-          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
-        run: |
-          echo "$MINISIGN_SECRET_KEY" > /tmp/minisign.key
-          cd release
-          minisign -Sm SHA256SUMS.txt -s /tmp/minisign.key -t "rich_rust release"
-          minisign -Sm SHA512SUMS.txt -s /tmp/minisign.key -t "rich_rust release"
-          rm /tmp/minisign.key
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      # Generate SLSA provenance for all release artifacts
-      - name: Generate SLSA provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
-        with:
-          subject-path: 'release/*'
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
-        with:
-          name: Release ${{ steps.version.outputs.VERSION }}
-          tag_name: ${{ steps.version.outputs.VERSION }}
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
-          generate_release_notes: true
-          files: |
-            release/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Publish to crates.io (optional - requires CARGO_REGISTRY_TOKEN secret)
+  # Publish to crates.io
   publish-crates:
     name: Publish to crates.io
-    needs: release
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ !contains(github.ref, '-') }} # Skip pre-releases
+    # Skip pre-releases
+    if: ${{ !contains(needs.plan.outputs.tag, '-') }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Verify version matches tag
+        run: |
+          cargo_version=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          tag_version="${{ needs.plan.outputs.version }}"
+          if [[ "$cargo_version" != "$tag_version" ]]; then
+            echo "Version mismatch: Cargo.toml=$cargo_version, tag=$tag_version"
+            exit 1
+          fi
+          echo "Version verified: $cargo_version"
+
+      - name: Dry run publish
+        run: cargo publish --dry-run
 
       - name: Publish to crates.io
         if: ${{ env.CARGO_REGISTRY_TOKEN != '' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --all-features
+        run: |
+          echo "Publishing rich_rust to crates.io..."
+          cargo publish || {
+            # Check if already published
+            if cargo search rich_rust | grep -q "^rich_rust"; then
+              echo "rich_rust already published"
+            else
+              exit 1
+            fi
+          }
+
+      - name: Summary
+        run: |
+          echo "## Crates.io Publish" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ secrets.CARGO_REGISTRY_TOKEN }}" ]]; then
+            echo "Published rich_rust v${{ needs.plan.outputs.version }} to crates.io" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Skipped - CARGO_REGISTRY_TOKEN not configured" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Create GitHub Release
+  create-release:
+    name: Create GitHub Release
+    needs: [plan, publish-crates]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name: rich_rust ${{ needs.plan.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(needs.plan.outputs.tag, '-') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
