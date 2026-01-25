@@ -75,6 +75,10 @@ impl<'a> Panel<'a> {
     }
 
     /// Create a panel from plain text content.
+    ///
+    /// This does **NOT** parse Rich markup. If you want markup styling,
+    /// parse into a [`Text`] first with [`crate::markup::render_or_plain`]
+    /// and use [`Panel::from_rich_text`].
     #[must_use]
     pub fn from_text(text: &'a str) -> Self {
         let lines: Vec<Vec<Segment<'a>>> = text
@@ -84,7 +88,10 @@ impl<'a> Panel<'a> {
         Self::new(lines)
     }
 
-    /// Create a panel from a Text object.
+    /// Create a panel from a pre-styled Text object.
+    ///
+    /// Use this when you already have a `Text` with spans (for example from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn from_rich_text(text: &'a Text, width: usize) -> Self {
         // Split into logical lines first, then render each line to segments.
@@ -185,6 +192,10 @@ impl<'a> Panel<'a> {
     }
 
     /// Set the title.
+    ///
+    /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
+    /// For styled titles, pass a pre-styled `Text` (e.g. from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn title(mut self, title: impl Into<Text>) -> Self {
         self.title = Some(title.into());
@@ -199,6 +210,10 @@ impl<'a> Panel<'a> {
     }
 
     /// Set the subtitle.
+    ///
+    /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
+    /// For styled subtitles, pass a pre-styled `Text` (e.g. from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn subtitle(mut self, subtitle: impl Into<Text>) -> Self {
         self.subtitle = Some(subtitle.into());
@@ -246,8 +261,22 @@ impl<'a> Panel<'a> {
 
         // Inner width (inside borders)
         let inner_width = panel_width.saturating_sub(2);
+
+        let mut pad_left = self.padding.left;
+        let mut pad_right = self.padding.right;
+        let max_content_width = self.content_width();
+        if max_content_width <= inner_width {
+            let available_for_padding = inner_width.saturating_sub(max_content_width);
+            if pad_left + pad_right > available_for_padding {
+                let mut remaining = available_for_padding;
+                pad_left = pad_left.min(remaining);
+                remaining = remaining.saturating_sub(pad_left);
+                pad_right = pad_right.min(remaining);
+            }
+        }
+
         // Content width (inside borders and padding)
-        let content_width = inner_width.saturating_sub(self.padding.horizontal());
+        let content_width = inner_width.saturating_sub(pad_left + pad_right);
 
         let mut pad_top = self.padding.top;
         let mut pad_bottom = self.padding.bottom;
@@ -302,8 +331,8 @@ impl<'a> Panel<'a> {
         }
 
         // Content lines
-        let left_pad = " ".repeat(self.padding.left);
-        let right_pad = " ".repeat(self.padding.right);
+        let left_pad = " ".repeat(pad_left);
+        let right_pad = " ".repeat(pad_right);
 
         for line in &content_lines {
             // Left border
@@ -313,7 +342,7 @@ impl<'a> Panel<'a> {
             ));
 
             // Left padding
-            if self.padding.left > 0 {
+            if pad_left > 0 {
                 segments.push(Segment::new(left_pad.clone(), Some(self.style.clone())));
             }
 
@@ -342,7 +371,7 @@ impl<'a> Panel<'a> {
             segments.extend(content_segments);
 
             // Right padding
-            if self.padding.right > 0 {
+            if pad_right > 0 {
                 segments.push(Segment::new(right_pad.clone(), Some(self.style.clone())));
             }
 

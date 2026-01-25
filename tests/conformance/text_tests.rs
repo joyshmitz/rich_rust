@@ -168,4 +168,48 @@ mod tests {
             );
         }
     }
+
+    // =========================================================================
+    // Markup Parsing Tests - Text::new vs markup::render_or_plain
+    // =========================================================================
+
+    #[test]
+    fn test_text_new_does_not_parse_markup() {
+        let text = Text::new("[bold]Hello[/]");
+        let output: String = text
+            .render("")
+            .into_iter()
+            .map(|s| s.text.into_owned())
+            .collect();
+
+        assert!(
+            output.contains("[bold]"),
+            "Text::new should preserve literal markup"
+        );
+        assert!(
+            output.contains("[/]"),
+            "Text::new should preserve literal markup close tag"
+        );
+        assert!(
+            text.spans().is_empty(),
+            "Text::new should not create styled spans"
+        );
+    }
+
+    #[test]
+    fn test_markup_render_parses_markup() {
+        let text = markup::render_or_plain("[bold]Hello[/]");
+        assert_eq!(text.plain(), "Hello");
+        assert!(!text.spans().is_empty(), "Markup should create spans");
+
+        let output: String = text
+            .render("")
+            .into_iter()
+            .map(|s| s.text.into_owned())
+            .collect();
+        assert!(
+            !output.contains("[bold]"),
+            "Parsed markup should not include raw tags"
+        );
+    }
 }

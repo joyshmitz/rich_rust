@@ -85,6 +85,10 @@ pub struct TreeNode {
 
 impl TreeNode {
     /// Create a new tree node with a label.
+    ///
+    /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
+    /// For styled labels, pass a pre-styled `Text` (e.g. from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn new(label: impl Into<Text>) -> Self {
         Self {
@@ -97,6 +101,10 @@ impl TreeNode {
     }
 
     /// Create a new tree node with an icon and label.
+    ///
+    /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
+    /// For styled labels, pass a pre-styled `Text` (e.g. from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn with_icon(icon: impl Into<String>, label: impl Into<Text>) -> Self {
         Self {
@@ -221,6 +229,10 @@ impl Tree {
     }
 
     /// Create a new tree with just a label for the root.
+    ///
+    /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
+    /// For styled labels, pass a pre-styled `Text` (e.g. from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn with_label(label: impl Into<Text>) -> Self {
         Self::new(TreeNode::new(label))

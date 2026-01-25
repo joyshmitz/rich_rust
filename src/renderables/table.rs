@@ -520,6 +520,10 @@ impl Table {
     }
 
     /// Add a row from cell values.
+    ///
+    /// This does **NOT** parse Rich markup. If you pass strings like
+    /// `"[bold]text[/]"`, the literal markup will be shown. Use
+    /// [`Table::add_row_markup`] if you want markup parsing.
     pub fn add_row_cells<T: Into<Cell>>(&mut self, cells: impl IntoIterator<Item = T>) {
         let cells: Vec<Cell> = cells.into_iter().map(Into::into).collect();
         self.rows.push(Row::new(cells));
@@ -1021,6 +1025,7 @@ impl Table {
                 &header_overrides,
                 RowLevel::HeadRow,
             ));
+            segments.push(Segment::line());
             if self.padding.1 > 0 {
                 segments.extend(self.render_leading_lines(
                     box_chars,
@@ -1094,6 +1099,7 @@ impl Table {
                 &overrides,
                 RowLevel::Row,
             ));
+            segments.push(Segment::line());
             if self.padding.1 > 0 {
                 segments.extend(self.render_leading_lines(
                     box_chars,
@@ -1160,6 +1166,7 @@ impl Table {
                 &footer_overrides,
                 RowLevel::FootRow,
             ));
+            segments.push(Segment::line());
             if self.padding.1 > 0 {
                 segments.extend(self.render_leading_lines(
                     box_chars,
@@ -1457,6 +1464,7 @@ impl Table {
                 cell_overrides,
                 row_level,
             ));
+            segments.push(Segment::line());
         }
         segments
     }

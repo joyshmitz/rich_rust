@@ -352,6 +352,10 @@ impl ProgressBar {
     }
 
     /// Set the task description.
+    ///
+    /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
+    /// For styled descriptions, pass a pre-styled `Text` (e.g. from
+    /// [`crate::markup::render_or_plain`]).
     #[must_use]
     pub fn description(mut self, desc: impl Into<Text>) -> Self {
         self.description = Some(desc.into());
@@ -366,6 +370,8 @@ impl ProgressBar {
     }
 
     /// Set the finished message.
+    ///
+    /// This takes a plain string and does **NOT** parse markup.
     #[must_use]
     pub fn finished_message(mut self, msg: impl Into<String>) -> Self {
         self.finished_message = Some(msg.into());

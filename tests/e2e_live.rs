@@ -42,6 +42,7 @@ impl SharedBuffer {
         self.0.lock().unwrap().clear();
     }
 
+    #[allow(dead_code)]
     fn len(&self) -> usize {
         self.0.lock().unwrap().len()
     }
@@ -98,7 +99,10 @@ fn test_live_start_stop_cycle() {
         let _verify = test_phase("verify_output");
         let output = buffer.contents();
         tracing::debug!(output_len = output.len(), "Checking output after start");
-        assert!(output.contains("Hello Live"), "Output should contain renderable text");
+        assert!(
+            output.contains("Hello Live"),
+            "Output should contain renderable text"
+        );
     }
 
     {
@@ -114,7 +118,10 @@ fn test_live_start_stop_cycle() {
 #[test]
 fn test_live_multiple_refresh_cycles() {
     init_test_logging();
-    log_test_context("test_live_multiple_refresh_cycles", "Multiple manual refreshes");
+    log_test_context(
+        "test_live_multiple_refresh_cycles",
+        "Multiple manual refreshes",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -140,7 +147,11 @@ fn test_live_multiple_refresh_cycles() {
             tracing::debug!(refresh_count = i, "Manual refresh");
             live.refresh().expect("refresh should succeed");
             let output = buffer.contents();
-            tracing::debug!(output_len = output.len(), refresh = i, "Output after refresh");
+            tracing::debug!(
+                output_len = output.len(),
+                refresh = i,
+                "Output after refresh"
+            );
         }
     }
 
@@ -175,7 +186,10 @@ fn test_live_update_renderable() {
 
         // Check initial content
         let output = buffer.contents();
-        assert!(output.contains("Version 1"), "Initial content should be present");
+        assert!(
+            output.contains("Version 1"),
+            "Initial content should be present"
+        );
         tracing::debug!("Initial content verified");
 
         // Update to new content
@@ -183,7 +197,10 @@ fn test_live_update_renderable() {
         live.update(Text::new("Version 2"), true);
 
         let output = buffer.contents();
-        assert!(output.contains("Version 2"), "Updated content should be present");
+        assert!(
+            output.contains("Version 2"),
+            "Updated content should be present"
+        );
         tracing::debug!("Updated content verified");
     }
 
@@ -264,7 +281,10 @@ fn test_live_persistent_mode() {
 
         let output = buffer.contents();
         tracing::debug!(output_len = output.len(), "Output after stop");
-        assert!(output.contains("Persistent"), "Persistent content should remain");
+        assert!(
+            output.contains("Persistent"),
+            "Persistent content should remain"
+        );
     }
 
     tracing::info!("Persistent mode test completed");
@@ -277,7 +297,10 @@ fn test_live_persistent_mode() {
 #[test]
 fn test_live_auto_refresh_default_rate() {
     init_test_logging();
-    log_test_context("test_live_auto_refresh_default_rate", "Auto-refresh at default 4Hz");
+    log_test_context(
+        "test_live_auto_refresh_default_rate",
+        "Auto-refresh at default 4Hz",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -320,7 +343,11 @@ fn test_live_auto_refresh_default_rate() {
         tracing::info!(final_count = final_count, "Auto-refresh completed");
 
         // Should have refreshed at least twice in 600ms at 4Hz
-        assert!(final_count >= 2, "Expected at least 2 refreshes, got {}", final_count);
+        assert!(
+            final_count >= 2,
+            "Expected at least 2 refreshes, got {}",
+            final_count
+        );
     }
 }
 
@@ -362,10 +389,18 @@ fn test_live_auto_refresh_high_rate() {
         live.stop().expect("stop");
 
         let final_count = *counter.lock().unwrap();
-        tracing::info!(final_count = final_count, refresh_rate = 10.0, "High rate test completed");
+        tracing::info!(
+            final_count = final_count,
+            refresh_rate = 10.0,
+            "High rate test completed"
+        );
 
         // At 10Hz over 500ms, should have at least 4 refreshes
-        assert!(final_count >= 4, "Expected at least 4 refreshes at 10Hz, got {}", final_count);
+        assert!(
+            final_count >= 4,
+            "Expected at least 4 refreshes at 10Hz, got {}",
+            final_count
+        );
     }
 }
 
@@ -416,7 +451,10 @@ fn test_live_auto_refresh_disabled() {
         );
 
         // Count should not increase without manual refresh
-        assert_eq!(count_after_start, count_after_wait, "Count should not change without auto-refresh");
+        assert_eq!(
+            count_after_start, count_after_wait,
+            "Count should not change without auto-refresh"
+        );
     }
 }
 
@@ -465,7 +503,10 @@ fn test_live_drop_cleanup() {
 #[test]
 fn test_live_explicit_stop_before_drop() {
     init_test_logging();
-    log_test_context("test_live_explicit_stop_before_drop", "Explicit stop before drop");
+    log_test_context(
+        "test_live_explicit_stop_before_drop",
+        "Explicit stop before drop",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -528,7 +569,10 @@ fn test_live_stdout_proxy() {
 
         let output = buffer.contents();
         tracing::debug!(output_len = output.len(), "Checking proxied output");
-        assert!(output.contains("Proxied stdout output"), "Proxy output should appear");
+        assert!(
+            output.contains("Proxied stdout output"),
+            "Proxy output should appear"
+        );
     }
 
     tracing::info!("Stdout proxy test completed");
@@ -557,7 +601,10 @@ fn test_live_stderr_proxy() {
         writer.write_all(b"Proxied stderr output").expect("write");
 
         let output = buffer.contents();
-        assert!(output.contains("Proxied stderr output"), "Stderr proxy output should appear");
+        assert!(
+            output.contains("Proxied stderr output"),
+            "Stderr proxy output should appear"
+        );
     }
 
     tracing::info!("Stderr proxy test completed");
@@ -589,7 +636,8 @@ fn test_live_cursor_hide_show() {
             ..Default::default()
         };
 
-        let live = Live::with_options(console.clone(), options).renderable(Text::new("Cursor test"));
+        let live =
+            Live::with_options(console.clone(), options).renderable(Text::new("Cursor test"));
 
         buffer.clear();
         live.start(true).expect("start");
@@ -632,7 +680,7 @@ fn test_live_alt_screen_mode() {
 
         let options = LiveOptions {
             auto_refresh: false,
-            screen: true, // Enable alt-screen
+            screen: true,    // Enable alt-screen
             transient: true, // screen implies transient
             ..Default::default()
         };
@@ -670,7 +718,10 @@ fn test_live_alt_screen_mode() {
 #[test]
 fn test_live_vertical_overflow_crop() {
     init_test_logging();
-    log_test_context("test_live_vertical_overflow_crop", "Vertical overflow crop mode");
+    log_test_context(
+        "test_live_vertical_overflow_crop",
+        "Vertical overflow crop mode",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -685,9 +736,13 @@ fn test_live_vertical_overflow_crop() {
     {
         let _crop = test_phase("crop_overflow");
 
+        // Note: With transient=true, output is cleared on stop (no final visible render).
+        // With transient=false, stop() changes vertical_overflow to Visible for the final
+        // render, so all content will appear after stop. We test with transient=true to
+        // verify crop behavior during active display.
         let options = LiveOptions {
             auto_refresh: false,
-            transient: false,
+            transient: true, // transient to avoid final visible render
             vertical_overflow: VerticalOverflowMethod::Crop,
             ..Default::default()
         };
@@ -697,13 +752,19 @@ fn test_live_vertical_overflow_crop() {
 
         let live = Live::with_options(console.clone(), options).renderable(Text::new(content));
         live.start(true).expect("start");
+
+        // Capture output during active display (before stop clears it)
+        let output_during = buffer.contents();
+        tracing::debug!(output = %output_during.escape_debug(), "Crop output during active display");
+
         live.stop().expect("stop");
 
-        let output = buffer.contents();
-        tracing::debug!(output = %output.escape_debug(), "Crop output");
-
-        // With crop, lines 4 and 5 should not appear
-        assert!(!output.contains("Line 5"), "Line 5 should be cropped");
+        // During active display, lines 4 and 5 should be cropped
+        // (final output may be cleared due to transient mode)
+        assert!(
+            !output_during.contains("Line 5"),
+            "Line 5 should be cropped during active display"
+        );
     }
 
     tracing::info!("Crop overflow test completed");
@@ -712,7 +773,10 @@ fn test_live_vertical_overflow_crop() {
 #[test]
 fn test_live_vertical_overflow_ellipsis() {
     init_test_logging();
-    log_test_context("test_live_vertical_overflow_ellipsis", "Vertical overflow ellipsis mode");
+    log_test_context(
+        "test_live_vertical_overflow_ellipsis",
+        "Vertical overflow ellipsis mode",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -753,7 +817,10 @@ fn test_live_vertical_overflow_ellipsis() {
 #[test]
 fn test_live_vertical_overflow_visible() {
     init_test_logging();
-    log_test_context("test_live_vertical_overflow_visible", "Vertical overflow visible mode");
+    log_test_context(
+        "test_live_vertical_overflow_visible",
+        "Vertical overflow visible mode",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -776,7 +843,11 @@ fn test_live_vertical_overflow_visible() {
         };
 
         let content = "Line A\nLine B\nLine C\nLine D";
-        tracing::debug!(lines = 4, max_height = 2, "Testing visible overflow (no truncation)");
+        tracing::debug!(
+            lines = 4,
+            max_height = 2,
+            "Testing visible overflow (no truncation)"
+        );
 
         let live = Live::with_options(console.clone(), options).renderable(Text::new(content));
         live.start(true).expect("start");
@@ -787,7 +858,10 @@ fn test_live_vertical_overflow_visible() {
 
         // All lines should be visible
         assert!(output.contains("Line A"), "Line A should be visible");
-        assert!(output.contains("Line D"), "Line D should be visible (no truncation)");
+        assert!(
+            output.contains("Line D"),
+            "Line D should be visible (no truncation)"
+        );
     }
 
     tracing::info!("Visible overflow test completed");
@@ -800,7 +874,10 @@ fn test_live_vertical_overflow_visible() {
 #[test]
 fn test_live_start_already_started() {
     init_test_logging();
-    log_test_context("test_live_start_already_started", "Double start is idempotent");
+    log_test_context(
+        "test_live_start_already_started",
+        "Double start is idempotent",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -858,7 +935,8 @@ fn test_live_stop_not_started() {
             ..Default::default()
         };
 
-        let live = Live::with_options(console.clone(), options).renderable(Text::new("Never started"));
+        let live =
+            Live::with_options(console.clone(), options).renderable(Text::new("Never started"));
 
         tracing::debug!("Stop without start");
         live.stop().expect("stop without start should succeed");
@@ -982,7 +1060,8 @@ fn test_live_non_tty_mode() {
             ..Default::default()
         };
 
-        let live = Live::with_options(console.clone(), options).renderable(Text::new("Non-TTY content"));
+        let live =
+            Live::with_options(console.clone(), options).renderable(Text::new("Non-TTY content"));
         live.start(true).expect("start");
         live.refresh().expect("refresh");
         live.stop().expect("stop");
@@ -1007,7 +1086,10 @@ fn test_live_non_tty_mode() {
 #[test]
 fn test_live_get_renderable_callback() {
     init_test_logging();
-    log_test_context("test_live_get_renderable_callback", "Dynamic renderable via callback");
+    log_test_context(
+        "test_live_get_renderable_callback",
+        "Dynamic renderable via callback",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -1063,7 +1145,10 @@ fn test_live_get_renderable_callback() {
 #[test]
 fn test_live_comprehensive_workflow() {
     init_test_logging();
-    log_test_context("test_live_comprehensive_workflow", "Complete workflow exercise");
+    log_test_context(
+        "test_live_comprehensive_workflow",
+        "Complete workflow exercise",
+    );
 
     let buffer = SharedBuffer::new();
     let console = Console::builder()
@@ -1086,7 +1171,8 @@ fn test_live_comprehensive_workflow() {
                 transient: false,
                 ..Default::default()
             };
-            let live = Live::with_options(console.clone(), options).renderable(Text::new("Phase 1"));
+            let live =
+                Live::with_options(console.clone(), options).renderable(Text::new("Phase 1"));
             live.start(true).expect("phase 1 start");
             live.refresh().expect("phase 1 refresh");
             live.stop().expect("phase 1 stop");
@@ -1143,7 +1229,8 @@ fn test_live_comprehensive_workflow() {
                 transient: true,
                 ..Default::default()
             };
-            let live = Live::with_options(console.clone(), options).renderable(Text::new("Transient"));
+            let live =
+                Live::with_options(console.clone(), options).renderable(Text::new("Transient"));
             live.start(true).expect("phase 4 start");
             live.stop().expect("phase 4 stop");
         }

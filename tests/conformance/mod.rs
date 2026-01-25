@@ -31,9 +31,11 @@ use std::fmt::Debug;
 pub mod layout_tests;
 pub mod live_tests;
 pub mod logging_tests;
+pub mod panel_tests;
 pub mod rule_tests;
 pub mod table_tests;
 pub mod text_tests;
+pub mod tree_tests;
 
 /// A test case that can be used for integration tests, conformance, and benchmarks.
 pub trait TestCase: Debug {

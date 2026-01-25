@@ -1,8 +1,13 @@
 ---
 source: tests/e2e_rendering.rs
+assertion_line: 773
 expression: plain
 ---
       Summary       
 ┏━━━━━━━━━┳━━━━━━━━┓
-┃ Check   ┃ Result ┃┡━━━━━━━━━╇━━━━━━━━┩
-│ Compile │ OK     ││ Test    │ OK     ││ Lint    │ WARN   │└─────────┴────────┘
+┃ Check   ┃ Result ┃
+┡━━━━━━━━━╇━━━━━━━━┩
+│ Compile │ OK     │
+│ Test    │ OK     │
+│ Lint    │ WARN   │
+└─────────┴────────┘

@@ -310,8 +310,10 @@ mod tracing_integration {
                 }
             }
 
+            let message_ref = message.as_str();
+            let args = format_args!("{message_ref}");
             let record = log::Record::builder()
-                .args(format_args!("{message}"))
+                .args(args)
                 .level(map_tracing_level(metadata.level()))
                 .target(metadata.target())
                 .file(metadata.file())

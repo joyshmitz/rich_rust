@@ -1,10 +1,8 @@
 ---
 source: tests/golden_test.rs
+assertion_line: 302
 expression: plain
 ---
-First column
-with multiple
-lines                              
-Second column
-also multiline                                 
+First column with multiple lines                            
+Second column also multiline                                
 Third

@@ -304,11 +304,12 @@ impl<'a> Columns<'a> {
 
                 if item_idx < self.items.len() {
                     // Add padding, content, padding
-                    if self.padding > 0 {
-                        row_segments.push(Segment::new(" ".repeat(self.padding), None));
+                    let effective_padding = self.padding.min(column_width / 2);
+                    if effective_padding > 0 {
+                        row_segments.push(Segment::new(" ".repeat(effective_padding), None));
                     }
 
-                    let content_width = column_width.saturating_sub(self.padding * 2);
+                    let content_width = column_width.saturating_sub(effective_padding * 2);
                     let mut content = self.items[item_idx].clone();
 
                     // Sanitize content to prevent layout breakage
@@ -325,8 +326,8 @@ impl<'a> Columns<'a> {
                         .render();
                     row_segments.extend(aligned);
 
-                    if self.padding > 0 {
-                        row_segments.push(Segment::new(" ".repeat(self.padding), None));
+                    if effective_padding > 0 {
+                        row_segments.push(Segment::new(" ".repeat(effective_padding), None));
                     }
                 } else {
                     // Empty cell - fill with spaces
@@ -489,6 +490,25 @@ mod tests {
         // Should contain a newline between rows
         let has_newline = segments.iter().any(|s| s.text.contains('\n'));
         assert!(has_newline);
+    }
+
+    #[test]
+    fn test_columns_padding_does_not_overflow_width() {
+        let cols = Columns::from_strings(&["A", "B"])
+            .column_count(2)
+            .gutter(1)
+            .padding(2);
+
+        let total_width = 4;
+        let lines = cols.render(total_width);
+
+        for line in lines {
+            let width: usize = line.iter().map(Segment::cell_length).sum();
+            assert!(
+                width <= total_width,
+                "line width {width} exceeds total_width {total_width}"
+            );
+        }
     }
 
     #[test]

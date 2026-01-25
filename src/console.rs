@@ -1209,9 +1209,8 @@ fn style_to_css(style: &Style) -> String {
     }
 
     let mut decorations = Vec::new();
-    if style
-        .attributes
-        .contains(Attributes::UNDERLINE | Attributes::UNDERLINE2)
+    if style.attributes.contains(Attributes::UNDERLINE)
+        || style.attributes.contains(Attributes::UNDERLINE2)
     {
         decorations.push("underline");
     }
@@ -1644,6 +1643,139 @@ mod tests {
 
         let cleared = console.export_html(false);
         assert!(!cleared.contains("Hello"));
+    }
+
+    #[test]
+    fn test_escape_html_entities() {
+        let escaped = escape_html("<>&\"'");
+        assert_eq!(escaped, "&lt;&gt;&amp;&quot;&#x27;");
+    }
+
+    #[test]
+    fn test_style_to_css_basic_attributes() {
+        use crate::color::Color;
+
+        let style = Style::new()
+            .color(Color::from_rgb(255, 0, 0))
+            .bgcolor(Color::from_rgb(0, 0, 255))
+            .bold()
+            .italic()
+            .underline()
+            .strike();
+        let css = style_to_css(&style);
+
+        assert!(css.contains("color:#ff0000;"));
+        assert!(css.contains("background-color:#0000ff;"));
+        assert!(css.contains("font-weight:bold;"));
+        assert!(css.contains("font-style:italic;"));
+        assert!(css.contains("text-decoration:"));
+        assert!(css.contains("underline"));
+        assert!(css.contains("line-through"));
+    }
+
+    #[test]
+    fn test_style_to_css_reverse_swaps_colors() {
+        use crate::color::Color;
+
+        let style = Style::new()
+            .color(Color::from_rgb(10, 20, 30))
+            .bgcolor(Color::from_rgb(200, 210, 220))
+            .reverse();
+        let css = style_to_css(&style);
+
+        assert!(css.contains("color:#c8d2dc;"));
+        assert!(css.contains("background-color:#0a141e;"));
+    }
+
+    #[test]
+    fn test_export_html_body_links_and_spans() {
+        let link_style = Style::new().link("https://example.com").bold();
+        let segments = vec![
+            Segment::new("Link", Some(link_style)),
+            Segment::new(" ", None),
+            Segment::new("Plain", None),
+        ];
+
+        let html = export_segments_to_html_body(&segments);
+        assert!(html.starts_with("<pre"));
+        assert!(html.contains("href=\"https://example.com\""));
+        assert!(html.contains("font-weight:bold;"));
+        assert!(html.contains("Plain"));
+    }
+
+    #[test]
+    fn test_export_html_escapes_text() {
+        let segments = vec![Segment::plain("<tag> & \"quote\"")];
+        let html = export_segments_to_html_body(&segments);
+        assert!(html.contains("&lt;tag&gt;"));
+        assert!(html.contains("&amp;"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn test_export_html_skips_control_segments() {
+        use crate::segment::{ControlCode, ControlType};
+
+        let segments = vec![
+            Segment::control(vec![ControlCode::new(ControlType::Bell)]),
+            Segment::new("Hi", None),
+        ];
+        let html = export_segments_to_html_body(&segments);
+        assert!(html.contains("Hi"));
+        assert!(!html.contains("Bell"));
+    }
+
+    #[test]
+    fn test_export_svg_dimensions() {
+        let segments = vec![Segment::plain("AB"), Segment::line(), Segment::plain("C")];
+        let svg = export_segments_to_svg(&segments);
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("width=\"16\""));
+        assert!(svg.contains("height=\"32\""));
+        assert!(svg.contains("foreignObject"));
+    }
+
+    #[test]
+    fn test_export_svg_includes_text() {
+        let segments = vec![Segment::plain("Hello")];
+        let svg = export_segments_to_svg(&segments);
+        assert!(svg.contains("Hello"));
+    }
+
+    #[test]
+    fn test_export_html_document_structure() {
+        let segments = vec![Segment::plain("Hello")];
+        let html = export_segments_to_html(&segments);
+        assert!(html.starts_with("<!DOCTYPE html>"));
+        assert!(html.contains("<meta charset=\"utf-8\">"));
+        assert!(html.contains("<body>"));
+        assert!(html.contains("</html>"));
+    }
+
+    #[test]
+    fn test_export_html_includes_renderable_content() {
+        use crate::renderables::{Column, Panel, Table, Tree, TreeNode};
+
+        let mut console = Console::builder().width(30).build();
+        console.begin_capture();
+
+        let mut table = Table::new().with_column(Column::new("Col"));
+        table.add_row_cells(["Cell"]);
+        console.print_renderable(&table);
+
+        let panel = Panel::from_text("Panel").width(10);
+        console.print_renderable(&panel);
+
+        let root = TreeNode::new("Root").child(TreeNode::new("Leaf"));
+        let tree = Tree::new(root);
+        console.print_renderable(&tree);
+
+        let html = console.export_html(true);
+        assert!(html.contains("Col"));
+        assert!(html.contains("Cell"));
+        assert!(html.contains("Panel"));
+        assert!(html.contains("Root"));
+        assert!(html.contains("Leaf"));
     }
 
     #[test]

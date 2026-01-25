@@ -72,6 +72,26 @@ jobs:
             **/snapshots/*.snap.new
           retention-days: 30
 
+  conformance-fixtures:
+    name: Conformance (Python fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: conformance-fixtures
+
+      - name: Run fixture-based conformance tests
+        run: cargo test --test conformance_python --features "conformance_test,syntax,markdown,json"
+
   feature-matrix:
     name: Test Features (${{ matrix.features || 'default' }})
     runs-on: ubuntu-latest

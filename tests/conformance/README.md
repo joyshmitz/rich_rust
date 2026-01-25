@@ -96,9 +96,10 @@ To include feature-flagged renderables:
 cargo test --test conformance_python --features "conformance_test,syntax,markdown,json"
 ```
 
-## CI Integration (Recommended)
+## CI Integration
 
-- Add a CI job that runs `cargo test --test conformance_python --features "conformance_test,syntax,markdown,json"`.
+- CI runs fixture-based conformance via:
+  `cargo test --test conformance_python --features "conformance_test,syntax,markdown,json"`
 - Regenerate fixtures only when behavior changes, and commit the updated JSON.
 
 This test loads fixtures and compares rich_rust output to Python Rich output for each case.
@@ -111,3 +112,11 @@ When parity changes:
 2. Re-run the generator.
 3. Run `cargo test --test conformance_python`.
 4. Update `FEATURE_PARITY.md`, `RICH_SPEC.md`, and README if needed.
+
+## Export Fixtures (HTML/SVG)
+
+HTML/SVG export output differs significantly between Python Rich and `rich_rust`
+(Python includes a full theme + window chrome; `rich_rust` uses minimal HTML and
+`<foreignObject>` SVG). For manual comparison, see:
+
+- `tests/conformance/fixtures/python_rich_export.md`

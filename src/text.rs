@@ -153,7 +153,12 @@ pub struct Text {
 }
 
 impl Text {
-    /// Create a new empty Text.
+    /// Create a new Text from plain text.
+    ///
+    /// This does **NOT** parse Rich markup. If you pass `"[bold]text[/]"`,
+    /// the literal markup will be preserved in the text. To parse markup into
+    /// styled spans, use [`crate::markup::render`] or
+    /// [`crate::markup::render_or_plain`] and pass the resulting `Text`.
     #[must_use]
     pub fn new(text: impl Into<String>) -> Self {
         let plain: String = text.into();
