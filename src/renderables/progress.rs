@@ -521,7 +521,8 @@ impl ProgressBar {
             suffix_parts.push(Self::format_duration(elapsed));
         }
 
-        if self.show_eta && !self.is_finished
+        if self.show_eta
+            && !self.is_finished
             && let Some(eta) = self.eta()
         {
             suffix_parts.push(format!("ETA {}", Self::format_duration(eta)));

@@ -725,9 +725,7 @@ impl Table {
         let mut target_available = available;
         let mut should_expand = self.expand || self.width.is_some();
 
-        if !should_expand
-            && let Some(min_width) = self.min_width
-        {
+        if !should_expand && let Some(min_width) = self.min_width {
             let min_table_width = min_width.min(base_max_width);
             let min_available = min_table_width.saturating_sub(overhead);
             if total < min_available {

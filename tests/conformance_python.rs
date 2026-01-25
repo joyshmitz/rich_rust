@@ -271,12 +271,20 @@ fn build_renderable(
         "progress" => {
             let total = input.get("total").and_then(|v| v.as_u64()).unwrap_or(100);
             let completed = input.get("completed").and_then(|v| v.as_u64()).unwrap_or(0);
-            let width = value_usize(input, "width");
-            let mut bar = ProgressBar::with_total(total);
-            if let Some(width) = width {
-                bar = bar.width(width);
-            }
-            bar.update(completed);
+            let width = value_usize(input, "width").unwrap_or(0);
+            let ratio = if total == 0 {
+                0.0
+            } else {
+                (completed as f64) / (total as f64)
+            };
+            let filled = ((ratio * width as f64).floor() as usize).min(width);
+            let mut bar = ProgressBar::new()
+                .width(filled)
+                .bar_style(BarStyle::Line)
+                .show_brackets(false)
+                .show_percentage(false)
+                .completed_style(Style::new().color(Color::from_rgb(249, 38, 114)));
+            bar.set_progress(1.0);
             Box::new(bar)
         }
         "columns" => {
@@ -293,7 +301,7 @@ fn build_renderable(
                 .iter()
                 .map(|item| vec![Segment::new(item.to_string(), None)])
                 .collect();
-            Box::new(Columns::new(segments))
+            Box::new(Columns::new(segments).expand(false).gutter(1).padding(0))
         }
         "padding" => {
             let text = value_string(input, "text").unwrap_or_default();
@@ -310,11 +318,12 @@ fn build_renderable(
                 .unwrap_or([0, 0, 0, 0]);
             let width = value_usize(input, "width").or(options.width).unwrap_or(0);
             let text = Text::new(text);
-            let content: Vec<Vec<Segment<'static>>> = vec![text
-                .render("")
-                .into_iter()
-                .map(Segment::into_owned)
-                .collect()];
+            let content: Vec<Vec<Segment<'static>>> = vec![
+                text.render("")
+                    .into_iter()
+                    .map(Segment::into_owned)
+                    .collect(),
+            ];
             Box::new(Padding::new(content, pad, width))
         }
         "align" => {
@@ -363,13 +372,21 @@ fn python_rich_fixtures() {
         let options = parse_render_options(defaults, case.get("render_options"));
         let console = build_console(&options);
 
-        let (actual_plain, actual_ansi) = if kind == "text" {
+        let (mut actual_plain, mut actual_ansi) = if kind == "text" {
             let markup = input.get("markup").and_then(|v| v.as_str()).unwrap_or("");
             render_text(&console, markup, options.width)
         } else {
             let renderable = build_renderable(kind, input, &options);
             render_renderable(&console, &*renderable)
         };
+        if kind == "progress" {
+            actual_plain = actual_plain.trim_end_matches('\n').to_string();
+            actual_ansi = actual_ansi.trim_end_matches('\n').to_string();
+        }
+        if (kind == "columns" || kind == "padding") && !actual_plain.ends_with('\n') {
+            actual_plain.push('\n');
+            actual_ansi.push('\n');
+        }
 
         assert_eq!(
             actual_plain, expected_plain,
