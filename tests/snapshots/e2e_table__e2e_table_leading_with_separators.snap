@@ -2,10 +2,10 @@
 source: tests/e2e_table.rs
 expression: output
 ---
-┌────────┬─────────┐
-│ Task   │ Status  │
-│        │         │
-├────────┼─────────┤
+┏━━━━━━━━┳━━━━━━━━━┓
+┃ Task   ┃ Status  ┃
+┃        ┃         ┃
+┡━━━━━━━━╇━━━━━━━━━┩
 │ Build  │ Done    │
 │        │         │
 ├────────┼─────────┤

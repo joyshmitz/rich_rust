@@ -2,8 +2,8 @@
 source: tests/golden_test.rs
 expression: plain
 ---
-┌───────┐
-│ Only  │
-├───────┤
+┏━━━━━━━┓
+┃ Only  ┃
+┡━━━━━━━┩
 │ Value │
 └───────┘

@@ -1,6 +1,7 @@
 //! Python Rich conformance tests - currently disabled pending API alignment
 //!
 //! Enable with: cargo test --features conformance_test
+#![allow(unexpected_cfgs)]
 #![cfg(feature = "conformance_test")]
 
 use std::fs;
@@ -21,6 +22,15 @@ struct RenderOptions {
 
 fn normalize_line_endings(text: &str) -> String {
     text.replace("\r\n", "\n").replace("\r", "\n")
+}
+
+fn normalize_hyperlink_ids(text: &str) -> String {
+    let re = regex::Regex::new(r"\x1b]8;id=[^;]*;").expect("regex");
+    re.replace_all(text, "\x1b]8;;").to_string()
+}
+
+fn normalize_ansi(text: &str) -> String {
+    normalize_line_endings(&normalize_hyperlink_ids(text))
 }
 
 fn parse_color_system(value: &str) -> Option<ColorSystem> {
@@ -97,7 +107,7 @@ fn render_text(console: &Console, markup: &str, width: Option<usize>) -> (String
 
     (
         normalize_line_endings(&plain),
-        normalize_line_endings(&String::from_utf8(buf).expect("utf8 output")),
+        normalize_ansi(&String::from_utf8(buf).expect("utf8 output")),
     )
 }
 
@@ -106,16 +116,20 @@ fn render_segments_to_ansi(console: &Console, segments: &[Segment<'_>]) -> Strin
     console
         .print_segments_to(&mut buf, segments)
         .expect("print_segments_to failed");
-    normalize_line_endings(&String::from_utf8(buf).expect("utf8 output"))
+    normalize_ansi(&String::from_utf8(buf).expect("utf8 output"))
 }
 
 fn render_renderable(
     console: &Console,
     renderable: &dyn rich_rust::renderables::Renderable,
 ) -> (String, String) {
-    let plain = console.export_renderable_text(renderable);
     let options = console.options();
     let segments = renderable.render(console, &options);
+    let plain: String = segments
+        .iter()
+        .filter(|segment| !segment.is_control())
+        .map(|segment| segment.text.as_ref())
+        .collect();
     let ansi = render_segments_to_ansi(console, &segments);
     (normalize_line_endings(&plain), ansi)
 }
@@ -201,11 +215,11 @@ fn build_tree_node(node: &Value) -> TreeNode {
     tree
 }
 
-fn build_renderable<'a>(
-    kind: &'a str,
-    input: &'a Value,
+fn build_renderable(
+    kind: &str,
+    input: &Value,
     options: &RenderOptions,
-) -> Box<dyn rich_rust::renderables::Renderable + 'a> {
+) -> Box<dyn rich_rust::renderables::Renderable + 'static> {
     match kind {
         "rule" => {
             let title = value_string(input, "title");
@@ -226,7 +240,11 @@ fn build_renderable<'a>(
         }
         "panel" => {
             let text = value_string(input, "text").unwrap_or_default();
-            let mut panel = Panel::from_text(&text);
+            let content_lines: Vec<Vec<Segment<'static>>> = text
+                .lines()
+                .map(|line| vec![Segment::new(line.to_string(), None)])
+                .collect();
+            let mut panel = Panel::new(content_lines);
             if let Some(title) = value_string(input, "title") {
                 panel = panel.title(title);
             }
@@ -271,8 +289,11 @@ fn build_renderable<'a>(
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let strings: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
-            Box::new(Columns::from_strings(&strings))
+            let segments: Vec<Vec<Segment<'static>>> = items
+                .iter()
+                .map(|item| vec![Segment::new(item.to_string(), None)])
+                .collect();
+            Box::new(Columns::new(segments))
         }
         "padding" => {
             let text = value_string(input, "text").unwrap_or_default();
@@ -289,17 +310,22 @@ fn build_renderable<'a>(
                 .unwrap_or([0, 0, 0, 0]);
             let width = value_usize(input, "width").or(options.width).unwrap_or(0);
             let text = Text::new(text);
-            let content = vec![text.render("")];
+            let content: Vec<Vec<Segment<'static>>> = vec![text
+                .render("")
+                .into_iter()
+                .map(Segment::into_owned)
+                .collect()];
             Box::new(Padding::new(content, pad, width))
         }
         "align" => {
             let text = value_string(input, "text").unwrap_or_default();
             let width = value_usize(input, "width").unwrap_or(0);
             let align = value_string(input, "align").unwrap_or_else(|| "left".to_string());
+            let content = vec![Segment::new(text, None)];
             let align = match align.as_str() {
-                "center" => Align::from_str(&text, width).center(),
-                "right" => Align::from_str(&text, width).right(),
-                _ => Align::from_str(&text, width).left(),
+                "center" => Align::new(content, width).center(),
+                "right" => Align::new(content, width).right(),
+                _ => Align::new(content, width).left(),
             };
             Box::new(align)
         }
@@ -350,7 +376,8 @@ fn python_rich_fixtures() {
             "plain mismatch for case {id} ({kind})"
         );
         assert_eq!(
-            actual_ansi, expected_ansi,
+            actual_ansi,
+            normalize_ansi(expected_ansi),
             "ansi mismatch for case {id} ({kind})"
         );
     }

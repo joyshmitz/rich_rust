@@ -40,10 +40,15 @@ fn e2e_table_simple_2x2() {
     assert!(output.contains("100"), "Missing cell '100'");
     assert!(output.contains("200"), "Missing cell '200'");
 
-    // Verify box characters (default is SQUARE)
+    // Verify box characters (default is HEAVY_HEAD or SQUARE variants)
+    // Check for both square (┌├) and heavy (┏┡) box corners
     assert!(
-        output.contains("┌") || output.contains("├"),
-        "Missing box corners"
+        output.contains('┌')
+            || output.contains('├')
+            || output.contains('┏')
+            || output.contains('┡')
+            || output.contains('└'),
+        "Missing box corners, output: {output}"
     );
     assert!(output.contains("─"), "Missing horizontal box line");
     assert!(output.contains("│"), "Missing vertical box line");

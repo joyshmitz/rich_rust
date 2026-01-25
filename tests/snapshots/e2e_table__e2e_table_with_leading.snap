@@ -3,10 +3,10 @@ source: tests/e2e_table.rs
 expression: output
 ---
   Spaced Table   
-┌───────┬───────┐
-│ Name  │ Score │
-│       │       │
-├───────┼───────┤
+┏━━━━━━━┳━━━━━━━┓
+┃ Name  ┃ Score ┃
+┃       ┃       ┃
+┡━━━━━━━╇━━━━━━━┩
 │ Alice │    95 │
 │       │       │
 │ Bob   │    87 │

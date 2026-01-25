@@ -59,7 +59,7 @@
 //! - `no_wrap`: Disable text wrapping
 //! - `style(s)`: Apply a style to cell content
 
-use crate::r#box::{ASCII, BoxChars, RowLevel, SQUARE};
+use crate::r#box::{ASCII, BoxChars, HEAVY_HEAD, RowLevel};
 use crate::cells;
 use crate::segment::Segment;
 use crate::style::Style;
@@ -227,12 +227,22 @@ impl Column {
 
     /// Get the header width.
     fn header_width(&self) -> usize {
-        cells::cell_len(self.header.plain())
+        self.header
+            .plain()
+            .lines()
+            .map(cells::cell_len)
+            .max()
+            .unwrap_or(0)
     }
 
     /// Get the footer width.
     fn footer_width(&self) -> usize {
-        cells::cell_len(self.footer.plain())
+        self.footer
+            .plain()
+            .lines()
+            .map(cells::cell_len)
+            .max()
+            .unwrap_or(0)
     }
 }
 
@@ -264,7 +274,12 @@ impl Cell {
 
     /// Get cell width.
     fn width(&self) -> usize {
-        cells::cell_len(self.content.plain())
+        self.content
+            .plain()
+            .lines()
+            .map(cells::cell_len)
+            .max()
+            .unwrap_or(0)
     }
 }
 
@@ -382,7 +397,7 @@ impl Default for Table {
             caption: None,
             width: None,
             min_width: None,
-            box_style: &SQUARE,
+            box_style: &HEAVY_HEAD,
             safe_box: false,
             padding: (1, 0),
             collapse_padding: false,
@@ -398,7 +413,7 @@ impl Default for Table {
             header_style: Style::new().bold(),
             footer_style: Style::new(),
             border_style: Style::new(),
-            title_style: Style::new(),
+            title_style: Style::new().italic(),
             caption_style: Style::new(),
             title_justify: JustifyMethod::Center,
             caption_justify: JustifyMethod::Center,
@@ -710,7 +725,9 @@ impl Table {
         let mut target_available = available;
         let mut should_expand = self.expand || self.width.is_some();
 
-        if !should_expand && let Some(min_width) = self.min_width {
+        if !should_expand
+            && let Some(min_width) = self.min_width
+        {
             let min_table_width = min_width.min(base_max_width);
             let min_available = min_table_width.saturating_sub(overhead);
             if total < min_available {
@@ -917,6 +934,7 @@ impl Table {
                     &header_styles,
                     &header_overrides,
                     self.padding.1,
+                    RowLevel::HeadRow,
                 ));
             }
             segments.extend(self.render_row_content(
@@ -926,6 +944,7 @@ impl Table {
                 &header_styles,
                 &self.header_style,
                 &header_overrides,
+                RowLevel::HeadRow,
             ));
             if self.padding.1 > 0 {
                 segments.extend(self.render_leading_lines(
@@ -935,6 +954,7 @@ impl Table {
                     &header_styles,
                     &header_overrides,
                     self.padding.1,
+                    RowLevel::HeadRow,
                 ));
             }
 
@@ -946,6 +966,7 @@ impl Table {
                     &header_styles,
                     &header_overrides,
                     self.leading,
+                    RowLevel::HeadRow,
                 ));
             }
 
@@ -986,6 +1007,7 @@ impl Table {
                     &col_styles,
                     &overrides,
                     self.padding.1,
+                    RowLevel::Row,
                 ));
             }
             segments.extend(self.render_row_content(
@@ -995,6 +1017,7 @@ impl Table {
                 &col_styles,
                 row_style,
                 &overrides,
+                RowLevel::Row,
             ));
             if self.padding.1 > 0 {
                 segments.extend(self.render_leading_lines(
@@ -1004,6 +1027,7 @@ impl Table {
                     &col_styles,
                     &overrides,
                     self.padding.1,
+                    RowLevel::Row,
                 ));
             }
 
@@ -1019,6 +1043,7 @@ impl Table {
                     &col_styles,
                     &overrides,
                     self.leading,
+                    RowLevel::Row,
                 ));
             }
 
@@ -1048,6 +1073,7 @@ impl Table {
                     &footer_styles,
                     &footer_overrides,
                     self.padding.1,
+                    RowLevel::FootRow,
                 ));
             }
             segments.extend(self.render_row_content(
@@ -1057,6 +1083,7 @@ impl Table {
                 &footer_styles,
                 &self.footer_style,
                 &footer_overrides,
+                RowLevel::FootRow,
             ));
             if self.padding.1 > 0 {
                 segments.extend(self.render_leading_lines(
@@ -1066,6 +1093,7 @@ impl Table {
                     &footer_styles,
                     &footer_overrides,
                     self.padding.1,
+                    RowLevel::FootRow,
                 ));
             }
         }
@@ -1169,6 +1197,7 @@ impl Table {
     }
 
     /// Render a row's content.
+    #[allow(clippy::too_many_arguments)]
     fn render_row_content(
         &self,
         box_chars: &BoxChars,
@@ -1177,15 +1206,20 @@ impl Table {
         cell_styles: &[&Style],
         row_style: &Style,
         cell_overrides: &[Option<Style>],
+        row_level: RowLevel,
     ) -> Vec<Segment<'static>> {
         let mut segments = Vec::new();
         let pad_str = " ".repeat(self.padding.0);
         let last_idx = widths.len().saturating_sub(1);
+        let cell_chars = match row_level {
+            RowLevel::HeadRow => &box_chars.head,
+            _ => &box_chars.foot,
+        };
 
         // Left edge
         if self.show_edge {
             segments.push(Segment::new(
-                box_chars.head[0].to_string(),
+                cell_chars[0].to_string(),
                 Some(self.border_style.clone()),
             ));
         }
@@ -1227,24 +1261,9 @@ impl Table {
             if content_width > width {
                 cell_text.truncate(width, overflow, false);
             }
-
-            let displayed_width = cell_text.cell_len();
-            let space = width.saturating_sub(displayed_width);
-            let (left_space, right_space) = match justify {
-                JustifyMethod::Left | JustifyMethod::Default => (0, space),
-                JustifyMethod::Right => (space, 0),
-                JustifyMethod::Center => {
-                    let left = space / 2;
-                    (left, space - left)
-                }
-                JustifyMethod::Full => (0, space),
-            };
-
-            if left_space > 0 {
-                segments.push(Segment::new(
-                    " ".repeat(left_space),
-                    Some(combined_style.clone()),
-                ));
+            if cell_text.cell_len() < width {
+                cell_text.pad(width, justify);
+                cell_text.set_style(combined_style.clone());
             }
 
             segments.extend(
@@ -1253,13 +1272,6 @@ impl Table {
                     .into_iter()
                     .map(super::super::segment::Segment::into_owned),
             );
-
-            if right_space > 0 {
-                segments.push(Segment::new(
-                    " ".repeat(right_space),
-                    Some(combined_style.clone()),
-                ));
-            }
 
             // Right padding
             let pad_right = if self.collapse_padding {
@@ -1274,7 +1286,7 @@ impl Table {
             // Cell divider
             if i < widths.len() - 1 {
                 segments.push(Segment::new(
-                    box_chars.head[2].to_string(),
+                    cell_chars[2].to_string(),
                     Some(self.border_style.clone()),
                 ));
             }
@@ -1283,7 +1295,7 @@ impl Table {
         // Right edge
         if self.show_edge {
             segments.push(Segment::new(
-                box_chars.head[3].to_string(),
+                cell_chars[3].to_string(),
                 Some(self.border_style.clone()),
             ));
         }
@@ -1293,6 +1305,7 @@ impl Table {
     }
 
     /// Render multiple leading blank lines between rows.
+    #[allow(clippy::too_many_arguments)]
     fn render_leading_lines(
         &self,
         box_chars: &BoxChars,
@@ -1301,6 +1314,7 @@ impl Table {
         cell_styles: &[&Style],
         cell_overrides: &[Option<Style>],
         count: usize,
+        row_level: RowLevel,
     ) -> Vec<Segment<'static>> {
         if count == 0 {
             return Vec::new();
@@ -1318,6 +1332,7 @@ impl Table {
                 cell_styles,
                 row_style,
                 cell_overrides,
+                row_level,
             ));
         }
         segments
@@ -1339,23 +1354,12 @@ impl Table {
         if content_text.cell_len() > width {
             content_text.truncate(width, OverflowMethod::Crop, false);
         }
-        let content_width = content_text.cell_len();
-        let space = width.saturating_sub(content_width);
-
-        let (left_space, right_space) = match justify {
-            JustifyMethod::Left | JustifyMethod::Default => (0, space),
-            JustifyMethod::Right => (space, 0),
-            JustifyMethod::Center | JustifyMethod::Full => {
-                let left = space / 2;
-                (left, space - left)
-            }
-        };
+        if content_text.cell_len() < width {
+            content_text.pad(width, justify);
+            content_text.set_style(style.clone());
+        }
 
         let mut segments = Vec::new();
-
-        if left_space > 0 {
-            segments.push(Segment::new(" ".repeat(left_space), Some(style.clone())));
-        }
 
         let mut content_segments = content_text
             .render("")
@@ -1396,10 +1400,6 @@ impl Table {
         }
 
         segments.extend(trimmed_segments);
-
-        if right_space > 0 {
-            segments.push(Segment::new(" ".repeat(right_space), Some(style.clone())));
-        }
 
         segments
     }

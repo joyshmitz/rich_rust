@@ -521,8 +521,7 @@ impl ProgressBar {
             suffix_parts.push(Self::format_duration(elapsed));
         }
 
-        if self.show_eta
-            && !self.is_finished
+        if self.show_eta && !self.is_finished
             && let Some(eta) = self.eta()
         {
             suffix_parts.push(format!("ETA {}", Self::format_duration(eta)));
@@ -575,7 +574,7 @@ impl ProgressBar {
             clippy::cast_sign_loss,
             clippy::cast_precision_loss
         )]
-        let completed_width = ((self.completed * bar_width as f64).round() as usize).min(bar_width);
+        let completed_width = ((self.completed * bar_width as f64).floor() as usize).min(bar_width);
         let remaining_width = bar_width.saturating_sub(completed_width);
 
         // Completed portion
@@ -588,18 +587,23 @@ impl ProgressBar {
         }
 
         // Pulse character (at the edge)
-        // Only show if not at start or end, and we have remaining width
-        let show_pulse = completed_width > 0 && remaining_width > 0;
+        // Show pulse if we have remaining space and we are active (progress > 0 and < 1)
+        // or if we have calculated some completion but still have space.
+        let show_pulse = remaining_width > 0 && self.completed > 0.0 && self.completed < 1.0;
+
         if show_pulse {
-            // Replace last remaining char with pulse
-            let remaining_width = remaining_width.saturating_sub(1);
+            // Replace first remaining char with pulse
+            let remaining_after_pulse = remaining_width.saturating_sub(1);
             segments.push(Segment::new(
                 self.bar_style.pulse_char(),
                 Some(self.pulse_style.clone()),
             ));
 
-            if remaining_width > 0 {
-                let remaining_chars = self.bar_style.remaining_char().repeat(remaining_width);
+            if remaining_after_pulse > 0 {
+                let remaining_chars = self
+                    .bar_style
+                    .remaining_char()
+                    .repeat(remaining_after_pulse);
                 segments.push(Segment::new(
                     remaining_chars,
                     Some(self.remaining_style.clone()),

@@ -28,7 +28,7 @@ impl Default for Rule {
         Self {
             title: None,
             character: String::from("\u{2500}"), // ─
-            style: Style::new(),
+            style: Style::parse("bright_green").unwrap_or_default(),
             align: JustifyMethod::Center,
         }
     }
@@ -100,8 +100,23 @@ impl Rule {
         let mut segments = Vec::new();
 
         if let Some(title) = &self.title {
+            if title.plain().is_empty() {
+                let count = width / char_width;
+                let rule_text = self.character.repeat(count);
+                segments.push(Segment::new(rule_text, Some(self.style.clone())));
+                segments.push(Segment::line());
+                return segments;
+            }
+
             let title_width = cells::cell_len(title.plain());
-            let title_total_width = title_width.saturating_add(2);
+            let (left_pad, right_pad) = match self.align {
+                JustifyMethod::Left => (0, 1),
+                JustifyMethod::Right => (1, 0),
+                JustifyMethod::Center | JustifyMethod::Full | JustifyMethod::Default => (1, 1),
+            };
+            let title_total_width = title_width
+                .saturating_add(left_pad)
+                .saturating_add(right_pad);
 
             if title_total_width > width {
                 let mut truncated = title.clone();
@@ -120,21 +135,36 @@ impl Rule {
             let available = width.saturating_sub(title_total_width);
             let rule_chars = available / char_width;
 
-            if rule_chars < 2 {
+            if rule_chars < 1 {
                 // Not enough space for rule, just show title
-                segments.push(Segment::new(" ", Some(title.style().clone())));
+                if left_pad > 0 {
+                    segments.push(Segment::new(
+                        " ".repeat(left_pad),
+                        Some(title.style().clone()),
+                    ));
+                }
                 segments.extend(
                     title
                         .render("")
                         .into_iter()
                         .map(super::super::segment::Segment::into_owned),
                 );
-                segments.push(Segment::new(" ", Some(title.style().clone())));
+                if right_pad > 0 {
+                    segments.push(Segment::new(
+                        " ".repeat(right_pad),
+                        Some(title.style().clone()),
+                    ));
+                }
             } else {
                 let (left_count, right_count) = match self.align {
-                    JustifyMethod::Left | JustifyMethod::Default => (1, rule_chars - 1),
-                    JustifyMethod::Right => (rule_chars - 1, 1),
+                    JustifyMethod::Left => (0, rule_chars),
+                    JustifyMethod::Right => (rule_chars, 0),
                     JustifyMethod::Center | JustifyMethod::Full => {
+                        let left = rule_chars / 2;
+                        let right = rule_chars - left;
+                        (left, right)
+                    }
+                    JustifyMethod::Default => {
                         let left = rule_chars / 2;
                         let right = rule_chars - left;
                         (left, right)
@@ -142,22 +172,36 @@ impl Rule {
                 };
 
                 // Left rule section
-                let left_rule = self.character.repeat(left_count);
-                segments.push(Segment::new(left_rule, Some(self.style.clone())));
+                if left_count > 0 {
+                    let left_rule = self.character.repeat(left_count);
+                    segments.push(Segment::new(left_rule, Some(self.style.clone())));
+                }
 
                 // Title with surrounding spaces
-                segments.push(Segment::new(" ", Some(title.style().clone())));
+                if left_pad > 0 {
+                    segments.push(Segment::new(
+                        " ".repeat(left_pad),
+                        Some(title.style().clone()),
+                    ));
+                }
                 segments.extend(
                     title
                         .render("")
                         .into_iter()
                         .map(super::super::segment::Segment::into_owned),
                 );
-                segments.push(Segment::new(" ", Some(title.style().clone())));
+                if right_pad > 0 {
+                    segments.push(Segment::new(
+                        " ".repeat(right_pad),
+                        Some(title.style().clone()),
+                    ));
+                }
 
                 // Right rule section
-                let right_rule = self.character.repeat(right_count);
-                segments.push(Segment::new(right_rule, Some(self.style.clone())));
+                if right_count > 0 {
+                    let right_rule = self.character.repeat(right_count);
+                    segments.push(Segment::new(right_rule, Some(self.style.clone())));
+                }
             }
         } else {
             // No title, just a full-width rule
@@ -238,10 +282,15 @@ mod tests {
     fn test_rule_alignment() {
         let rule = Rule::with_title("X").align_left();
         let plain = rule.render_plain(20);
-        // Title should be near the left, so more rule chars on right
-        let parts: Vec<&str> = plain.trim().split(" X ").collect();
-        assert_eq!(parts.len(), 2);
-        assert!(parts[0].len() < parts[1].len());
+        // Left alignment: "X <rule chars>" - title at left edge with trailing space
+        // Verify title is at the start (after trimming)
+        let trimmed = plain.trim();
+        assert!(
+            trimmed.starts_with("X "),
+            "Left-aligned title should start with 'X ', got: '{trimmed}'"
+        );
+        // Verify there are rule characters after the title
+        assert!(trimmed.contains('─'), "Should contain rule characters");
     }
 
     #[test]
@@ -308,10 +357,15 @@ mod tests {
     fn test_rule_right_align() {
         let rule = Rule::with_title("X").align_right();
         let plain = rule.render_plain(20);
-        // Title should be near the right, so more rule chars on left
-        let parts: Vec<&str> = plain.trim().split(" X ").collect();
-        assert_eq!(parts.len(), 2);
-        assert!(parts[0].len() > parts[1].len());
+        // Right alignment: "<rule chars> X" - title at right edge with leading space
+        // Verify title is at the end (after trimming)
+        let trimmed = plain.trim();
+        assert!(
+            trimmed.ends_with(" X"),
+            "Right-aligned title should end with ' X', got: '{trimmed}'"
+        );
+        // Verify there are rule characters before the title
+        assert!(trimmed.contains('─'), "Should contain rule characters");
     }
 
     #[test]

@@ -3,6 +3,6 @@ source: tests/golden_test.rs
 expression: plain
 ---
 Root
-    ├── Child 1
-    ├── Child 2
-    └── Child 3
+├── Child 1
+├── Child 2
+└── Child 3

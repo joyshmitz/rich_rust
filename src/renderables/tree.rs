@@ -202,7 +202,7 @@ impl Default for Tree {
         Self {
             root: TreeNode::new("root"),
             guides: TreeGuides::default(),
-            guide_style: Style::new().color_str("bright_black").unwrap_or_default(),
+            guide_style: Style::new(),
             show_root: true,
             highlight_style: None,
             max_depth: -1,
@@ -330,7 +330,7 @@ impl Tree {
         }
 
         // Add the branch guide for this node (if not root at depth 0)
-        if !prefix_stack.is_empty() || !self.show_root {
+        if depth > 0 || !self.show_root {
             let guide = if is_last {
                 self.guides.last()
             } else {
@@ -372,7 +372,9 @@ impl Tree {
         if node.is_expanded() {
             let children = &node.children;
             let mut new_prefix_stack = prefix_stack.to_vec();
-            new_prefix_stack.push(!is_last);
+            if !(self.show_root && depth == 0) {
+                new_prefix_stack.push(!is_last);
+            }
 
             for (i, child) in children.iter().enumerate() {
                 let child_is_last = i == children.len() - 1;
