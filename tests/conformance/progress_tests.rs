@@ -92,7 +92,10 @@ mod tests {
             width: 80,
         };
         let output = run_test(&test);
-        assert!(output.contains("Downloading"), "Description should be present");
+        assert!(
+            output.contains("Downloading"),
+            "Description should be present"
+        );
         assert!(output.contains('%'), "Percentage should be present");
     }
 
@@ -106,7 +109,11 @@ mod tests {
                 .into_iter()
                 .map(|s| s.text.into_owned())
                 .collect();
-            assert!(!output.is_empty(), "Progress at {:.0}% should render", progress * 100.0);
+            assert!(
+                !output.is_empty(),
+                "Progress at {:.0}% should render",
+                progress * 100.0
+            );
         }
     }
 
@@ -146,9 +153,7 @@ mod tests {
 
     #[test]
     fn test_progress_description_with_color_markup_not_parsed() {
-        let bar = ProgressBar::new()
-            .description("[red]Error[/red]")
-            .width(20);
+        let bar = ProgressBar::new().description("[red]Error[/red]").width(20);
 
         let output: String = bar
             .render(80)
@@ -200,11 +205,7 @@ mod tests {
     #[test]
     fn test_progress_description_with_colored_prestyled_text() {
         let mut styled_desc = Text::new("Warning");
-        styled_desc.stylize(
-            0,
-            7,
-            Style::new().color(Color::parse("yellow").unwrap()),
-        );
+        styled_desc.stylize(0, 7, Style::new().color(Color::parse("yellow").unwrap()));
 
         let bar = ProgressBar::new().description(styled_desc).width(20);
         let segments = bar.render(80);
@@ -243,7 +244,10 @@ mod tests {
             output.contains("[bold]"),
             "Finished message is plain string, markup appears literally"
         );
-        assert!(output.contains("Complete"), "Message text should be present");
+        assert!(
+            output.contains("Complete"),
+            "Message text should be present"
+        );
     }
 
     #[test]
@@ -258,7 +262,10 @@ mod tests {
             .collect();
 
         assert!(output.contains('✓'), "Finished bar should show checkmark");
-        assert!(output.contains("Done"), "Finished message should be present");
+        assert!(
+            output.contains("Done"),
+            "Finished message should be present"
+        );
     }
 
     // =========================================================================

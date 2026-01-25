@@ -32,6 +32,7 @@ pub mod layout_tests;
 pub mod live_tests;
 pub mod logging_tests;
 pub mod panel_tests;
+pub mod progress_tests;
 pub mod rule_tests;
 pub mod table_tests;
 pub mod text_tests;
