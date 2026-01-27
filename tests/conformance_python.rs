@@ -458,10 +458,7 @@ fn build_renderable(
             }
             #[cfg(not(feature = "markdown"))]
             {
-                assert!(
-                    false,
-                    "markdown conformance requires the markdown feature"
-                );
+                assert!(false, "markdown conformance requires the markdown feature");
                 Box::new(Text::new(""))
             }
         }

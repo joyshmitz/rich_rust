@@ -24,19 +24,12 @@ static DEFAULT_STYLES: LazyLock<HashMap<String, Style>> = LazyLock::new(|| {
             continue;
         }
 
-        let (name, definition) = line.split_once('\t').unwrap_or_else(|| {
-            panic!(
-                "src/default_styles.tsv:{}: expected TAB-separated name + style",
-                line_no + 1
-            )
-        });
+        let (name, definition) = line
+            .split_once('\t')
+            .expect("src/default_styles.tsv: expected TAB-separated name + style");
 
-        let style = Style::parse(definition).unwrap_or_else(|err| {
-            panic!(
-                "src/default_styles.tsv:{}: failed to parse style {definition:?} for {name:?}: {err}",
-                line_no + 1
-            )
-        });
+        let style = Style::parse(definition)
+            .expect("src/default_styles.tsv: failed to parse style definition");
 
         let prior = styles.insert(name.to_string(), style);
         assert!(

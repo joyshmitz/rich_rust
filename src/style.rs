@@ -1073,11 +1073,11 @@ mod tests {
 
     #[test]
     fn test_style_parse_invalid_unknown_token() {
-        let result = Style::parse("completely_invalid_token_xyz");
+        let result = Style::parse("invalid_style_word");
         assert!(matches!(
             result,
-            Err(StyleParseError::UnknownToken(ref token))
-                if token == "completely_invalid_token_xyz"
+            Err(StyleParseError::UnknownToken(ref unknown))
+                if unknown == "invalid_style_word"
         ));
     }
 

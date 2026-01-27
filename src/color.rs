@@ -1651,7 +1651,7 @@ mod tests {
         ];
 
         for (i, name) in standard_colors.iter().enumerate() {
-            let color = Color::parse(name).unwrap_or_else(|_| panic!("Failed to parse '{name}'"));
+            let color = Color::parse(name).expect("standard named colors should parse");
             assert!(
                 color.number.is_some(),
                 "Standard color '{name}' should have a number"
