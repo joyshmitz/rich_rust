@@ -203,9 +203,7 @@ impl Live {
             return Ok(());
         }
 
-        // Only force full visibility on the final render when the console is interactive.
-        // In non-interactive/dumb terminals, preserve the configured overflow behavior.
-        if self.inner.console.is_interactive() {
+        {
             let mut options = self.inner.options_mut();
             options.vertical_overflow = VerticalOverflowMethod::Visible;
         }
@@ -473,7 +471,7 @@ impl RenderHook for LiveInner {
             let live_segments = self.render_live_segments(&mut render, console, &options, overflow);
             output.extend(live_segments);
             output
-        } else if !self.started.load(Ordering::SeqCst) && !self.options().transient {
+        } else if !self.options().transient {
             output.extend_from_slice(segments);
             let live_segments = self.render_live_segments(&mut render, console, &options, overflow);
             output.extend(live_segments);
