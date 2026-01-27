@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+#[path = "demo_showcase/state.rs"]
+mod state;
 #[path = "demo_showcase/theme.rs"]
 mod theme;
 
@@ -33,7 +35,46 @@ fn main() {
         return;
     }
 
-    println!("(demo_showcase) TODO: run full demo\n\nTip: run with `--help` or `--list-scenes`.");
+    let state = if cfg.quick {
+        state::SharedDemoState::new(1, 0)
+    } else {
+        state::SharedDemoState::demo_seeded(1, 0)
+    };
+
+    state.update(|demo| {
+        demo.headline = "Ready to deploy".to_string();
+    });
+
+    let snapshot = state.snapshot();
+    let last_log = snapshot
+        .logs
+        .last()
+        .map(|line| {
+            format!(
+                "{}+{}ms {}",
+                line.level.as_str(),
+                line.t.as_millis(),
+                line.message
+            )
+        })
+        .unwrap_or_else(|| "none".to_string());
+    let eta_count = snapshot
+        .pipeline
+        .iter()
+        .filter(|stage| stage.eta.is_some())
+        .count();
+    println!(
+        "(demo_showcase) TODO: run full demo (run_id={} seed={} elapsed={}ms headline={:?} services={} stages={} (eta={}) logs={} last_log={:?})\n\nTip: run with `--help` or `--list-scenes`.",
+        snapshot.run_id,
+        snapshot.seed,
+        snapshot.elapsed.as_millis(),
+        snapshot.headline,
+        snapshot.services.len(),
+        snapshot.pipeline.len(),
+        eta_count,
+        snapshot.logs.len(),
+        last_log,
+    );
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
