@@ -62,6 +62,7 @@ This document is the source of truth. If code or docs change, update this file, 
 | Emoji | Emoji renderable | Implemented | `src/renderables/emoji.rs` | Unit tests |
 | Padding | Padding | Implemented | `src/renderables/padding.rs` | Golden tests |
 | Align | Alignment | Implemented | `src/renderables/align.rs` | Golden tests |
+| Pretty / Inspect | Debug-based pretty printing + type inspection | Implemented | `src/renderables/pretty.rs` | Unit tests + snapshots in `src/renderables/snapshots/` |
 | Syntax | Syntax highlighting | Implemented | `src/renderables/syntax.rs` (feature `syntax`) | Tests present; parity vs Python Rich not yet fixture-based |
 | Markdown | Markdown rendering | Implemented | `src/renderables/markdown.rs` (feature `markdown`) | Tests present; parity vs Python Rich not yet fixture-based |
 | JSON | JSON pretty-print | Implemented | `src/renderables/json.rs` (feature `json`) | Tests present; parity vs Python Rich not yet fixture-based |

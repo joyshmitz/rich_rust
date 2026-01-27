@@ -497,6 +497,30 @@ let md = Markdown::new("# Header\n\nParagraph with **bold**.");
 console.print_renderable(&md);
 ```
 
+### Pretty / Inspect
+
+Rust doesn't have Python-style runtime reflection, so rich_rust's equivalents are
+`Debug`-based and best-effort.
+
+```rust
+use rich_rust::prelude::*;
+
+#[derive(Debug)]
+struct Config {
+    mode: String,
+    retries: usize,
+}
+
+let console = Console::new();
+let cfg = Config {
+    mode: "safe".to_string(),
+    retries: 3,
+};
+
+console.print_renderable(&Pretty::new(&cfg));
+inspect(&console, &cfg);
+```
+
 ---
 
 ## Architecture

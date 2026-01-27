@@ -2775,6 +2775,7 @@ features (not planned) from **planned-but-not-yet-implemented** features.
 | Feature | Status |
 |---------|--------|
 | Theme + named styles | Implemented (`Theme`, `Console::get_style`, `.ini` loading via `Theme::read`) |
+| Pretty / Inspect | Implemented (`renderables::Pretty`, `renderables::Inspect`, `renderables::inspect`; `Debug`-based, best-effort field extraction) |
 | Live display (`Live`) | Implemented (stdout/stderr redirection is best-effort; no Jupyter integration) |
 | Layout engine (`Layout`) | Implemented (ratio splits + named lookup; no render-map caching) |
 | Logging handler integration | Implemented (`RichLogger` for `log` crate; no traceback rendering) |
