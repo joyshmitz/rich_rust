@@ -167,9 +167,10 @@ pub mod prelude {
     pub use crate::logging::RichTracingLayer;
     pub use crate::measure::Measurement;
     pub use crate::renderables::{
-        Align, AlignLines, AlignMethod, BarStyle, Cell, Column, Columns, Emoji, Layout,
-        LayoutSplitter, PaddingDimensions, Panel, ProgressBar, Region, Row, Rule, Spinner, Table,
-        Tree, TreeGuides, TreeNode, VerticalAlign, VerticalAlignMethod, align_text,
+        Align, AlignLines, AlignMethod, BarStyle, Cell, Column, Columns, Emoji, Inspect,
+        InspectOptions, Layout, LayoutSplitter, PaddingDimensions, Panel, Pretty, PrettyOptions,
+        ProgressBar, Region, Row, Rule, Spinner, Table, Tree, TreeGuides, TreeNode, VerticalAlign,
+        VerticalAlignMethod, align_text, inspect,
     };
     pub use crate::segment::Segment;
     pub use crate::style::{Attributes, Style};

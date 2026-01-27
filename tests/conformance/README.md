@@ -31,6 +31,10 @@ Fixtures are stored in `tests/conformance/fixtures/python_rich.json` with this s
         "TERM": "xterm-256color",
         "COLORTERM": null
       },
+      "theme": {
+        "styles": { "warning": "bold red" },
+        "inherit": true
+      },
       "input": {
         "columns": ["Name", "Age"],
         "rows": [["Alice", "30"], ["Bob", "25"]],
@@ -60,6 +64,13 @@ Cases may specify an `env` object with per-case environment overrides. Values ar
 The conformance runner clears the standard Rich-related variables (`NO_COLOR`,
 `FORCE_COLOR`, `TERM`, `COLORTERM`) before applying per-case overrides to avoid
 leaking host environment into fixtures.
+
+### Theme Overrides
+
+Cases may specify a `theme` object to initialize the console theme:
+
+- `styles`: mapping of style name → style definition (e.g. `"bold red"`)
+- `inherit`: if true, inherit Python Rich default styles and overlay `styles`
 
 ### Normalization Rules
 

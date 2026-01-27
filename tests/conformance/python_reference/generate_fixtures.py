@@ -34,6 +34,7 @@ try:
     from rich.syntax import Syntax  # type: ignore
     from rich.json import JSON  # type: ignore
     from rich import box  # type: ignore
+    from rich.theme import Theme  # type: ignore
 except Exception as exc:  # pragma: no cover - import error path
     raise SystemExit(f"Failed to import rich: {exc}")
 
@@ -62,6 +63,12 @@ CASES = [
         "id": "text/emoji_variant_text",
         "kind": "text",
         "input": {"markup": "hi :smile-text:"},
+    },
+    {
+        "id": "text/theme_named_style",
+        "kind": "text",
+        "theme": {"styles": {"warning": "bold red"}, "inherit": True},
+        "input": {"markup": "[warning]Danger[/]"},
     },
     {
         "id": "text/markup_bold",
@@ -357,12 +364,19 @@ def normalize_hyperlink_ids(text: str) -> str:
 def render_case(case: Dict[str, Any]) -> Dict[str, str]:
     options = merge_render_options(case)
     env = build_env(case)
+    theme_config = case.get("theme")
+    theme = None
+    if theme_config:
+        styles = theme_config.get("styles", {})
+        inherit = theme_config.get("inherit", True)
+        theme = Theme(styles, inherit=inherit)
     console = Console(
         record=True,
         width=options.get("width"),
         color_system=options.get("color_system"),
         force_terminal=options.get("force_terminal"),
         force_jupyter=False,
+        theme=theme,
         legacy_windows=False,
         safe_box=True,
         emoji=True,
@@ -407,6 +421,7 @@ def main() -> int:
             "compare_ansi": case.get("compare_ansi", True),
             "render_options": case.get("render_options"),
             "env": case.get("env"),
+            "theme": case.get("theme"),
             "input": case["input"],
             "expected": rendered,
             "notes": case.get("notes"),

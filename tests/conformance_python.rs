@@ -89,7 +89,7 @@ fn parse_render_options(defaults: &Value, overrides: Option<&Value>) -> RenderOp
     }
 }
 
-fn build_console(options: &RenderOptions) -> Console {
+fn build_console(options: &RenderOptions, theme: Option<Theme>) -> Console {
     let mut builder = Console::builder();
     if let Some(width) = options.width {
         builder = builder.width(width);
@@ -106,7 +106,26 @@ fn build_console(options: &RenderOptions) -> Console {
             builder = builder.no_color();
         }
     }
+    if let Some(theme) = theme {
+        builder = builder.theme(theme);
+    }
     builder.build()
+}
+
+fn parse_theme(case: &Value) -> Option<Theme> {
+    let config = case.get("theme")?.as_object()?;
+    let inherit = config
+        .get("inherit")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let styles = config.get("styles")?.as_object()?;
+
+    let mut entries: Vec<(String, String)> = Vec::with_capacity(styles.len());
+    for (name, definition) in styles {
+        entries.push((name.clone(), definition.as_str()?.to_string()));
+    }
+
+    Theme::from_style_definitions(entries, inherit).ok()
 }
 
 struct EnvGuard {
@@ -504,7 +523,8 @@ fn python_rich_fixtures() {
             .unwrap_or(true);
 
         let options = parse_render_options(defaults, case.get("render_options"));
-        let console = build_console(&options);
+        let theme = parse_theme(case);
+        let console = build_console(&options, theme);
 
         let (mut actual_plain, mut actual_ansi) = if kind == "text" {
             let markup = input.get("markup").and_then(|v| v.as_str()).unwrap_or("");

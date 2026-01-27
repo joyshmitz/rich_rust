@@ -1,6 +1,6 @@
 {
   "rich_version": "13.9.4",
-  "generated_at": "2026-01-27T18:47:00.827656+00:00",
+  "generated_at": "2026-01-27T20:39:39.591781+00:00",
   "defaults": {
     "width": 40,
     "color_system": "truecolor",
@@ -13,6 +13,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "markup": "Hello, World!"
       },
@@ -28,6 +29,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "markup": "hi :smile:"
       },
@@ -43,6 +45,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "markup": "hi :smile-text:"
       },
@@ -53,11 +56,33 @@
       "notes": null
     },
     {
+      "id": "text/theme_named_style",
+      "kind": "text",
+      "compare_ansi": true,
+      "render_options": null,
+      "env": null,
+      "theme": {
+        "styles": {
+          "warning": "bold red"
+        },
+        "inherit": true
+      },
+      "input": {
+        "markup": "[warning]Danger[/]"
+      },
+      "expected": {
+        "plain": "Danger\n",
+        "ansi": "\u001b[1;31mDanger\u001b[0m\n"
+      },
+      "notes": null
+    },
+    {
       "id": "text/markup_bold",
       "kind": "text",
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "markup": "[bold]Bold[/]"
       },
@@ -73,6 +98,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "markup": "[red]Red[/] and [green]Green[/]"
       },
@@ -88,6 +114,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "markup": "[link=https://example.com]Example[/]"
       },
@@ -105,6 +132,7 @@
         "width": 20
       },
       "env": null,
+      "theme": null,
       "input": {
         "markup": "Hello 世界 🌍"
       },
@@ -120,6 +148,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "title": "",
         "align": "center",
@@ -139,6 +168,7 @@
         "width": 30
       },
       "env": null,
+      "theme": null,
       "input": {
         "title": "Section",
         "align": "left",
@@ -156,6 +186,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "text": "Hello, World!",
         "title": "Greeting",
@@ -175,6 +206,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "text": "Content",
         "title": "Title",
@@ -196,6 +228,7 @@
         "width": 40
       },
       "env": null,
+      "theme": null,
       "input": {
         "columns": [
           "Name",
@@ -234,6 +267,7 @@
         "width": 40
       },
       "env": null,
+      "theme": null,
       "input": {
         "columns": [
           "A",
@@ -270,6 +304,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "label": "Root",
         "children": [
@@ -300,6 +335,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "total": 100,
         "completed": 50,
@@ -317,6 +353,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "items": [
           "One",
@@ -339,6 +376,7 @@
         "width": 12
       },
       "env": null,
+      "theme": null,
       "input": {
         "text": "Padded",
         "pad": [
@@ -360,6 +398,7 @@
       "compare_ansi": true,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "text": "Centered",
         "width": 20,
@@ -377,6 +416,7 @@
       "compare_ansi": false,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "text": "Just text"
       },
@@ -392,6 +432,7 @@
       "compare_ansi": false,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "json": "{\"age\": 30, \"name\": \"Alice\"}"
       },
@@ -407,6 +448,7 @@
       "compare_ansi": false,
       "render_options": null,
       "env": null,
+      "theme": null,
       "input": {
         "code": "fn main() { println!(\"hi\"); }",
         "language": "rust"
@@ -430,6 +472,7 @@
         "FORCE_COLOR": "1",
         "TERM": "xterm-256color"
       },
+      "theme": null,
       "input": {
         "markup": "[#ff8800]No Color[/]"
       },
@@ -452,6 +495,7 @@
         "COLORTERM": "truecolor",
         "TERM": "xterm-256color"
       },
+      "theme": null,
       "input": {
         "markup": "[#ff0000]TrueColor[/]"
       },
@@ -473,6 +517,7 @@
         "FORCE_COLOR": "1",
         "TERM": "xterm-256color"
       },
+      "theme": null,
       "input": {
         "markup": "[#00ff00]EightBit[/]"
       },
@@ -494,6 +539,7 @@
         "FORCE_COLOR": "1",
         "TERM": "xterm-16color"
       },
+      "theme": null,
       "input": {
         "markup": "[#0000ff]Standard[/]"
       },
@@ -515,6 +561,7 @@
         "FORCE_COLOR": "1",
         "TERM": "dumb"
       },
+      "theme": null,
       "input": {
         "markup": "[#ff00ff]Dumb[/]"
       },
