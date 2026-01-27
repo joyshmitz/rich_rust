@@ -231,20 +231,22 @@ impl Log for RichLogger {
 
 #[cfg(feature = "tracing")]
 mod tracing_integration {
-    use super::*;
+    use super::{Console, RichLogger};
+    use log::Level;
     use std::fmt::Debug;
+    use std::sync::Arc;
 
     use tracing::field::{Field, Visit};
     use tracing::{Event, Level as TracingLevel, Subscriber};
     use tracing_subscriber::{Layer, layer::Context};
 
-    /// Tracing layer that formats events using RichLogger styling.
+    /// Tracing layer that formats events using `RichLogger` styling.
     pub struct RichTracingLayer {
         logger: RichLogger,
     }
 
     impl RichTracingLayer {
-        /// Create a tracing layer backed by a RichLogger.
+        /// Create a tracing layer backed by a `RichLogger`.
         #[must_use]
         pub fn new(console: Arc<Console>) -> Self {
             Self {
@@ -314,7 +316,7 @@ mod tracing_integration {
             let args = format_args!("{message_ref}");
             let record = log::Record::builder()
                 .args(args)
-                .level(map_tracing_level(metadata.level()))
+                .level(map_tracing_level(*metadata.level()))
                 .target(metadata.target())
                 .file(metadata.file())
                 .line(metadata.line())
@@ -326,8 +328,8 @@ mod tracing_integration {
         }
     }
 
-    fn map_tracing_level(level: &TracingLevel) -> Level {
-        match *level {
+    fn map_tracing_level(level: TracingLevel) -> Level {
+        match level {
             TracingLevel::TRACE => Level::Trace,
             TracingLevel::DEBUG => Level::Debug,
             TracingLevel::INFO => Level::Info,

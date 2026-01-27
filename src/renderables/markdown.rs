@@ -774,7 +774,7 @@ impl Markdown {
     }
 }
 
-fn pad_segments_to_width<'a>(segments: Vec<Segment<'a>>, width: usize) -> Vec<Segment<'a>> {
+fn pad_segments_to_width(segments: Vec<Segment<'_>>, width: usize) -> Vec<Segment<'_>> {
     let mut padded = Vec::new();
     let mut line_width = 0usize;
 

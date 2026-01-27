@@ -375,10 +375,7 @@ impl std::fmt::Debug for Console {
             .field("height", &self.height)
             .field("safe_box", &self.safe_box)
             .field("file", &"<dyn Write>")
-            .field(
-                "buffer_len",
-                &self.buffer.lock().map(|b| b.len()).unwrap_or(0),
-            )
+            .field("buffer_len", &self.buffer.lock().map_or(0, |b| b.len()))
             .field("is_terminal", &self.is_terminal)
             .field("detected_color_system", &self.detected_color_system)
             .finish_non_exhaustive()
