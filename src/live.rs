@@ -203,7 +203,9 @@ impl Live {
             return Ok(());
         }
 
-        {
+        // Only force full visibility on the final render when the console is interactive.
+        // In non-interactive/dumb terminals, preserve the configured overflow behavior.
+        if self.inner.console.is_interactive() {
             let mut options = self.inner.options_mut();
             options.vertical_overflow = VerticalOverflowMethod::Visible;
         }
