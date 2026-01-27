@@ -635,6 +635,93 @@ See `FEATURE_PARITY.md` for the authoritative matrix and `RICH_SPEC.md` for deta
 
 ---
 
+## Demo Showcase (Roadmap): `demo_showcase`
+
+We’re building a standalone `demo_showcase` binary that shows off rich_rust end-to-end in a single cohesive narrative (product-grade visuals, not just a grab bag of examples).
+
+### Narrative
+
+**Nebula Deploy** — a fictional deployment/release assistant. It naturally justifies a live dashboard, progress, structured data views, and a deliberate failure for traceback/debug tooling.
+
+### Scene Flow
+
+`--list-scenes` must output stable names (used by `--scene <name>`), in this order (with a one-line purpose + any feature-gate notes):
+
+| Scene | Purpose | Exercises |
+|------|---------|----------|
+| `hero` | Introduce Nebula Deploy and the visual “brand”. | markup, Style/Theme, Emoji, Rule/Panel |
+| `dashboard` | Show the live split-screen dashboard (services + pipeline + logs). | Layout, Live, Progress, logging |
+| `deep_dive_markdown` | Show a runbook / release notes view. | Markdown (feature `markdown`) |
+| `deep_dive_syntax` | Show a config/code snippet view. | Syntax (feature `syntax`) |
+| `deep_dive_json` | Show an API payload view. | Json (feature `json`) |
+| `debug_tools` | Walk through a failure and recovery workflow. | Pretty/Inspect, Traceback, RichLogger (+ tracing with feature `tracing`) |
+| `export` | Export the run to artifacts for sharing. | `Console::export_html`, `Console::export_svg` |
+| `outro` | Wrap up with a crisp summary and next steps. | Table, Tree, Rule |
+
+Feature-gated scenes must self-report clearly when disabled (and how to enable the required `--features ...`).
+
+### CLI Contract (Explicit + Stable)
+
+The goal is (a) safe in CI/pipes and (b) tunable for maximum “wow” in a real terminal.
+
+`demo_showcase --help` should read like a real CLI:
+
+```text
+demo_showcase — Nebula Deploy (rich_rust showcase)
+
+USAGE:
+    demo_showcase [OPTIONS]
+
+OPTIONS:
+    --list-scenes               List available scenes and exit
+    --scene <name>              Run a single scene (see --list-scenes)
+    --quick                     Reduce sleeps/runtime (CI-friendly)
+    --speed <multiplier>        Animation speed multiplier (default: 1.0)
+
+    --interactive               Force interactive mode
+    --no-interactive            Disable prompts/pager/etc
+    --live                      Force live refresh
+    --no-live                   Disable live refresh; print snapshots
+    --screen                    Use alternate screen (requires live)
+    --no-screen                 Disable alternate screen
+
+    --force-terminal            Treat stdout as a TTY (even when piped)
+    --width <cols>              Override console width
+    --height <rows>             Override console height
+    --color-system <mode>       auto|none|standard|eight_bit|truecolor
+    --emoji                     Enable emoji (default)
+    --no-emoji                  Disable emoji
+    --safe-box                  Use ASCII-safe box characters
+    --no-safe-box               Use Unicode box characters (default)
+
+    --export                    Write an HTML/SVG bundle to a temp dir
+    --export-dir <path>         Write an HTML/SVG bundle to a directory
+
+    -h, --help                  Print help and exit
+```
+
+**Defaults (“auto”)**
+
+- `interactive=auto` means: interactive only when stdout is a TTY and `TERM` is not `dumb`/`unknown`.
+- `live=auto` means: `live = interactive`.
+- `screen=auto` means: `screen = live && interactive` (TTY-only).
+- `FORCE_COLOR` may force color output, but must **not** enable interactive/live behavior; use `--force-terminal` to intentionally override TTY checks.
+
+**Safety requirements**
+
+- If stdout is not a TTY and `--force-terminal` is not set:
+  - disable live refresh and alternate screen
+  - disable prompt/pager helpers
+  - print static snapshots only
+- No scene may require user input to terminate.
+- No infinite loops; any animation must be time-bounded and/or gated on TTY.
+- Unknown flags must yield a concise error plus a `--help` hint.
+- `--scene` must validate known names and print an “available scenes” list on error.
+
+**Implementation note:** keep CLI parsing dependency-light (hand-rolled; no large CLI frameworks).
+
+---
+
 ## Troubleshooting
 
 ### Colors not showing
