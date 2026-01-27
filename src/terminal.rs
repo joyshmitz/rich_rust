@@ -54,8 +54,8 @@ pub fn get_terminal_height() -> usize {
 /// Check if stdout is connected to a terminal.
 #[must_use]
 pub fn is_terminal() -> bool {
-    if let Ok(force_color) = std::env::var("FORCE_COLOR") {
-        return !force_color.is_empty();
+    if force_color_forces_terminal(std::env::var("FORCE_COLOR").ok().as_deref()) {
+        return true;
     }
     std::io::stdout().is_terminal()
 }
@@ -63,10 +63,19 @@ pub fn is_terminal() -> bool {
 /// Check if stderr is connected to a terminal.
 #[must_use]
 pub fn is_stderr_terminal() -> bool {
-    if let Ok(force_color) = std::env::var("FORCE_COLOR") {
-        return !force_color.is_empty();
+    if force_color_forces_terminal(std::env::var("FORCE_COLOR").ok().as_deref()) {
+        return true;
     }
     std::io::stderr().is_terminal()
+}
+
+fn force_color_forces_terminal(force_color: Option<&str>) -> bool {
+    let Some(force_color) = force_color else {
+        return false;
+    };
+    let force_color = force_color.trim();
+    // Treat empty / "0" as "unset" (no override).
+    !force_color.is_empty() && force_color != "0"
 }
 
 /// Check if TERM is set to "dumb".
@@ -306,6 +315,17 @@ mod tests {
     fn test_is_terminal() {
         // Just ensure it runs (result depends on test environment)
         let _ = is_terminal();
+    }
+
+    #[test]
+    fn test_force_color_forces_terminal() {
+        assert!(!force_color_forces_terminal(None));
+        assert!(!force_color_forces_terminal(Some("")));
+        assert!(!force_color_forces_terminal(Some("   ")));
+        assert!(!force_color_forces_terminal(Some("0")));
+        assert!(!force_color_forces_terminal(Some(" 0 ")));
+        assert!(force_color_forces_terminal(Some("1")));
+        assert!(force_color_forces_terminal(Some("true")));
     }
 
     #[test]
