@@ -16,6 +16,7 @@ use crate::debug_tools::DebugToolsScene;
 use crate::emoji_links_scene::EmojiLinksScene;
 use crate::export_scene::ExportScene;
 use crate::hero::HeroScene;
+use crate::json_scene::JsonScene;
 use crate::layout_scene::LayoutScene;
 use crate::panel_scene::PanelScene;
 use crate::table_scene::TableScene;
@@ -205,10 +206,7 @@ pub fn build_registry() -> SceneRegistry {
         "deep_dive_syntax",
         "Config/code snippet view (feature: syntax).",
     ));
-    registry.register(PlaceholderScene::new(
-        "deep_dive_json",
-        "API payload view (feature: json).",
-    ));
+    registry.register(JsonScene::new());
     registry.register(TableScene::new());
     registry.register(PanelScene::new());
     registry.register(TreeScene::new());
@@ -284,7 +282,7 @@ mod tests {
             "dashboard",
             "deep_dive_markdown",
             "deep_dive_syntax",
-            "deep_dive_json",
+            "json",
             "table",
             "panels",
             "tree",

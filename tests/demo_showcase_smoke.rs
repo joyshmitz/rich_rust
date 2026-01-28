@@ -77,12 +77,12 @@ fn smoke_deep_dive_syntax() {
 }
 
 #[test]
-fn smoke_deep_dive_json() {
-    let result = smoke_runner("deep_dive_json").run().expect("should run");
+fn smoke_json() {
+    let result = smoke_runner("json").run().expect("should run");
     assertions::assert_success(&result);
     assert!(
         result.stdout_contains("json") || result.stdout_contains("JSON"),
-        "deep_dive_json scene should produce recognizable output:\n{}",
+        "json scene should produce recognizable output:\n{}",
         result.diagnostic_output()
     );
 }

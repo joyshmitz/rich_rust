@@ -10,6 +10,8 @@ mod emoji_links_scene;
 mod export_scene;
 #[path = "demo_showcase/hero.rs"]
 mod hero;
+#[path = "demo_showcase/json_scene.rs"]
+mod json_scene;
 #[path = "demo_showcase/layout_scene.rs"]
 mod layout_scene;
 #[path = "demo_showcase/log_pane.rs"]

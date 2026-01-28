@@ -66,7 +66,7 @@ fn test_list_scenes_shows_all_scenes() {
     assert_stdout_contains(&result, "dashboard");
     assert_stdout_contains(&result, "deep_dive_mark"); // markdown may wrap
     assert_stdout_contains(&result, "deep_dive_syntax");
-    assert_stdout_contains(&result, "deep_dive_json");
+    assert_stdout_contains(&result, "json");
     assert_stdout_contains(&result, "table");
     assert_stdout_contains(&result, "panels");
     assert_stdout_contains(&result, "tree");
