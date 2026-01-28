@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 #[path = "demo_showcase/console_builder.rs"]
 mod console_builder;
+#[path = "demo_showcase/log_pane.rs"]
+mod log_pane;
 #[path = "demo_showcase/state.rs"]
 mod state;
 #[path = "demo_showcase/theme.rs"]
