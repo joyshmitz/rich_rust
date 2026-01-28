@@ -221,10 +221,8 @@ impl Traceback {
 
                 seen_user_code = true;
 
-                let mut frame = TracebackFrame::new(
-                    Self::demangle_name(&name),
-                    lineno.unwrap_or(0) as usize,
-                );
+                let mut frame =
+                    TracebackFrame::new(Self::demangle_name(&name), lineno.unwrap_or(0) as usize);
 
                 if let Some(ref path) = filename {
                     frame = frame.filename(path.display().to_string());
@@ -280,10 +278,10 @@ impl Traceback {
         let name = name.to_string();
 
         // Remove hash suffixes like ::h1234567890abcdef
-        if let Some(pos) = name.rfind("::h") {
-            if name[pos + 3..].chars().all(|c| c.is_ascii_hexdigit()) {
-                return name[..pos].to_string();
-            }
+        if let Some(pos) = name.rfind("::h")
+            && name[pos + 3..].chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return name[..pos].to_string();
         }
 
         name
@@ -576,10 +574,7 @@ mod tests {
                 Traceback::demangle_name("my_crate::func::h1234567890abcdef"),
                 "my_crate::func"
             );
-            assert_eq!(
-                Traceback::demangle_name("my_crate::func"),
-                "my_crate::func"
-            );
+            assert_eq!(Traceback::demangle_name("my_crate::func"), "my_crate::func");
         }
 
         #[test]
