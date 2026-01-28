@@ -61,12 +61,15 @@ fn test_list_scenes_shows_all_scenes() {
     assert_no_timeout(&result);
 
     // All storyboard scenes should be listed
+    // Note: Some scene names may wrap in narrow terminals, so we check prefixes
     assert_stdout_contains(&result, "hero");
     assert_stdout_contains(&result, "dashboard");
-    assert_stdout_contains(&result, "deep_dive_markdown");
+    assert_stdout_contains(&result, "deep_dive_mark"); // markdown may wrap
     assert_stdout_contains(&result, "deep_dive_syntax");
     assert_stdout_contains(&result, "deep_dive_json");
+    assert_stdout_contains(&result, "table");
     assert_stdout_contains(&result, "debug_tools");
+    assert_stdout_contains(&result, "traceback");
     assert_stdout_contains(&result, "export");
     assert_stdout_contains(&result, "outro");
 
@@ -441,4 +444,167 @@ fn test_non_interactive_live_auto_disabled() {
         "Found {} carriage returns without line feeds - indicates live updates in non-interactive mode",
         cr_without_lf
     );
+}
+
+// ============================================================================
+// Non-TTY / Piped output verification tests (bd-2k90)
+// ============================================================================
+
+/// Verifies each implemented scene completes when piped (simulating `| cat`).
+/// This is a CI-friendly verification that no scene blocks on TTY input.
+#[test]
+fn test_piped_all_scenes_complete() {
+    common::init_test_logging();
+
+    // List of all implemented scenes (non-placeholder)
+    let scenes = ["hero", "debug_tools", "traceback", "table"];
+
+    for scene in scenes {
+        let result = DemoRunner::new()
+            .arg("--scene")
+            .arg(scene)
+            .arg("--quick")
+            .arg("--seed")
+            .arg("0")
+            .arg("--color-system")
+            .arg("none")
+            .arg("--no-interactive")
+            .timeout_secs(15)
+            .run()
+            .unwrap_or_else(|_| panic!("scene '{}' should run", scene));
+
+        assert_success(&result);
+        assert_no_timeout(&result);
+        assert!(
+            !result.stdout.is_empty(),
+            "Scene '{}' should produce output",
+            scene
+        );
+    }
+}
+
+/// Verifies output remains readable when piped (no binary garbage or control chars).
+#[test]
+fn test_piped_output_is_readable_text() {
+    common::init_test_logging();
+
+    let result = DemoRunner::new()
+        .arg("--quick")
+        .arg("--seed")
+        .arg("0")
+        .arg("--color-system")
+        .arg("none")
+        .arg("--no-interactive")
+        .timeout_secs(30)
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+
+    // Output should be valid UTF-8 (already guaranteed by String)
+    // Check for problematic control characters (excluding normal whitespace)
+    let problematic_chars: Vec<char> = result
+        .stdout
+        .chars()
+        .filter(|c| c.is_control() && *c != '\n' && *c != '\r' && *c != '\t')
+        .collect();
+
+    assert!(
+        problematic_chars.is_empty(),
+        "Output contains {} problematic control characters: {:?}",
+        problematic_chars.len(),
+        problematic_chars.iter().take(10).collect::<Vec<_>>()
+    );
+}
+
+/// Verifies no pager-style blocking prompts in piped output.
+/// Note: Informational text like "Press any key..." is fine if it doesn't block.
+#[test]
+fn test_piped_no_blocking_pager() {
+    common::init_test_logging();
+
+    let result = DemoRunner::new()
+        .arg("--quick")
+        .arg("--seed")
+        .arg("0")
+        .arg("--color-system")
+        .arg("none")
+        .arg("--no-interactive")
+        .timeout_secs(30)
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+
+    // Should not contain pager-specific blocking indicators
+    // (END) and "-- More --" indicate actual pagers like less/more
+    let pager_indicators = ["(END)", "-- More --", "[Press q to quit]"];
+
+    for indicator in pager_indicators {
+        assert!(
+            !result.stdout.contains(indicator),
+            "Output should not contain pager indicator: '{}'",
+            indicator
+        );
+    }
+
+    // The fact that we got here with exit 0 proves no blocking occurred
+}
+
+/// Verifies per-scene output size is bounded (guards against runaway loops).
+#[test]
+fn test_piped_per_scene_output_bounded() {
+    common::init_test_logging();
+
+    let scenes = ["hero", "debug_tools", "traceback", "table"];
+    const MAX_SCENE_OUTPUT: usize = 50 * 1024; // 50 KB per scene
+
+    for scene in scenes {
+        let result = DemoRunner::new()
+            .arg("--scene")
+            .arg(scene)
+            .arg("--quick")
+            .arg("--seed")
+            .arg("0")
+            .arg("--color-system")
+            .arg("none")
+            .arg("--no-interactive")
+            .timeout_secs(15)
+            .run()
+            .unwrap_or_else(|_| panic!("scene '{}' should run", scene));
+
+        assert_success(&result);
+
+        let output_size = result.stdout.len() + result.stderr.len();
+        assert!(
+            output_size < MAX_SCENE_OUTPUT,
+            "Scene '{}' output ({} bytes) exceeds limit ({} bytes)",
+            scene,
+            output_size,
+            MAX_SCENE_OUTPUT
+        );
+    }
+}
+
+/// Verifies quick mode completes rapidly (CI performance gate).
+#[test]
+fn test_piped_quick_mode_is_fast() {
+    common::init_test_logging();
+
+    let result = DemoRunner::new()
+        .arg("--quick")
+        .arg("--seed")
+        .arg("0")
+        .arg("--color-system")
+        .arg("none")
+        .arg("--no-interactive")
+        .timeout_secs(30)
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+
+    // Quick mode full demo should complete in under 10 seconds
+    assert_elapsed_under(&result, Duration::from_secs(10));
 }
