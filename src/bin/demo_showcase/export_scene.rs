@@ -59,7 +59,7 @@ impl Scene for ExportScene {
 }
 
 /// Render export format descriptions.
-fn render_export_formats(console: &Console) {
+fn render_export_formats(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Available Export Formats[/]");
     console.print("");
 
@@ -76,7 +76,8 @@ Generates a standalone HTML file with inline or external CSS.
     let html_panel = Panel::from_text(html_content)
         .title("[cyan]demo_showcase.html[/]")
         .box_style(&ROUNDED)
-        .border_style(Style::parse("cyan").unwrap_or_default());
+        .border_style(Style::parse("cyan").unwrap_or_default())
+        .safe_box(cfg.is_safe_box());
 
     console.print_renderable(&html_panel);
 
@@ -95,7 +96,8 @@ Generates a scalable vector graphic with embedded fonts.
     let svg_panel = Panel::from_text(svg_content)
         .title("[magenta]demo_showcase.svg[/]")
         .box_style(&ROUNDED)
-        .border_style(Style::parse("magenta").unwrap_or_default());
+        .border_style(Style::parse("magenta").unwrap_or_default())
+        .safe_box(cfg.is_safe_box());
 
     console.print_renderable(&svg_panel);
 }
@@ -148,7 +150,8 @@ The SVG can be embedded in documentation or presentations.[/]"#,
         let summary_panel = Panel::from_text(&summary)
             .title("[bold]Export Complete[/]")
             .box_style(&DOUBLE)
-            .border_style(Style::parse("green").unwrap_or_default());
+            .border_style(Style::parse("green").unwrap_or_default())
+            .safe_box(cfg.is_safe_box());
 
         console.print_renderable(&summary_panel);
     }

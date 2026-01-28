@@ -1450,3 +1450,125 @@ fn test_export_file_sizes_reasonable() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+// ============================================================================
+// Feature-gated scene tests (bd-61ky)
+//
+// These tests verify that feature-gated scenes show real content when the
+// feature is enabled (tested via --features showcase).
+// ============================================================================
+
+#[test]
+fn test_syntax_scene_shows_real_content_when_enabled() {
+    common::init_test_logging();
+
+    let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("syntax")
+        .non_interactive()
+        .no_color()
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+
+    // When syntax feature is enabled, should show real syntax highlighting content
+    assert_stdout_contains(&result, "Syntax: Code Highlighting");
+    assert_stdout_contains(&result, "Syntax renderable provides highlighting");
+
+    // Should show actual code examples
+    assert_stdout_contains(&result, "Deployment Config (TOML)");
+    assert_stdout_contains(&result, "[deployment]");
+
+    // Should NOT show the feature-disabled panel
+    assert!(
+        !result.stdout_contains("Feature Required"),
+        "Should not show 'Feature Required' panel when syntax feature is enabled"
+    );
+}
+
+#[test]
+fn test_markdown_scene_shows_real_content_when_enabled() {
+    common::init_test_logging();
+
+    let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("markdown")
+        .non_interactive()
+        .no_color()
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+
+    // When markdown feature is enabled, should show real content
+    assert_stdout_contains(&result, "Markdown: Documentation Rendering");
+    assert_stdout_contains(&result, "Markdown renderable converts CommonMark");
+
+    // Should show actual markdown examples
+    assert_stdout_contains(&result, "Release Notes");
+    assert_stdout_contains(&result, "Nebula API v2.4.1");
+
+    // Should NOT show the feature-disabled panel
+    assert!(
+        !result.stdout_contains("Feature Required"),
+        "Should not show 'Feature Required' panel when markdown feature is enabled"
+    );
+}
+
+#[test]
+fn test_json_scene_shows_real_content_when_enabled() {
+    common::init_test_logging();
+
+    let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("json")
+        .non_interactive()
+        .no_color()
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+
+    // When json feature is enabled, should show real content
+    assert_stdout_contains(&result, "JSON: API Payload Visualization");
+    assert_stdout_contains(&result, "Json renderable provides pretty-printed");
+
+    // Should show actual JSON examples
+    assert_stdout_contains(&result, "API Request");
+    assert_stdout_contains(&result, "nebula-api");
+
+    // Should NOT show the feature-disabled panel
+    assert!(
+        !result.stdout_contains("Feature Required"),
+        "Should not show 'Feature Required' panel when json feature is enabled"
+    );
+}
+
+#[test]
+fn test_tracing_scene_shows_real_content_when_enabled() {
+    common::init_test_logging();
+
+    let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("tracing")
+        .non_interactive()
+        .no_color()
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+
+    // When tracing feature is enabled, should show real content
+    assert_stdout_contains(&result, "Tracing");
+
+    // Should NOT show the feature-disabled panel
+    assert!(
+        !result.stdout_contains("Feature Required"),
+        "Should not show 'Feature Required' panel when tracing feature is enabled"
+    );
+}

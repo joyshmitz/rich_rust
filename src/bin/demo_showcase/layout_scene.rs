@@ -36,7 +36,7 @@ impl Scene for LayoutScene {
         "Layout tools: Columns, Align, and Padding for polished UI composition."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]Layout & Composition: Building Polished UIs[/]");
         console.print("");
         console.print("[dim]Combine Columns, Align, and Padding for professional layouts.[/]");
@@ -58,7 +58,7 @@ impl Scene for LayoutScene {
         console.print("");
 
         // Demo 4: Practical composition example
-        render_composition_demo(console);
+        render_composition_demo(console, cfg);
 
         Ok(())
     }
@@ -197,7 +197,7 @@ fn render_padding_demo(console: &Console) {
 }
 
 /// Render practical composition demonstration.
-fn render_composition_demo(console: &Console) {
+fn render_composition_demo(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Composition: Putting It Together[/]");
     console.print("");
 
@@ -209,7 +209,8 @@ fn render_composition_demo(console: &Console) {
          Latency: 12ms",
     )
     .title("[green]us-west-2[/]")
-    .width(28);
+    .width(28)
+    .safe_box(cfg.is_safe_box());
 
     let card2 = Panel::from_text(
         "[bold green]Production[/]\n\n\
@@ -218,7 +219,8 @@ fn render_composition_demo(console: &Console) {
          Latency: 45ms",
     )
     .title("[green]eu-west-1[/]")
-    .width(28);
+    .width(28)
+    .safe_box(cfg.is_safe_box());
 
     let card3 = Panel::from_text(
         "[bold yellow]Degraded[/]\n\n\
@@ -227,7 +229,8 @@ fn render_composition_demo(console: &Console) {
          Latency: 120ms",
     )
     .title("[yellow]ap-south-1[/]")
-    .width(28);
+    .width(28)
+    .safe_box(cfg.is_safe_box());
 
     // Print cards side by side (manual approach since panels can't go in Columns directly)
     console.print_renderable(&card1);

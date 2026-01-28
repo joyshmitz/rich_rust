@@ -34,7 +34,7 @@ impl Scene for EmojiLinksScene {
         "Emoji shortcodes and terminal hyperlinks for polished output."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]Emoji & Hyperlinks: Visual Polish[/]");
         console.print("");
         console.print("[dim]Make your terminal output expressive and interactive.[/]");
@@ -46,12 +46,12 @@ impl Scene for EmojiLinksScene {
         console.print("");
 
         // Demo 2: Hyperlinks
-        render_hyperlink_demo(console);
+        render_hyperlink_demo(console, cfg);
 
         console.print("");
 
         // Demo 3: Combined usage
-        render_combined_demo(console);
+        render_combined_demo(console, cfg);
 
         Ok(())
     }
@@ -100,7 +100,7 @@ fn render_emoji_demo(console: &Console) {
 }
 
 /// Render hyperlink demonstration.
-fn render_hyperlink_demo(console: &Console) {
+fn render_hyperlink_demo(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Terminal Hyperlinks (OSC8)[/]");
     console.print("");
 
@@ -142,7 +142,8 @@ fn render_hyperlink_demo(console: &Console) {
          text without the link - no broken escape codes.",
     )
     .title("[dim]Graceful Fallback[/]")
-    .width(50);
+    .width(50)
+    .safe_box(cfg.is_safe_box());
     console.print_renderable(&fallback_panel);
 
     console.print("");
@@ -150,7 +151,7 @@ fn render_hyperlink_demo(console: &Console) {
 }
 
 /// Render combined usage demonstration.
-fn render_combined_demo(console: &Console) {
+fn render_combined_demo(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Combining Emoji & Links[/]");
     console.print("");
 
@@ -164,7 +165,8 @@ fn render_combined_demo(console: &Console) {
          [dim]View release notes:[/] [cyan underline]github.com/releases/v2.5.0[/]",
     )
     .title(":bell: [bold]Notification[/]")
-    .width(55);
+    .width(55)
+    .safe_box(cfg.is_safe_box());
     console.print_renderable(&notification);
 
     console.print("");
