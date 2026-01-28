@@ -151,18 +151,13 @@ mod tests {
 
     #[test]
     fn test_group_add_strings() {
-        let g = Group::new()
-            .push("First")
-            .push("Second")
-            .push("Third");
+        let g = Group::new().push("First").push("Second").push("Third");
         assert_eq!(g.len(), 3);
     }
 
     #[test]
     fn test_group_render() {
-        let g = Group::new()
-            .push("Line 1")
-            .push("Line 2");
+        let g = Group::new().push("Line 1").push("Line 2");
 
         let console = Console::builder()
             .force_terminal(false)
@@ -180,10 +175,7 @@ mod tests {
 
     #[test]
     fn test_group_render_fit_mode() {
-        let g = Group::new()
-            .push("Part1")
-            .push("Part2")
-            .fit(true);
+        let g = Group::new().push("Part1").push("Part2").fit(true);
 
         let console = Console::builder()
             .force_terminal(false)

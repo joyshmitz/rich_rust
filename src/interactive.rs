@@ -593,9 +593,9 @@ impl Select {
 
     fn find_choice(&self, input: &str) -> Option<&Choice> {
         let input_lower = input.to_lowercase();
-        self.choices
-            .iter()
-            .find(|c| c.value.to_lowercase() == input_lower || c.display().to_lowercase() == input_lower)
+        self.choices.iter().find(|c| {
+            c.value.to_lowercase() == input_lower || c.display().to_lowercase() == input_lower
+        })
     }
 
     fn print_choices(&self, console: &Console) {
@@ -610,10 +610,7 @@ impl Select {
                 format!("  [cyan]{num}.[/] {display}")
             };
 
-            console.print_with_options(
-                &line,
-                &PrintOptions::new().with_markup(self.markup),
-            );
+            console.print_with_options(&line, &PrintOptions::new().with_markup(self.markup));
         }
     }
 
