@@ -763,6 +763,7 @@ pub struct Select {
     default: Option<String>,
     show_default: bool,
     markup: bool,
+    max_length: usize,
 }
 
 impl Select {
@@ -775,6 +776,7 @@ impl Select {
             default: None,
             show_default: true,
             markup: true,
+            max_length: DEFAULT_MAX_INPUT_LENGTH,
         }
     }
 
@@ -817,6 +819,16 @@ impl Select {
         self
     }
 
+    /// Set maximum input length in bytes.
+    ///
+    /// If input exceeds this limit, `ask()` returns `PromptError::InputTooLong`.
+    /// Defaults to [`DEFAULT_MAX_INPUT_LENGTH`] (64 KiB).
+    #[must_use]
+    pub const fn max_length(mut self, max_bytes: usize) -> Self {
+        self.max_length = max_bytes;
+        self
+    }
+
     /// Ask for selection using stdin.
     pub fn ask(&self, console: &Console) -> Result<String, PromptError> {
         let stdin = io::stdin();
@@ -838,17 +850,11 @@ impl Select {
             return self.default.clone().ok_or(PromptError::NotInteractive);
         }
 
-        let mut line = String::new();
         loop {
             self.print_choices(console);
             self.print_prompt(console);
 
-            line.clear();
-            let bytes = reader.read_line(&mut line)?;
-            if bytes == 0 {
-                return Err(PromptError::Eof);
-            }
-
+            let line = read_line_limited(reader, self.max_length)?;
             let input = trim_newline(&line).trim();
 
             // Empty input uses default
@@ -954,6 +960,7 @@ pub struct Confirm {
     label: String,
     default: Option<bool>,
     markup: bool,
+    max_length: usize,
 }
 
 impl Confirm {
@@ -964,6 +971,7 @@ impl Confirm {
             label: label.into(),
             default: None,
             markup: true,
+            max_length: DEFAULT_MAX_INPUT_LENGTH,
         }
     }
 
@@ -978,6 +986,16 @@ impl Confirm {
     #[must_use]
     pub const fn markup(mut self, markup: bool) -> Self {
         self.markup = markup;
+        self
+    }
+
+    /// Set maximum input length in bytes.
+    ///
+    /// If input exceeds this limit, `ask()` returns `PromptError::InputTooLong`.
+    /// Defaults to [`DEFAULT_MAX_INPUT_LENGTH`] (64 KiB).
+    #[must_use]
+    pub const fn max_length(mut self, max_bytes: usize) -> Self {
+        self.max_length = max_bytes;
         self
     }
 
@@ -998,16 +1016,10 @@ impl Confirm {
             return self.default.ok_or(PromptError::NotInteractive);
         }
 
-        let mut line = String::new();
         loop {
             self.print_prompt(console);
 
-            line.clear();
-            let bytes = reader.read_line(&mut line)?;
-            if bytes == 0 {
-                return Err(PromptError::Eof);
-            }
-
+            let line = read_line_limited(reader, self.max_length)?;
             let input = trim_newline(&line).trim().to_lowercase();
 
             if input.is_empty() {

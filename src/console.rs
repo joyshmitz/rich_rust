@@ -88,6 +88,7 @@ use std::time::SystemTime;
 
 use crate::color::ColorSystem;
 use crate::emoji;
+use crate::sync::lock_recover;
 use crate::live::LiveInner;
 use crate::markup;
 use crate::renderables::Renderable;
@@ -380,7 +381,7 @@ impl std::fmt::Debug for Console {
             .field("height", &self.height)
             .field("safe_box", &self.safe_box)
             .field("file", &"<dyn Write>")
-            .field("buffer_len", &self.buffer.lock().map_or(0, |b| b.len()))
+            .field("buffer_len", &lock_recover(&self.buffer).len())
             .field("is_terminal", &self.is_terminal)
             .field("detected_color_system", &self.detected_color_system)
             .finish_non_exhaustive()
@@ -490,28 +491,23 @@ impl Console {
 
     /// Like [`Self::get_style`], but returns an error if the style can't be parsed.
     pub fn try_get_style(&self, name: &str) -> Result<Style, StyleParseError> {
-        if let Ok(stack) = self.theme_stack.lock()
-            && let Some(style) = stack.get(name)
         {
-            return Ok(style.clone());
+            let stack = lock_recover(&self.theme_stack);
+            if let Some(style) = stack.get(name) {
+                return Ok(style.clone());
+            }
         }
         Style::parse(name)
     }
 
     /// Push a theme on to the theme stack.
     pub fn push_theme(&self, theme: Theme, inherit: bool) {
-        if let Ok(mut stack) = self.theme_stack.lock() {
-            stack.push_theme(theme, inherit);
-        }
+        lock_recover(&self.theme_stack).push_theme(theme, inherit);
     }
 
     /// Pop the current theme from the theme stack.
     pub fn pop_theme(&self) -> Result<(), ThemeStackError> {
-        let Ok(mut stack) = self.theme_stack.lock() else {
-            // Best-effort: most Console methods ignore poisoned locks.
-            return Ok(());
-        };
-        stack.pop_theme()
+        lock_recover(&self.theme_stack).pop_theme()
     }
 
     /// Use a theme for the duration of the returned guard.
@@ -566,42 +562,33 @@ impl Console {
     }
 
     pub(crate) fn push_render_hook(&self, hook: Arc<dyn RenderHook>) {
-        if let Ok(mut hooks) = self.render_hooks.lock() {
-            hooks.push(hook);
-        }
+        lock_recover(&self.render_hooks).push(hook);
     }
 
     pub(crate) fn pop_render_hook(&self) -> Option<Arc<dyn RenderHook>> {
-        self.render_hooks
-            .lock()
-            .ok()
-            .and_then(|mut hooks| hooks.pop())
+        lock_recover(&self.render_hooks).pop()
     }
 
     pub(crate) fn set_live(&self, live: &Arc<LiveInner>) -> bool {
-        if let Ok(mut stack) = self.live_stack.lock() {
-            stack.push(Arc::downgrade(live));
-            return stack.len() == 1;
-        }
-        true
+        let mut stack = lock_recover(&self.live_stack);
+        stack.push(Arc::downgrade(live));
+        stack.len() == 1
     }
 
     pub(crate) fn clear_live(&self) {
-        if let Ok(mut stack) = self.live_stack.lock()
-            && !stack.is_empty()
-        {
+        let mut stack = lock_recover(&self.live_stack);
+        if !stack.is_empty() {
             stack.pop();
         }
     }
 
     pub(crate) fn live_stack_snapshot(&self) -> Vec<Arc<LiveInner>> {
+        let mut stack = lock_recover(&self.live_stack);
+        stack.retain(|entry| entry.strong_count() > 0);
         let mut result = Vec::new();
-        if let Ok(mut stack) = self.live_stack.lock() {
-            stack.retain(|entry| entry.strong_count() > 0);
-            for entry in stack.iter() {
-                if let Some(live) = entry.upgrade() {
-                    result.push(live);
-                }
+        for entry in stack.iter() {
+            if let Some(live) = entry.upgrade() {
+                result.push(live);
             }
         }
         result
@@ -612,10 +599,7 @@ impl Console {
             return Ok(());
         }
         let segment = Segment::control(control_codes);
-        let mut file = self
-            .file
-            .lock()
-            .map_err(|_| io::Error::other("console output lock poisoned"))?;
+        let mut file = lock_recover(&self.file);
         self.write_segments_raw(&mut *file, &[segment])
     }
 
@@ -645,9 +629,7 @@ impl Console {
     /// until [`end_capture`](Self::end_capture) is called.
     pub fn begin_capture(&self) {
         self.record.store(true, Ordering::Relaxed);
-        if let Ok(mut buffer) = self.buffer.lock() {
-            buffer.clear();
-        }
+        lock_recover(&self.buffer).clear();
     }
 
     /// End recording and return captured segments.
@@ -656,10 +638,7 @@ impl Console {
     /// was called, and clears the internal buffer.
     pub fn end_capture(&self) -> Vec<Segment<'static>> {
         self.record.store(false, Ordering::Relaxed);
-        self.buffer
-            .lock()
-            .map(|mut buffer| std::mem::take(&mut *buffer))
-            .unwrap_or_default()
+        std::mem::take(&mut *lock_recover(&self.buffer))
     }
 
     /// Print styled text to the console.
@@ -678,9 +657,8 @@ impl Console {
 
     /// Print a prepared Text object.
     pub fn print_text(&self, text: &Text) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = self.print_text_to(&mut *file, text);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = self.print_text_to(&mut *file, text);
     }
 
     /// Print a prepared Text object to a specific writer.
@@ -696,9 +674,8 @@ impl Console {
 
     /// Print prepared segments.
     pub fn print_segments(&self, segments: &[Segment<'_>]) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = self.print_segments_to(&mut *file, segments);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = self.print_segments_to(&mut *file, segments);
     }
 
     /// Print prepared segments to a specific writer.
@@ -729,10 +706,9 @@ impl Console {
 
     /// Print with custom options.
     pub fn print_with_options(&self, content: &str, options: &PrintOptions) {
-        if let Ok(mut file) = self.file.lock() {
-            self.print_to(&mut *file, content, options)
-                .expect("failed to write to output stream");
-        }
+        let mut file = lock_recover(&self.file);
+        self.print_to(&mut *file, content, options)
+            .expect("failed to write to output stream");
     }
 
     /// Export rendered text (no ANSI) using default print options.
@@ -899,9 +875,7 @@ impl Console {
     }
 
     fn recorded_segments(&self, clear: bool) -> Vec<Segment<'static>> {
-        let Ok(mut buffer) = self.buffer.lock() else {
-            return Vec::new();
-        };
+        let mut buffer = lock_recover(&self.buffer);
         let segments = buffer.clone();
         if clear {
             buffer.clear();
