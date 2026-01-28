@@ -20,6 +20,19 @@ const DEFAULT_KEYWORDS: [&str; 8] = [
 ];
 
 /// Rich-style logger for the `log` crate.
+///
+/// Provides beautifully formatted log output with timestamps, syntax highlighting,
+/// and optional file path links. Integrates with the standard `log` crate.
+///
+/// # Thread Safety
+///
+/// `RichLogger` implements `Log`, which requires `Sync`. All internal state is
+/// protected by mutexes with poison recovery. Multiple threads can log
+/// concurrently; output ordering follows the underlying Console's behavior.
+///
+/// The `omit_repeated_times` feature uses internal state to track the last
+/// printed timestamp, which is thread-safe but may show occasional duplicate
+/// timestamps under heavy concurrent logging.
 pub struct RichLogger {
     console: Arc<Console>,
     level: LevelFilter,

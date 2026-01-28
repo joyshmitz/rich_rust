@@ -8,6 +8,8 @@
 use std::sync::Arc;
 
 use rich_rust::console::Console;
+use rich_rust::emoji;
+use rich_rust::markup;
 use rich_rust::renderables::emoji::Emoji;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::style::Style;
@@ -156,17 +158,25 @@ fn render_combined_demo(console: &Console, cfg: &Config) {
     console.print("");
 
     // Create a styled notification panel
-    let notification = Panel::from_text(
-        ":sparkles: [bold]New Release Available![/] :sparkles:\n\n\
+    // Pre-process content: replace emoji shortcodes, then parse markup
+    let content = ":sparkles: [bold]New Release Available![/] :sparkles:\n\n\
          Version 2.5.0 includes:\n\
          :white_check_mark: Improved table rendering\n\
          :white_check_mark: New panel styles\n\
          :white_check_mark: Better Unicode support\n\n\
-         [dim]View release notes:[/] [cyan underline]github.com/releases/v2.5.0[/]",
-    )
-    .title(":bell: [bold]Notification[/]")
-    .width(55)
-    .safe_box(cfg.is_safe_box());
+         [dim]View release notes:[/] [cyan underline]github.com/releases/v2.5.0[/]";
+    let content_with_emoji = emoji::replace(content, None);
+    let styled_content = markup::render_or_plain(&content_with_emoji);
+
+    // Process title the same way
+    let title = ":bell: [bold]Notification[/]";
+    let title_with_emoji = emoji::replace(title, None);
+    let styled_title = markup::render_or_plain(&title_with_emoji);
+
+    let notification = Panel::from_rich_text(&styled_content, 50)
+        .title(styled_title)
+        .width(55)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&notification);
 
     console.print("");

@@ -6,6 +6,7 @@
 use crate::r#box::{ASCII, BoxChars, ROUNDED, SQUARE};
 use crate::cells;
 use crate::console::{Console, ConsoleOptions};
+use crate::markup;
 use crate::renderables::Renderable;
 use crate::segment::{Segment, adjust_line_length};
 use crate::style::Style;
@@ -209,6 +210,24 @@ impl<'a> Panel<'a> {
         self
     }
 
+    /// Set the title from a markup string.
+    ///
+    /// This parses Rich markup tags like `[bold cyan]Title[/]` into styled text.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rich_rust::renderables::Panel;
+    ///
+    /// let panel = Panel::from_text("Content")
+    ///     .title_from_markup("[bold cyan]Styled Title[/]");
+    /// ```
+    #[must_use]
+    pub fn title_from_markup(mut self, title: &str) -> Self {
+        self.title = Some(markup::render_or_plain(title));
+        self
+    }
+
     /// Set the subtitle.
     ///
     /// Passing a `&str` uses `Text::new()` and does **NOT** parse markup.
@@ -224,6 +243,24 @@ impl<'a> Panel<'a> {
     #[must_use]
     pub fn subtitle_align(mut self, align: JustifyMethod) -> Self {
         self.subtitle_align = align;
+        self
+    }
+
+    /// Set the subtitle from a markup string.
+    ///
+    /// This parses Rich markup tags like `[dim]Subtitle[/]` into styled text.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rich_rust::renderables::Panel;
+    ///
+    /// let panel = Panel::from_text("Content")
+    ///     .subtitle_from_markup("[dim italic]Footer text[/]");
+    /// ```
+    #[must_use]
+    pub fn subtitle_from_markup(mut self, subtitle: &str) -> Self {
+        self.subtitle = Some(markup::render_or_plain(subtitle));
         self
     }
 
@@ -796,5 +833,59 @@ mod tests {
             .as_ref()
             .expect("expected styled segment");
         assert!(style.attributes.contains(Attributes::ITALIC));
+    }
+
+    #[test]
+    fn test_panel_title_from_markup() {
+        let panel = Panel::from_text("Content")
+            .title_from_markup("[bold]Styled Title[/]")
+            .width(30);
+        let segments = panel.render(30);
+
+        // Find the title segment and verify it has bold style
+        let title_segment = segments
+            .iter()
+            .find(|seg| seg.text.contains("Styled Title"))
+            .expect("expected title segment with styled text");
+        let style = title_segment
+            .style
+            .as_ref()
+            .expect("expected styled segment");
+        assert!(
+            style.attributes.contains(Attributes::BOLD),
+            "title should be bold"
+        );
+    }
+
+    #[test]
+    fn test_panel_subtitle_from_markup() {
+        let panel = Panel::from_text("Content")
+            .subtitle_from_markup("[italic]Footer[/]")
+            .width(30);
+        let segments = panel.render(30);
+
+        // Find the subtitle segment and verify it has italic style
+        let footer_segment = segments
+            .iter()
+            .find(|seg| seg.text.contains("Footer"))
+            .expect("expected subtitle segment with styled text");
+        let style = footer_segment
+            .style
+            .as_ref()
+            .expect("expected styled segment");
+        assert!(
+            style.attributes.contains(Attributes::ITALIC),
+            "subtitle should be italic"
+        );
+    }
+
+    #[test]
+    fn test_panel_title_from_markup_no_markup() {
+        // When there's no markup, text should still render correctly
+        let panel = Panel::from_text("Content")
+            .title_from_markup("Plain Title")
+            .width(30);
+        let text = panel.render_plain(30);
+        assert!(text.contains("Plain Title"));
     }
 }
