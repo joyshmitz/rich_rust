@@ -12,6 +12,8 @@ mod log_pane;
 mod scenes;
 #[path = "demo_showcase/state.rs"]
 mod state;
+#[path = "demo_showcase/table_scene.rs"]
+mod table_scene;
 #[path = "demo_showcase/theme.rs"]
 mod theme;
 #[path = "demo_showcase/timing.rs"]

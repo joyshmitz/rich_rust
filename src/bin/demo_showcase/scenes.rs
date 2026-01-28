@@ -14,6 +14,7 @@ use rich_rust::console::Console;
 use crate::Config;
 use crate::debug_tools::DebugToolsScene;
 use crate::hero::HeroScene;
+use crate::table_scene::TableScene;
 use crate::traceback_scene::TracebackScene;
 
 /// Error type for scene execution.
@@ -202,6 +203,7 @@ pub fn build_registry() -> SceneRegistry {
         "deep_dive_json",
         "API payload view (feature: json).",
     ));
+    registry.register(TableScene::new());
     registry.register(DebugToolsScene::new());
     registry.register(TracebackScene::new());
     registry.register(PlaceholderScene::new("export", "Export HTML/SVG bundle."));
@@ -272,6 +274,7 @@ mod tests {
             "deep_dive_markdown",
             "deep_dive_syntax",
             "deep_dive_json",
+            "table",
             "debug_tools",
             "traceback",
             "export",
