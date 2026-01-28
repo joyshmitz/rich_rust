@@ -129,8 +129,13 @@ For more details, see the [migration guide](https://docs.nebula.io/migrate).
 }
 
 /// Render a runbook excerpt.
+///
+/// When interactive mode is allowed and the console is a TTY, this uses
+/// the Pager for the runbook content (best UX for long documentation).
+/// Otherwise, it renders inline.
 #[cfg(feature = "markdown")]
-fn render_runbook(console: &Console) {
+fn render_runbook(console: &Arc<Console>, cfg: &Config) {
+    use crate::pager::{page_content, PagerConfig};
     use rich_rust::renderables::markdown::Markdown;
     use rich_rust::segment::Segment;
 
@@ -185,7 +190,22 @@ Expected response:
     let segments = md.render(76);
     let mut output = segments;
     output.push(Segment::plain("\n"));
-    console.print_segments(&output);
+
+    // Use pager for runbook when interactive (best UX for long docs)
+    // Falls back gracefully when pager unavailable or non-interactive
+    if cfg.is_interactive_allowed() && console.is_terminal() {
+        let mut buffer = Vec::new();
+        if console.print_segments_to(&mut buffer, &output).is_ok() {
+            let rendered = String::from_utf8_lossy(&buffer);
+            let pager_cfg = PagerConfig {
+                interactive_allowed: cfg.is_interactive_allowed(),
+                force_pager: false,
+            };
+            let _ = page_content(&rendered, console, &pager_cfg);
+        }
+    } else {
+        console.print_segments(&output);
+    }
 }
 
 /// Show notice when markdown feature is disabled.

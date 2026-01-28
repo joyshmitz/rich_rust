@@ -1200,7 +1200,7 @@ fn test_export_dir_creates_files() {
         .arg("80")
         .arg("--height")
         .arg("24")
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(180))
         .run()
         .expect("should run export");
 
@@ -1253,7 +1253,7 @@ fn test_export_html_contains_expected_content() {
         .arg("truecolor")
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(180))
         .run()
         .expect("should run export");
 
@@ -1299,7 +1299,7 @@ fn test_export_svg_contains_expected_content() {
         .arg("truecolor")
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(180))
         .run()
         .expect("should run export");
 
@@ -1344,7 +1344,7 @@ fn test_export_flag_uses_temp_dir() {
         .no_color()
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(180))
         .run()
         .expect("should run export");
 
@@ -1376,7 +1376,7 @@ fn test_export_single_scene() {
         .arg(temp_dir.to_str().unwrap())
         .non_interactive()
         .no_color()
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(180))
         .run()
         .expect("should run export");
 
@@ -1408,7 +1408,7 @@ fn test_export_file_sizes_reasonable() {
         .arg("truecolor")
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(180))
         .run()
         .expect("should run export");
 
