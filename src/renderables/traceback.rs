@@ -370,15 +370,15 @@ impl Renderable for Traceback {
                                 None
                             };
 
+                            // Style for the indicator: bold red for error line, dim otherwise
+                            let indicator_style = if is_error_line {
+                                exception_type_style.clone() // reuse bold red
+                            } else {
+                                dim_style.clone()
+                            };
+
                             content_lines.push(vec![
-                                Segment::new(
-                                    indicator.to_string(),
-                                    if is_error_line {
-                                        Some(Style::parse("bold red").unwrap_or_default())
-                                    } else {
-                                        dim_style.clone()
-                                    },
-                                ),
+                                Segment::new(indicator.to_string(), indicator_style),
                                 Segment::new(" ", None),
                                 Segment::new(
                                     format!("{line_no:<line_number_width$}"),

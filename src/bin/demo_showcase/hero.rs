@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use rich_rust::cells::cell_len;
 use rich_rust::console::Console;
 use rich_rust::interactive::Status;
 use rich_rust::renderables::panel::Panel;
@@ -88,7 +89,8 @@ fn render_brand_title(console: &Console) {
     if width < 50 {
         // Narrow layout: simple centered text using a panel
         let title_text = "✦ NEBULA DEPLOY ✦";
-        let box_width = title_text.chars().count() + 4; // │ + space + title + space + │
+        let title_visible_width = cell_len(title_text);
+        let box_width = title_visible_width + 4; // │ + space + title + space + │
         let inner_width = box_width - 2;
 
         let top = format!("┌{}┐", "─".repeat(inner_width));
@@ -105,17 +107,18 @@ fn render_brand_title(console: &Console) {
         console.print("");
 
         let subtitle = "Beautiful terminal output";
-        let pad_sub = center_padding(subtitle.len(), width);
+        let pad_sub = center_padding(cell_len(subtitle), width);
         console.print(&format!("{pad_sub}[brand.subtitle]{subtitle}[/]"));
 
         let powered = "powered by rich_rust";
-        let pad_pow = center_padding(powered.len(), width);
+        let pad_pow = center_padding(cell_len(powered), width);
         console.print(&format!("{pad_pow}[brand.muted]{powered}[/]"));
     } else {
         // Full-width layout with spaced letters - use box width based on content
         let title_text = "✦  N E B U L A   D E P L O Y  ✦";
+        let title_visible_width = cell_len(title_text);
         let inner_padding = 4; // padding on each side inside the box
-        let box_width = title_text.chars().count() + (inner_padding * 2) + 2; // content + padding + borders
+        let box_width = title_visible_width + (inner_padding * 2) + 2; // content + padding + borders
         let inner_width = box_width - 2;
 
         let top = format!("╭{}╮", "─".repeat(inner_width));
@@ -138,11 +141,11 @@ fn render_brand_title(console: &Console) {
         console.print("");
 
         let subtitle = "Beautiful terminal output for Rust";
-        let pad_sub = center_padding(subtitle.len(), width);
+        let pad_sub = center_padding(cell_len(subtitle), width);
         console.print(&format!("{pad_sub}[brand.subtitle]{subtitle}[/]"));
 
         let powered = "powered by rich_rust";
-        let pad_pow = center_padding(powered.len(), width);
+        let pad_pow = center_padding(cell_len(powered), width);
         console.print(&format!("{pad_pow}[brand.muted]{powered}[/]"));
     }
 }
