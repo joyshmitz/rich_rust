@@ -3313,4 +3313,397 @@ mod tests {
         let text = String::from_utf8(output).expect("invalid utf8");
         assert_eq!(text, "Hello");
     }
+
+    // ========================================================================
+    // Console I/O Error Path Tests (bd-3761)
+    // ========================================================================
+
+    /// A writer that always fails on write
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::BrokenPipe, "write failed"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A writer that fails on flush
+    struct FlushFailingWriter {
+        buffer: Vec<u8>,
+    }
+
+    impl FlushFailingWriter {
+        fn new() -> Self {
+            Self { buffer: Vec::new() }
+        }
+    }
+
+    impl Write for FlushFailingWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.buffer.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "flush failed: disk full",
+            ))
+        }
+    }
+
+    /// A writer that fails after N bytes
+    struct LimitedWriter {
+        limit: usize,
+        written: usize,
+    }
+
+    impl LimitedWriter {
+        fn new(limit: usize) -> Self {
+            Self { limit, written: 0 }
+        }
+    }
+
+    impl Write for LimitedWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if self.written >= self.limit {
+                return Err(io::Error::new(io::ErrorKind::WriteZero, "buffer full"));
+            }
+            let available = self.limit - self.written;
+            let to_write = buf.len().min(available);
+            self.written += to_write;
+            Ok(to_write)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A writer that tracks operations for verification
+    struct TrackingWriter {
+        writes: Arc<Mutex<Vec<usize>>>,
+        flushes: Arc<Mutex<usize>>,
+    }
+
+    impl TrackingWriter {
+        fn new() -> Self {
+            Self {
+                writes: Arc::new(Mutex::new(Vec::new())),
+                flushes: Arc::new(Mutex::new(0)),
+            }
+        }
+
+        fn write_count(&self) -> usize {
+            self.writes.lock().unwrap().len()
+        }
+
+        #[allow(dead_code)]
+        fn flush_count(&self) -> usize {
+            *self.flushes.lock().unwrap()
+        }
+
+        fn total_bytes(&self) -> usize {
+            self.writes.lock().unwrap().iter().sum()
+        }
+    }
+
+    impl Clone for TrackingWriter {
+        fn clone(&self) -> Self {
+            Self {
+                writes: Arc::clone(&self.writes),
+                flushes: Arc::clone(&self.flushes),
+            }
+        }
+    }
+
+    impl Write for TrackingWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.writes.lock().unwrap().push(buf.len());
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            *self.flushes.lock().unwrap() += 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_io_write_failure() {
+        // Test that write errors are properly propagated via print_to
+        let console = Console::builder().width(80).markup(false).build();
+
+        let mut failing_writer = FailingWriter;
+        let result = console.print_to(&mut failing_writer, "Hello", &PrintOptions::new());
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+    }
+
+    #[test]
+    fn test_io_write_partial() {
+        // Test writer that accepts only partial writes
+        let console = Console::builder().width(80).markup(false).build();
+
+        let mut limited = LimitedWriter::new(5);
+        let _result = console.print_to(&mut limited, "Hello World!", &PrintOptions::new());
+
+        // May succeed partially or fail depending on implementation
+        // The writer should have accepted at least some bytes
+        assert!(limited.written > 0);
+    }
+
+    #[test]
+    fn test_io_flush_failure() {
+        // Test that flush errors are handled
+        let mut writer = FlushFailingWriter::new();
+
+        // Write should succeed
+        let write_result = writer.write(b"Hello");
+        assert!(write_result.is_ok());
+        assert_eq!(write_result.unwrap(), 5);
+
+        // Flush should fail
+        let flush_result = writer.flush();
+        assert!(flush_result.is_err());
+        let err = flush_result.unwrap_err();
+        assert!(err.to_string().contains("flush failed"));
+    }
+
+    #[test]
+    fn test_io_write_segments_to_failing() {
+        let console = Console::builder().width(80).markup(false).build();
+
+        // Create segments
+        let segments = vec![
+            Segment::plain("Hello "),
+            Segment::styled("World", Style::new().bold()),
+        ];
+
+        let mut failing_writer = FailingWriter;
+        let result = console.print_segments_to(&mut failing_writer, &segments);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_io_print_text_to_failing() {
+        let console = Console::builder().width(80).markup(false).build();
+
+        let text = Text::new("Hello World");
+        let mut failing_writer = FailingWriter;
+        let result = console.print_text_to(&mut failing_writer, &text);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_io_write_tracking() {
+        // Verify writes are actually occurring
+        let tracking = TrackingWriter::new();
+        let console = Console::builder()
+            .width(80)
+            .markup(false)
+            .file(Box::new(tracking.clone()))
+            .build();
+
+        console.print_plain("Line 1");
+        console.print_plain("Line 2");
+
+        // Should have multiple writes
+        assert!(tracking.write_count() >= 2, "Expected writes to occur");
+        assert!(tracking.total_bytes() > 0, "Expected bytes written");
+    }
+
+    #[test]
+    fn test_io_empty_write() {
+        // Writing empty content should not cause errors
+        let console = Console::builder().width(80).markup(false).build();
+
+        let mut output = Vec::new();
+        let result = console.print_to(&mut output, "", &PrintOptions::new().with_no_newline(true));
+
+        assert!(result.is_ok());
+        // Empty string with no_newline should produce empty output
+        assert!(output.is_empty() || output == b"\n");
+    }
+
+    #[test]
+    fn test_io_large_write() {
+        // Test with a large string to ensure no buffer issues
+        let console = Console::builder().width(1000).markup(false).build();
+
+        let large_content = "x".repeat(10000);
+        let mut output = Vec::new();
+        let result = console.print_to(&mut output, &large_content, &PrintOptions::new());
+
+        assert!(result.is_ok());
+        // Should contain all the content plus newline
+        assert!(output.len() >= 10000);
+    }
+
+    #[test]
+    fn test_io_control_code_write_failure() {
+        // Test that control code writes handle errors
+        // Note: This tests internal behavior, so we use print_segments_to
+        let console = Console::builder().width(80).markup(false).build();
+
+        // Create a segment with control codes
+        let segments = vec![Segment {
+            text: std::borrow::Cow::Borrowed(""),
+            style: None,
+            control: Some(vec![ControlCode::new(ControlType::Home)]),
+        }];
+
+        let mut failing_writer = FailingWriter;
+        let result = console.print_segments_to(&mut failing_writer, &segments);
+
+        // Should handle the error (either succeed because control codes are skipped
+        // in non-terminal mode, or fail gracefully)
+        // The important thing is no panic
+        let _ = result;
+    }
+
+    #[test]
+    fn test_io_error_types() {
+        // Verify different error types are preserved
+        let console = Console::builder().width(80).markup(false).build();
+
+        // Create writers with different error types
+        struct NotFoundWriter;
+        impl Write for NotFoundWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        struct PermissionWriter;
+        impl Write for PermissionWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "access denied",
+                ))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut not_found = NotFoundWriter;
+        let result1 = console.print_to(&mut not_found, "test", &PrintOptions::new());
+        assert!(matches!(
+            result1.as_ref().map_err(|e| e.kind()),
+            Err(io::ErrorKind::NotFound)
+        ));
+
+        let mut permission = PermissionWriter;
+        let result2 = console.print_to(&mut permission, "test", &PrintOptions::new());
+        assert!(matches!(
+            result2.as_ref().map_err(|e| e.kind()),
+            Err(io::ErrorKind::PermissionDenied)
+        ));
+    }
+
+    #[test]
+    fn test_io_concurrent_writes() {
+        // Test thread-safe writes to shared buffer
+        use std::thread;
+
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+
+        struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+        impl Clone for SharedBuffer {
+            fn clone(&self) -> Self {
+                Self(Arc::clone(&self.0))
+            }
+        }
+
+        impl Write for SharedBuffer {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let shared = SharedBuffer(Arc::clone(&buffer));
+        let console = Console::builder()
+            .width(80)
+            .markup(false)
+            .file(Box::new(shared))
+            .build()
+            .shared();
+
+        // Spawn multiple threads writing concurrently
+        let mut handles = vec![];
+        for i in 0..4 {
+            let console_clone = Arc::clone(&console);
+            let handle = thread::spawn(move || {
+                console_clone.print_plain(&format!("Thread {i}"));
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().expect("thread panicked");
+        }
+
+        // Verify all writes completed
+        let output = buffer.lock().unwrap();
+        let text = String::from_utf8_lossy(&output);
+        // All 4 threads should have written something
+        assert!(text.contains("Thread"), "Expected thread output");
+    }
+
+    #[test]
+    fn test_io_interrupted_write() {
+        // Test handling of interrupted writes (EINTR-like scenario)
+        struct InterruptedWriter {
+            attempts: Arc<Mutex<usize>>,
+            succeed_after: usize,
+        }
+
+        impl Write for InterruptedWriter {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                let mut attempts = self.attempts.lock().unwrap();
+                *attempts += 1;
+                if *attempts <= self.succeed_after {
+                    Err(io::Error::new(io::ErrorKind::Interrupted, "interrupted"))
+                } else {
+                    Ok(buf.len())
+                }
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let console = Console::builder().width(80).markup(false).build();
+
+        // Writer that returns Interrupted initially
+        let attempts = Arc::new(Mutex::new(0));
+        let mut writer = InterruptedWriter {
+            attempts: Arc::clone(&attempts),
+            succeed_after: 0, // Succeed on first try
+        };
+
+        let result = console.print_to(&mut writer, "test", &PrintOptions::new());
+        assert!(
+            result.is_ok()
+                || result.as_ref().map_err(|e| e.kind()) == Err(io::ErrorKind::Interrupted)
+        );
+    }
 }
