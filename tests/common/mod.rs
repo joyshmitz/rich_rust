@@ -35,6 +35,8 @@ pub mod assertions;
 pub mod e2e_harness;
 pub mod fake_terminal;
 pub mod fixtures;
+pub mod platform;
+pub mod validation;
 
 use std::sync::Once;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
