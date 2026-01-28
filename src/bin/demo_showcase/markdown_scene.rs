@@ -52,8 +52,7 @@ impl Scene for MarkdownScene {
 
         #[cfg(not(feature = "markdown"))]
         {
-            let _ = cfg;
-            run_markdown_disabled_notice(console);
+            run_markdown_disabled_notice(console, cfg);
         }
 
         Ok(())
@@ -212,7 +211,7 @@ Expected response:
 
 /// Show notice when markdown feature is disabled.
 #[cfg(not(feature = "markdown"))]
-fn run_markdown_disabled_notice(console: &Arc<Console>) {
+fn run_markdown_disabled_notice(console: &Arc<Console>, cfg: &Config) {
     let content = render_or_plain(
         "[bold]Markdown feature not enabled[/]\n\n\
          The Markdown renderable requires the [cyan]markdown[/] feature.\n\n\
@@ -228,7 +227,8 @@ fn run_markdown_disabled_notice(console: &Arc<Console>) {
         .title(title)
         .border_style(Style::parse("yellow").unwrap_or_default())
         .padding((1, 2))
-        .width(60);
+        .width(60)
+        .safe_box(cfg.is_safe_box());
 
     console.print_renderable(&notice);
 

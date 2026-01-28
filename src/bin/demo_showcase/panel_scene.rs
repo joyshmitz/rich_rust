@@ -36,38 +36,39 @@ impl Scene for PanelScene {
         "Panel showcase: box styles, titles, padding, and nesting."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]Panels: Bordered Content Containers[/]");
         console.print("");
         console.print("[dim]Panels wrap content with decorative borders and titles.[/]");
         console.print("");
 
         // Demo 1: Box style showcase
-        render_box_styles(console);
+        render_box_styles(console, cfg);
 
         console.print("");
 
         // Demo 2: Titles and subtitles
-        render_titled_panels(console);
+        render_titled_panels(console, cfg);
 
         console.print("");
 
         // Demo 3: Practical usage examples
-        render_practical_panels(console);
+        render_practical_panels(console, cfg);
 
         Ok(())
     }
 }
 
 /// Render different box styles side by side.
-fn render_box_styles(console: &Console) {
+fn render_box_styles(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Box Styles[/]");
     console.print("");
 
     // Rounded (default)
     let rounded = Panel::from_text("Rounded corners - the default style")
         .title("Rounded")
-        .width(40);
+        .width(40)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&rounded);
     console.print("");
 
@@ -75,7 +76,8 @@ fn render_box_styles(console: &Console) {
     let square = Panel::from_text("Sharp corners for a technical look")
         .title("Square")
         .square()
-        .width(40);
+        .width(40)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&square);
     console.print("");
 
@@ -83,7 +85,8 @@ fn render_box_styles(console: &Console) {
     let heavy = Panel::from_text("Bold borders for emphasis")
         .title("Heavy")
         .box_style(&HEAVY)
-        .width(40);
+        .width(40)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&heavy);
     console.print("");
 
@@ -91,7 +94,8 @@ fn render_box_styles(console: &Console) {
     let double = Panel::from_text("Classic double-line borders")
         .title("Double")
         .box_style(&DOUBLE)
-        .width(40);
+        .width(40)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&double);
     console.print("");
 
@@ -107,14 +111,15 @@ fn render_box_styles(console: &Console) {
 }
 
 /// Render panels with titles and subtitles.
-fn render_titled_panels(console: &Console) {
+fn render_titled_panels(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Titles and Subtitles[/]");
     console.print("");
 
     // Title only
     let titled = Panel::from_text("A panel with just a title")
         .title("Simple Title")
-        .width(50);
+        .width(50)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&titled);
     console.print("");
 
@@ -123,7 +128,8 @@ fn render_titled_panels(console: &Console) {
         Panel::from_text("Subtitles appear at the bottom\nand can provide additional context")
             .title("Main Title")
             .subtitle("Subtitle goes here")
-            .width(50);
+            .width(50)
+            .safe_box(cfg.is_safe_box());
     console.print_renderable(&with_subtitle);
     console.print("");
 
@@ -134,7 +140,8 @@ fn render_titled_panels(console: &Console) {
         .subtitle("[dim]Right-aligned subtitle[/]")
         .subtitle_align(JustifyMethod::Right)
         .border_style(Style::parse("cyan").unwrap_or_default())
-        .width(50);
+        .width(50)
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&styled);
 
     console.print("");
@@ -144,7 +151,7 @@ fn render_titled_panels(console: &Console) {
 }
 
 /// Render practical panel usage examples.
-fn render_practical_panels(console: &Console) {
+fn render_practical_panels(console: &Console, cfg: &Config) {
     console.print("[brand.accent]Practical Examples[/]");
     console.print("");
 
@@ -158,7 +165,8 @@ fn render_practical_panels(console: &Console) {
     .title("[green]Status[/]")
     .border_style(Style::parse("green").unwrap_or_default())
     .padding((1, 2))
-    .width(40);
+    .width(40)
+    .safe_box(cfg.is_safe_box());
     console.print_renderable(&status);
     console.print("");
 
@@ -172,7 +180,8 @@ fn render_practical_panels(console: &Console) {
     .border_style(Style::parse("yellow").unwrap_or_default())
     .box_style(&HEAVY)
     .padding((1, 2))
-    .width(40);
+    .width(40)
+    .safe_box(cfg.is_safe_box());
     console.print_renderable(&warning);
     console.print("");
 
@@ -184,7 +193,8 @@ fn render_practical_panels(console: &Console) {
     .title("[bold blue]Tip[/]")
     .box_style(&MINIMAL)
     .border_style(Style::parse("blue dim").unwrap_or_default())
-    .width(45);
+    .width(45)
+    .safe_box(cfg.is_safe_box());
     console.print_renderable(&tip);
     console.print("");
 
@@ -197,7 +207,8 @@ fn render_practical_panels(console: &Console) {
     .box_style(&SIMPLE)
     .border_style(Style::parse("dim").unwrap_or_default())
     .padding((0, 1))
-    .width(45);
+    .width(45)
+    .safe_box(cfg.is_safe_box());
     console.print_renderable(&quote);
 
     console.print("");

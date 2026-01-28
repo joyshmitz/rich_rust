@@ -388,6 +388,13 @@ impl Config {
         self.interactive.unwrap_or(true)
     }
 
+    /// Check if ASCII-safe box characters should be used.
+    ///
+    /// Returns `true` if `--safe-box` was specified, `false` otherwise.
+    fn is_safe_box(&self) -> bool {
+        self.safe_box.unwrap_or(false)
+    }
+
     /// Get the export directory, creating a temp dir if needed.
     fn export_dir(&self) -> Option<PathBuf> {
         match &self.export {

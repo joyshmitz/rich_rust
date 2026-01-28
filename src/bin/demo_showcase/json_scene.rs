@@ -37,18 +37,19 @@ impl Scene for JsonScene {
         "JSON deep-dive: pretty-printing, theming, and API payloads."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]JSON: API Payload Visualization[/]");
         console.print("");
 
         #[cfg(feature = "json")]
         {
+            let _ = cfg;
             run_json_demo(console);
         }
 
         #[cfg(not(feature = "json"))]
         {
-            run_json_disabled_notice(console);
+            run_json_disabled_notice(console, cfg);
         }
 
         Ok(())
@@ -204,7 +205,7 @@ fn render_theme_demo(console: &Console) {
 
 /// Show notice when json feature is disabled.
 #[cfg(not(feature = "json"))]
-fn run_json_disabled_notice(console: &Arc<Console>) {
+fn run_json_disabled_notice(console: &Arc<Console>, cfg: &Config) {
     let content = render_or_plain(
         "[bold]JSON feature not enabled[/]\n\n\
          The JSON renderable requires the [cyan]json[/] feature.\n\n\
@@ -220,7 +221,8 @@ fn run_json_disabled_notice(console: &Arc<Console>) {
         .title(title)
         .border_style(Style::parse("yellow").unwrap_or_default())
         .padding((1, 2))
-        .width(60);
+        .width(60)
+        .safe_box(cfg.is_safe_box());
 
     console.print_renderable(&notice);
 

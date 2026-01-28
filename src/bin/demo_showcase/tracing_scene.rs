@@ -32,18 +32,19 @@ impl Scene for TracingScene {
         "Tracing integration: spans, events, and structured logging."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]Tracing: Structured Observability[/]");
         console.print("");
 
         #[cfg(feature = "tracing")]
         {
+            let _ = cfg;
             run_tracing_demo(console);
         }
 
         #[cfg(not(feature = "tracing"))]
         {
-            run_tracing_disabled_notice(console);
+            run_tracing_disabled_notice(console, cfg);
         }
 
         Ok(())
@@ -103,7 +104,7 @@ fn run_tracing_demo(console: &Arc<Console>) {
 
 /// Show notice when tracing feature is disabled.
 #[cfg(not(feature = "tracing"))]
-fn run_tracing_disabled_notice(console: &Arc<Console>) {
+fn run_tracing_disabled_notice(console: &Arc<Console>, cfg: &Config) {
     use rich_rust::renderables::panel::Panel;
     use rich_rust::style::Style;
 
@@ -118,7 +119,8 @@ fn run_tracing_disabled_notice(console: &Arc<Console>) {
     .title("[yellow]Feature Required[/]")
     .border_style(Style::parse("yellow").unwrap_or_default())
     .padding((1, 2))
-    .width(60);
+    .width(60)
+    .safe_box(cfg.is_safe_box());
 
     console.print_renderable(&notice);
 

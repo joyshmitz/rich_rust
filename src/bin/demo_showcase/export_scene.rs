@@ -39,7 +39,7 @@ impl Scene for ExportScene {
         console.print("");
 
         // Show export formats
-        render_export_formats(console);
+        render_export_formats(console, cfg);
 
         console.print("");
 

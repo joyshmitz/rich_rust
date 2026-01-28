@@ -38,18 +38,19 @@ impl Scene for SyntaxScene {
         "Syntax deep-dive: code highlighting, line numbers, and themes."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]Syntax: Code Highlighting[/]");
         console.print("");
 
         #[cfg(feature = "syntax")]
         {
+            let _ = cfg;
             run_syntax_demo(console);
         }
 
         #[cfg(not(feature = "syntax"))]
         {
-            run_syntax_disabled_notice(console);
+            run_syntax_disabled_notice(console, cfg);
         }
 
         Ok(())
@@ -265,7 +266,7 @@ fn render_theme_comparison(console: &Console) {
 
 /// Show notice when syntax feature is disabled.
 #[cfg(not(feature = "syntax"))]
-fn run_syntax_disabled_notice(console: &Arc<Console>) {
+fn run_syntax_disabled_notice(console: &Arc<Console>, cfg: &Config) {
     let content = render_or_plain(
         "[bold]Syntax feature not enabled[/]\n\n\
          The Syntax renderable requires the [cyan]syntax[/] feature.\n\n\
@@ -281,7 +282,8 @@ fn run_syntax_disabled_notice(console: &Arc<Console>) {
         .title(title)
         .border_style(Style::parse("yellow").unwrap_or_default())
         .padding((1, 2))
-        .width(60);
+        .width(60)
+        .safe_box(cfg.is_safe_box());
 
     console.print_renderable(&notice);
 
