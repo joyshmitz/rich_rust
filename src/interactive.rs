@@ -491,7 +491,13 @@ mod tests {
 
         let out = buffer.0.lock().unwrap();
         let text = String::from_utf8_lossy(&out);
-        assert!(text.contains("digits only\n"));
+        // The error message may have ANSI codes around it due to the bold red style,
+        // so we just check for the text content rather than a literal sequence with newline.
+        assert!(
+            text.contains("digits only"),
+            "Expected error message 'digits only' in output, got: {:?}",
+            text
+        );
     }
 
     #[test]
