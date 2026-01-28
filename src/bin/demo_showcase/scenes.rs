@@ -12,6 +12,7 @@ use std::sync::Arc;
 use rich_rust::console::Console;
 
 use crate::Config;
+use crate::hero::HeroScene;
 
 /// Error type for scene execution.
 #[derive(Debug)]
@@ -182,10 +183,7 @@ pub fn build_registry() -> SceneRegistry {
     let mut registry = SceneRegistry::new();
 
     // Register scenes in storyboard order
-    registry.register(PlaceholderScene::new(
-        "hero",
-        "Introduce Nebula Deploy and the visual brand.",
-    ));
+    registry.register(HeroScene::new());
     registry.register(PlaceholderScene::new(
         "dashboard",
         "Live split-screen dashboard (services + pipeline + logs).",

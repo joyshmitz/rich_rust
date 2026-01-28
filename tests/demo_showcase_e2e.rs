@@ -92,8 +92,10 @@ fn test_run_single_scene_hero() {
     assert_success(&result);
     assert_no_timeout(&result);
 
-    // Placeholder scene should print message
-    assert_stdout_contains(&result, "hero");
+    // Hero scene should show branding and capabilities
+    // Note: Brand title has spaced letters "N E B U L A"
+    assert_stdout_contains(&result, "N E B U L A");
+    assert_stdout_contains(&result, "Terminal size");
 }
 
 #[test]
