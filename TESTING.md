@@ -194,9 +194,9 @@ proptest! {
 
     #[test]
     fn prop_color_downgrade_preserves_validity(
-        r in 0u8..255u8,
-        g in 0u8..255u8,
-        b in 0u8..255u8
+        r in 0u8..=255u8,
+        g in 0u8..=255u8,
+        b in 0u8..=255u8
     ) {
         let color = Color::from_rgb(r, g, b);
         let downgraded = color.downgrade(ColorSystem::Standard);

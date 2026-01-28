@@ -15,8 +15,8 @@
 //! while still allowing some expansion for a polished look.
 
 use rich_rust::console::Console;
-use rich_rust::renderables::columns::Columns;
 use rich_rust::renderables::align::AlignMethod;
+use rich_rust::renderables::columns::Columns;
 
 /// Helper: count maximum consecutive spaces in a string.
 fn max_consecutive_spaces(s: &str) -> usize {
@@ -44,13 +44,16 @@ fn columns_without_max_width_stretches_on_wide_terminal() {
     let cols = Columns::from_strings(&["A", "B", "C"])
         .column_count(3)
         .gutter(4)
-        .expand(true);  // No max_width
+        .expand(true); // No max_width
 
     let lines = cols.render(400);
     let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
 
     println!("[TEST] Rendered line length: {}", text.len());
-    println!("[TEST] Max consecutive spaces: {}", max_consecutive_spaces(&text));
+    println!(
+        "[TEST] Max consecutive spaces: {}",
+        max_consecutive_spaces(&text)
+    );
 
     // Without max_width, the output fills 400 columns with massive gaps
     assert!(
@@ -80,12 +83,15 @@ fn columns_with_max_width_limits_expansion() {
     let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
 
     println!("[TEST] Rendered line length: {}", text.len());
-    println!("[TEST] Max consecutive spaces: {}", max_consecutive_spaces(&text));
+    println!(
+        "[TEST] Max consecutive spaces: {}",
+        max_consecutive_spaces(&text)
+    );
 
-    // With max_width=100, output is capped
+    // With max_width=100, output is capped (for ASCII content, byte length = cell width)
     assert!(
         text.len() <= 100,
-        "With max_width=100, line should not exceed 100 chars, got {}",
+        "With max_width=100, line should not exceed 100 columns, got {}",
         text.len()
     );
     assert!(
@@ -104,7 +110,7 @@ fn max_width_no_effect_on_narrow_terminal() {
         .column_count(3)
         .gutter(4)
         .expand(true)
-        .max_width(200);  // Higher than terminal width
+        .max_width(200); // Higher than terminal width
 
     let lines = cols.render(80);
     let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
@@ -125,7 +131,9 @@ fn max_width_no_effect_on_narrow_terminal() {
 fn layout_scene_features_at_382_columns() {
     println!("[TEST] Layout scene features at 382 columns (user-reported width)");
 
-    let features = ["Tables", "Panels", "Trees", "Progress", "Syntax", "Markdown"];
+    let features = [
+        "Tables", "Panels", "Trees", "Progress", "Syntax", "Markdown",
+    ];
 
     // Configuration from layout_scene.rs
     let cols = Columns::from_strings(&features)
@@ -146,14 +154,16 @@ fn layout_scene_features_at_382_columns() {
         assert!(
             spaces < 30,
             "Line {} has {} consecutive spaces, expected < 30",
-            i, spaces
+            i,
+            spaces
         );
 
         // Verify line width is reasonable
         assert!(
             text.len() <= 100,
             "Line {} width {} exceeds max_width 100",
-            i, text.len()
+            i,
+            text.len()
         );
     }
 
@@ -189,13 +199,15 @@ fn layout_scene_cards_at_382_columns() {
         assert!(
             spaces < 30,
             "Line {} has {} consecutive spaces, expected < 30",
-            i, spaces
+            i,
+            spaces
         );
 
         assert!(
             text.len() <= 100,
             "Line {} width {} exceeds max_width 100",
-            i, text.len()
+            i,
+            text.len()
         );
     }
 
@@ -224,7 +236,8 @@ fn columns_at_various_wide_widths() {
         assert!(
             text.len() <= 120,
             "At width {}, output {} exceeds max_width 120",
-            width, text.len()
+            width,
+            text.len()
         );
     }
 
@@ -236,13 +249,10 @@ fn columns_at_various_wide_widths() {
 fn columns_renderable_trait_respects_max_width() {
     println!("[TEST] Columns via Renderable trait on wide console");
 
-    use rich_rust::renderables::Renderable;
     use rich_rust::console::ConsoleOptions;
+    use rich_rust::renderables::Renderable;
 
-    let console = Console::builder()
-        .width(400)
-        .force_terminal(false)
-        .build();
+    let console = Console::builder().width(400).force_terminal(false).build();
 
     let cols = Columns::from_strings(&["A", "B", "C"])
         .column_count(3)
@@ -261,7 +271,11 @@ fn columns_renderable_trait_respects_max_width() {
     // Remove newlines and check the first line
     let first_line = text.lines().next().unwrap_or("");
 
-    println!("[TEST] First line: '{}' (len={})", first_line.trim(), first_line.len());
+    println!(
+        "[TEST] First line: '{}' (len={})",
+        first_line.trim(),
+        first_line.len()
+    );
 
     assert!(
         first_line.len() <= 100,

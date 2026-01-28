@@ -378,6 +378,10 @@ mod tests {
                         space_count = 0;
                     }
                 }
+                // Early exit once we find a problem
+                if excessive_found {
+                    break;
+                }
             }
         }
 

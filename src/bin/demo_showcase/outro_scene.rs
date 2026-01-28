@@ -89,9 +89,10 @@ fn render_feature_summary(console: &Console) {
     table.add_column(Column::new("Status").style(Style::parse("dim").unwrap_or_default()));
 
     // Core features
+    // Note: escape brackets with \[ to show literal markup syntax
     table.add_row_markup([
         "[brand.accent]Markup Syntax[/]",
-        "`[bold red]text[/]` for inline styling",
+        "`\\[bold red]text\\[/]` for inline styling",
         "[green]Core[/]",
     ]);
     table.add_row_markup([
