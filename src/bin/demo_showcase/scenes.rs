@@ -18,6 +18,7 @@ use crate::export_scene::ExportScene;
 use crate::hero::HeroScene;
 use crate::json_scene::JsonScene;
 use crate::layout_scene::LayoutScene;
+use crate::markdown_scene::MarkdownScene;
 use crate::panel_scene::PanelScene;
 use crate::syntax_scene::SyntaxScene;
 use crate::table_scene::TableScene;
@@ -199,10 +200,7 @@ pub fn build_registry() -> SceneRegistry {
         "dashboard",
         "Live split-screen dashboard (services + pipeline + logs).",
     ));
-    registry.register(PlaceholderScene::new(
-        "deep_dive_markdown",
-        "Runbook / release notes (feature: markdown).",
-    ));
+    registry.register(MarkdownScene::new());
     registry.register(SyntaxScene::new());
     registry.register(JsonScene::new());
     registry.register(TableScene::new());
@@ -278,7 +276,7 @@ mod tests {
         let expected = [
             "hero",
             "dashboard",
-            "deep_dive_markdown",
+            "markdown",
             "syntax",
             "json",
             "table",

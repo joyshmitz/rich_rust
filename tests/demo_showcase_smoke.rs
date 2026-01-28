@@ -53,14 +53,14 @@ fn smoke_dashboard() {
 }
 
 #[test]
-fn smoke_deep_dive_markdown() {
-    let result = smoke_runner("deep_dive_markdown")
+fn smoke_markdown() {
+    let result = smoke_runner("markdown")
         .run()
         .expect("should run");
     assertions::assert_success(&result);
     assert!(
         result.stdout_contains("markdown") || result.stdout_contains("Markdown"),
-        "deep_dive_markdown scene should produce recognizable output:\n{}",
+        "markdown scene should produce recognizable output:\n{}",
         result.diagnostic_output()
     );
 }

@@ -64,15 +64,15 @@ fn test_list_scenes_shows_all_scenes() {
     // Note: Some scene names may wrap in narrow terminals, so we check prefixes
     assert_stdout_contains(&result, "hero");
     assert_stdout_contains(&result, "dashboard");
-    assert_stdout_contains(&result, "deep_dive_mark"); // markdown may wrap
+    assert_stdout_contains(&result, "markdown");
     assert_stdout_contains(&result, "syntax");
     assert_stdout_contains(&result, "json");
     assert_stdout_contains(&result, "table");
     assert_stdout_contains(&result, "panels");
     assert_stdout_contains(&result, "tree");
     assert_stdout_contains(&result, "layout");
-    assert_stdout_contains(&result, "emoji_links");
-    assert_stdout_contains(&result, "debug_tools");
+    assert_stdout_contains(&result, "emoji_link"); // emoji_links may wrap
+    assert_stdout_contains(&result, "debug_tool"); // debug_tools may wrap
     assert_stdout_contains(&result, "tracing");
     assert_stdout_contains(&result, "traceback");
     assert_stdout_contains(&result, "export");
