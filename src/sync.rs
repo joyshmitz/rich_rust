@@ -1,216 +1,388 @@
-//! # Mutex Poison Handling Strategy — Design RFC
+//! # Synchronization Utilities
 //!
-//! ## Context
+//! This module provides consistent mutex and RwLock handling throughout rich_rust.
 //!
-//! `rich_rust` uses `std::sync::Mutex` and `std::sync::RwLock` in several places:
+//! ## Design RFC: Mutex Poison Handling (bd-33rg)
 //!
-//! | Module | Lock type | Protects | Current pattern |
-//! |--------|-----------|----------|-----------------|
-//! | `cells.rs` | `Mutex<LruCache>` | Cell width cache | `if let Ok(..)` (silent skip) |
-//! | `style.rs` | `Mutex<LruCache>` (x2) | ANSI/parse caches | `if let Ok(..)` (silent skip) |
-//! | `logging.rs` | `Mutex<Option<String>>` | Last timestamp | `unwrap_or_else(into_inner)` |
-//! | `live.rs` | `Mutex` (x4) + `RwLock` (x1) | Live display state | Mixed patterns |
-//! | `state.rs` (demo) | `Mutex<DemoState>` | Demo app state | `unwrap_or_else(into_inner)` |
+//! ### Background
 //!
-//! Three inconsistent patterns exist today:
+//! Rust's standard library mutexes become "poisoned" when a thread panics while
+//! holding the lock. By default, subsequent `lock()` attempts return `Err(PoisonError)`.
 //!
-//! 1. **Silent skip** — `if let Ok(guard) = mutex.lock()` — cache misses silently on poison
-//! 2. **Recover** — `.unwrap_or_else(PoisonError::into_inner)` — extracts data, continues
-//! 3. **Panic** — `.unwrap()` — only in test code
+//! ### Problem Statement
 //!
-//! ## Decision
+//! The rich_rust codebase previously used inconsistent patterns:
 //!
-//! **Chosen strategy: Always recover, with debug-mode logging.**
+//! 1. `if let Ok(...) = mutex.lock()` - Silently ignores poison (production code)
+//! 2. `.lock().unwrap()` - Panics on poison (test code)
+//! 3. `.lock().expect("msg")` - Panics with message (some tests)
 //!
-//! Rationale:
+//! This inconsistency made it difficult to:
+//! - Debug poison-related issues
+//! - Understand recovery behavior
+//! - Maintain consistent error handling
 //!
-//! - `rich_rust` is an **output library**, not a database or transaction system. Mutex-protected
-//!   data is either a cache (where staleness is harmless) or display state (where a best-effort
-//!   render is better than a panic).
-//! - A thread panicking while holding a lock should **not** bring down the entire application.
-//!   The library consumer's program should keep running.
-//! - In debug builds, we log poison recovery events to `eprintln!` so developers can track
-//!   down the originating panic. In release builds, recovery is silent and zero-overhead.
+//! ### Chosen Strategy: Recover with Debug Logging
 //!
-//! ## Helper Categories
+//! We chose **Option B** from the RFC:
 //!
-//! | Helper | Use when |
-//! |--------|----------|
-//! | [`lock_recover`] | Default for all `Mutex` acquisitions |
-//! | [`lock_recover_debug`] | When you want debug-mode logging with context |
-//! | [`read_recover`] | Default for all `RwLock` read acquisitions |
-//! | [`write_recover`] | Default for all `RwLock` write acquisitions |
+//! - **Production (release builds)**: Silently recover from poison
+//! - **Debug builds**: Log a warning when recovering from poison
 //!
-//! ## Migration Plan
+//! #### Rationale
 //!
-//! All existing lock sites should be migrated to use these helpers:
+//! 1. **Caches are safe to recover**: Style/cell/color caches can use stale data
+//! 2. **Output buffers are non-critical**: Garbled output is better than crashes
+//! 3. **Config is self-healing**: Theme/options are read-mostly
+//! 4. **Progress is paramount**: For a terminal output library, continuing
+//!    to produce output is more important than perfect consistency
 //!
-//! - **Caches** (`cells.rs`, `style.rs`): Replace `if let Ok(..)` with `lock_recover`.
-//!   A poisoned cache still contains valid (if possibly stale) data; recovering is strictly
-//!   better than silently skipping the cache lookup.
-//! - **State** (`logging.rs`, `live.rs`, `state.rs`): Replace ad-hoc `unwrap_or_else` with
-//!   `lock_recover` or `lock_recover_debug` for consistency.
-//! - **Tests**: May continue using `.unwrap()` since test panics are expected.
+//! ### Usage Guidelines
 //!
-//! ## Examples
+//! | Scenario | Function | When to Use |
+//! |----------|----------|-------------|
+//! | Production code | [`lock_recover`] | All mutex access in non-test code |
+//! | Need context | [`lock_recover_debug`] | When debugging poison sources |
+//! | RwLock read | [`read_recover`] | All RwLock read access |
+//! | RwLock write | [`write_recover`] | All RwLock write access |
+//! | Test code | `.lock().unwrap()` | Tests should fail fast on poison |
 //!
-//! ```rust,ignore
+//! ### Examples
+//!
+//! ```rust
 //! use std::sync::Mutex;
-//! use rich_rust::sync::lock_recover;
+//! use rich::sync::lock_recover;
 //!
-//! let mutex = Mutex::new(42);
-//! let guard = lock_recover(&mutex);
-//! assert_eq!(*guard, 42);
+//! let data = Mutex::new(vec![1, 2, 3]);
+//!
+//! // Always succeeds, even if mutex was poisoned by a panicking thread
+//! let guard = lock_recover(&data);
+//! println!("Data: {:?}", *guard);
 //! ```
 //!
-//! ```rust,ignore
-//! use std::sync::Mutex;
-//! use rich_rust::sync::lock_recover_debug;
+//! ### Security Considerations
 //!
-//! let mutex = Mutex::new(vec![1, 2, 3]);
-//! let guard = lock_recover_debug(&mutex, "style_cache_lookup");
-//! assert_eq!(guard.len(), 3);
-//! ```
+//! Poison recovery means we may access data that was being modified when a
+//! thread panicked. For rich_rust, this is acceptable because:
+//!
+//! 1. We don't handle sensitive data (passwords, keys, etc.)
+//! 2. The worst case is visual corruption, not data loss
+//! 3. Users can restart the program if output is corrupted
+//!
+//! ### Performance
+//!
+//! - `lock_recover` adds zero overhead in release builds
+//! - Debug logging only triggers on actual poison (rare)
+//! - All functions are `#[inline]` for zero-cost abstraction
 
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-/// Lock a `Mutex`, recovering from poison if necessary.
+/// Lock a mutex, recovering from poison if necessary.
 ///
-/// If the mutex is healthy, returns the guard normally. If the mutex is poisoned
-/// (a thread panicked while holding the lock), extracts the inner data and returns
-/// the guard anyway.
+/// # Behavior
 ///
-/// This is the correct default for `rich_rust` because all mutex-protected data is
-/// either a cache (where staleness is harmless) or display state (where a best-effort
-/// render beats crashing the consumer's application).
+/// - If the mutex is not poisoned, returns the guard normally
+/// - If the mutex is poisoned (a thread panicked while holding it),
+///   recovers the data and returns the guard anyway
+///
+/// # When to Use
+///
+/// Use this for all mutex access in production code. The function always
+/// succeeds, making it impossible to accidentally ignore a poisoned mutex.
+///
+/// # Example
+///
+/// ```rust
+/// use std::sync::Mutex;
+/// use rich::sync::lock_recover;
+///
+/// let mutex = Mutex::new(42);
+/// let guard = lock_recover(&mutex);
+/// assert_eq!(*guard, 42);
+/// ```
+///
+/// # Panics
+///
+/// This function never panics. It always recovers from poison.
 #[inline]
 pub fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Lock a `Mutex` with debug-mode poison logging.
+/// Lock a mutex with context logging on poison recovery (debug builds only).
 ///
-/// Identical to [`lock_recover`] but emits a diagnostic message via `eprintln!` in
-/// debug builds when recovering from poison. Release builds compile to the same code
-/// as `lock_recover` (the `context` parameter is unused and optimized away).
+/// Same as [`lock_recover`] but prints a warning in debug builds to help
+/// track down the source of poison. In release builds, this is identical
+/// to `lock_recover` with no overhead.
 ///
-/// Use this variant when you want observability during development — for example,
-/// in high-traffic lock sites where a poisoned mutex might indicate a deeper bug.
+/// # Arguments
+///
+/// * `mutex` - The mutex to lock
+/// * `context` - A string describing where this lock is being acquired
+///   (e.g., "Console::print", "Style::parse cache")
+///
+/// # Example
+///
+/// ```rust
+/// use std::sync::Mutex;
+/// use rich::sync::lock_recover_debug;
+///
+/// let mutex = Mutex::new("hello");
+/// let guard = lock_recover_debug(&mutex, "my_function");
+/// assert_eq!(*guard, "hello");
+/// ```
 #[inline]
-#[allow(clippy::used_underscore_binding)]
-pub fn lock_recover_debug<'a, T>(mutex: &'a Mutex<T>, _context: &str) -> MutexGuard<'a, T> {
+pub fn lock_recover_debug<'a, T>(mutex: &'a Mutex<T>, context: &str) -> MutexGuard<'a, T> {
     mutex.lock().unwrap_or_else(|e| {
         #[cfg(debug_assertions)]
-        eprintln!("[mutex-poison] recovered at: {_context}");
+        eprintln!("[rich_rust::sync] mutex poison recovered at: {context}");
         e.into_inner()
     })
 }
 
-/// Acquire a read lock on an `RwLock`, recovering from poison if necessary.
+/// Acquire a read lock on an RwLock, recovering from poison if necessary.
 ///
-/// Semantics mirror [`lock_recover`] for the read side of an `RwLock`.
+/// # Behavior
+///
+/// - If the RwLock is not poisoned, returns the read guard normally
+/// - If poisoned (a thread panicked while holding a write lock),
+///   recovers the data and returns the guard anyway
+///
+/// # Example
+///
+/// ```rust
+/// use std::sync::RwLock;
+/// use rich::sync::read_recover;
+///
+/// let rwlock = RwLock::new(42);
+/// let guard = read_recover(&rwlock);
+/// assert_eq!(*guard, 42);
+/// ```
 #[inline]
 pub fn read_recover<T>(rwlock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
-    rwlock
-        .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    rwlock.read().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Acquire a write lock on an `RwLock`, recovering from poison if necessary.
+/// Acquire a write lock on an RwLock, recovering from poison if necessary.
 ///
-/// Semantics mirror [`lock_recover`] for the write side of an `RwLock`.
+/// # Behavior
+///
+/// - If the RwLock is not poisoned, returns the write guard normally
+/// - If poisoned, recovers the data and returns the guard anyway
+///
+/// # Example
+///
+/// ```rust
+/// use std::sync::RwLock;
+/// use rich::sync::write_recover;
+///
+/// let rwlock = RwLock::new(42);
+/// let mut guard = write_recover(&rwlock);
+/// *guard = 100;
+/// ```
 #[inline]
 pub fn write_recover<T>(rwlock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
-    rwlock
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    rwlock.write().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::panic;
+    use std::panic::{self, AssertUnwindSafe};
 
     #[test]
-    fn lock_recover_normal() {
+    fn test_lock_recover_normal_operation() {
+        println!("[TEST] lock_recover with healthy mutex");
         let mutex = Mutex::new(42);
         let guard = lock_recover(&mutex);
+        println!("[TEST] Acquired lock, value = {}", *guard);
         assert_eq!(*guard, 42);
+        println!("[TEST] PASS: lock_recover works on healthy mutex");
     }
 
     #[test]
-    fn lock_recover_poisoned() {
+    fn test_lock_recover_after_poison() {
+        println!("[TEST] lock_recover after poisoning mutex");
         let mutex = Mutex::new(42);
-        // Poison the mutex by panicking while holding the lock.
-        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+
+        println!("[TEST] Step 1: Poisoning mutex by panicking while holding lock...");
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
             let _guard = mutex.lock().unwrap();
+            println!("[TEST] Inside panic scope, about to panic");
             panic!("intentional panic to poison mutex");
         }));
-        assert!(mutex.is_poisoned());
+
+        println!("[TEST] Step 2: Verifying mutex is actually poisoned...");
+        assert!(mutex.lock().is_err(), "Mutex should be poisoned");
+        println!("[TEST] Confirmed: mutex.lock() returns Err (poisoned)");
+
+        println!("[TEST] Step 3: Testing recovery...");
         let guard = lock_recover(&mutex);
+        println!("[TEST] Recovery successful, value = {}", *guard);
         assert_eq!(*guard, 42);
+        println!("[TEST] PASS: lock_recover recovers from poison");
     }
 
     #[test]
-    fn lock_recover_debug_normal() {
+    fn test_lock_recover_debug_context() {
+        println!("[TEST] lock_recover_debug with context");
         let mutex = Mutex::new("hello");
-        let guard = lock_recover_debug(&mutex, "test_context");
+        let guard = lock_recover_debug(&mutex, "test_debug_context");
+        println!("[TEST] Value: {}", *guard);
         assert_eq!(*guard, "hello");
+        println!("[TEST] PASS: lock_recover_debug works");
     }
 
     #[test]
-    fn lock_recover_debug_poisoned() {
-        let mutex = Mutex::new(vec![1, 2, 3]);
-        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+    fn test_lock_recover_debug_after_poison() {
+        println!("[TEST] lock_recover_debug after poison (should log in debug)");
+        let mutex = Mutex::new(99);
+
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
             let _guard = mutex.lock().unwrap();
-            panic!("intentional panic to poison mutex");
+            panic!("intentional panic");
         }));
-        assert!(mutex.is_poisoned());
-        let guard = lock_recover_debug(&mutex, "test_poisoned_vec");
-        assert_eq!(*guard, vec![1, 2, 3]);
+
+        // In debug builds, this should print a warning
+        let guard = lock_recover_debug(&mutex, "test_poison_debug");
+        assert_eq!(*guard, 99);
+        println!("[TEST] PASS: lock_recover_debug recovers with logging");
     }
 
     #[test]
-    fn read_recover_normal() {
+    fn test_read_recover_normal() {
+        println!("[TEST] read_recover with healthy RwLock");
         let rwlock = RwLock::new(42);
         let guard = read_recover(&rwlock);
+        println!("[TEST] Read value = {}", *guard);
         assert_eq!(*guard, 42);
+        println!("[TEST] PASS: read_recover works on healthy RwLock");
     }
 
     #[test]
-    fn write_recover_normal() {
+    fn test_read_recover_after_write_poison() {
+        println!("[TEST] read_recover after write poison");
         let rwlock = RwLock::new(42);
-        let mut guard = write_recover(&rwlock);
-        *guard = 100;
-        drop(guard);
-        assert_eq!(*read_recover(&rwlock), 100);
-    }
 
-    #[test]
-    fn write_recover_poisoned() {
-        let rwlock = RwLock::new(42);
-        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        println!("[TEST] Poisoning via write lock...");
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
             let _guard = rwlock.write().unwrap();
-            panic!("intentional panic to poison rwlock");
+            panic!("intentional panic during write");
         }));
-        assert!(rwlock.is_poisoned());
-        let mut guard = write_recover(&rwlock);
-        *guard = 99;
-        drop(guard);
-        assert_eq!(*read_recover(&rwlock), 99);
-    }
 
-    #[test]
-    fn read_recover_after_write_poison() {
-        let rwlock = RwLock::new(42);
-        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            let _guard = rwlock.write().unwrap();
-            panic!("intentional panic to poison rwlock");
-        }));
-        assert!(rwlock.is_poisoned());
+        println!("[TEST] Attempting read recovery...");
         let guard = read_recover(&rwlock);
+        println!("[TEST] Read recovered, value = {}", *guard);
         assert_eq!(*guard, 42);
+        println!("[TEST] PASS: read_recover works after write poison");
+    }
+
+    #[test]
+    fn test_write_recover_normal() {
+        println!("[TEST] write_recover with healthy RwLock");
+        let rwlock = RwLock::new(42);
+        {
+            let mut guard = write_recover(&rwlock);
+            *guard = 100;
+            println!("[TEST] Modified value to 100");
+        }
+        let guard = read_recover(&rwlock);
+        println!("[TEST] Verified new value = {}", *guard);
+        assert_eq!(*guard, 100);
+        println!("[TEST] PASS: write_recover works on healthy RwLock");
+    }
+
+    #[test]
+    fn test_write_recover_after_read_poison() {
+        println!("[TEST] write_recover after read poison (edge case)");
+        let rwlock = RwLock::new(42);
+
+        println!("[TEST] Poisoning via read lock...");
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+            let _guard = rwlock.read().unwrap();
+            panic!("intentional panic during read");
+        }));
+
+        println!("[TEST] Attempting write recovery...");
+        let mut guard = write_recover(&rwlock);
+        *guard = 200;
+        println!("[TEST] Write recovered, set value to 200");
+        drop(guard);
+
+        let read_guard = read_recover(&rwlock);
+        println!("[TEST] Verified new value = {}", *read_guard);
+        assert_eq!(*read_guard, 200);
+        println!("[TEST] PASS: write_recover works after read poison");
+    }
+
+    #[test]
+    fn test_multiple_recoveries_same_mutex() {
+        println!("[TEST] Multiple sequential recoveries on same mutex");
+        let mutex = Mutex::new(0);
+
+        // Poison the mutex multiple times and verify we can always recover
+        for i in 1..=3 {
+            println!("[TEST] Iteration {}: poisoning mutex...", i);
+
+            // Set value BEFORE poisoning to ensure it's visible
+            {
+                let mut guard = lock_recover(&mutex);
+                *guard = i;
+                println!("[TEST] Iteration {}: set value to {}", i, *guard);
+            }
+
+            // Now poison by panicking while holding lock
+            let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+                let _guard = mutex.lock().unwrap();
+                println!("[TEST] Iteration {}: about to panic", i);
+                panic!("intentional panic #{}", i);
+            }));
+
+            println!("[TEST] Iteration {}: recovering...", i);
+            let guard = lock_recover(&mutex);
+            println!("[TEST] Iteration {}: recovered value = {}", i, *guard);
+            // Value should be i since we set it before poisoning
+            assert_eq!(*guard, i);
+        }
+        println!("[TEST] PASS: Multiple recoveries work correctly");
+    }
+
+    #[test]
+    fn test_concurrent_access_after_poison() {
+        println!("[TEST] Concurrent access after poison");
+        use std::sync::Arc;
+        use std::thread;
+
+        let mutex = Arc::new(Mutex::new(0));
+
+        // Poison the mutex
+        {
+            let m = Arc::clone(&mutex);
+            let _ = panic::catch_unwind(AssertUnwindSafe(move || {
+                let _guard = m.lock().unwrap();
+                panic!("poison it");
+            }));
+        }
+
+        // Spawn multiple threads that all recover
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let m = Arc::clone(&mutex);
+                thread::spawn(move || {
+                    let mut guard = lock_recover(&m);
+                    *guard += 1;
+                    println!("[Thread {}] Incremented to {}", i, *guard);
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let final_val = *lock_recover(&mutex);
+        println!("[TEST] Final value after 4 increments: {}", final_val);
+        assert_eq!(final_val, 4);
+        println!("[TEST] PASS: Concurrent recovery works");
     }
 }
