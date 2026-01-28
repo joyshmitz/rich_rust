@@ -6,6 +6,8 @@ mod console_builder;
 mod debug_tools;
 #[path = "demo_showcase/emoji_links_scene.rs"]
 mod emoji_links_scene;
+#[path = "demo_showcase/export_scene.rs"]
+mod export_scene;
 #[path = "demo_showcase/hero.rs"]
 mod hero;
 #[path = "demo_showcase/layout_scene.rs"]
@@ -26,6 +28,8 @@ mod theme;
 mod timing;
 #[path = "demo_showcase/traceback_scene.rs"]
 mod traceback_scene;
+#[path = "demo_showcase/tracing_scene.rs"]
+mod tracing_scene;
 #[path = "demo_showcase/tree_scene.rs"]
 mod tree_scene;
 #[path = "demo_showcase/typography.rs"]

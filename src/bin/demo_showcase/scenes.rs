@@ -14,11 +14,13 @@ use rich_rust::console::Console;
 use crate::Config;
 use crate::debug_tools::DebugToolsScene;
 use crate::emoji_links_scene::EmojiLinksScene;
+use crate::export_scene::ExportScene;
 use crate::hero::HeroScene;
 use crate::layout_scene::LayoutScene;
 use crate::panel_scene::PanelScene;
 use crate::table_scene::TableScene;
 use crate::traceback_scene::TracebackScene;
+use crate::tracing_scene::TracingScene;
 use crate::tree_scene::TreeScene;
 
 /// Error type for scene execution.
@@ -213,8 +215,9 @@ pub fn build_registry() -> SceneRegistry {
     registry.register(LayoutScene::new());
     registry.register(EmojiLinksScene::new());
     registry.register(DebugToolsScene::new());
+    registry.register(TracingScene::new());
     registry.register(TracebackScene::new());
-    registry.register(PlaceholderScene::new("export", "Export HTML/SVG bundle."));
+    registry.register(ExportScene::new());
     registry.register(PlaceholderScene::new("outro", "Summary + next steps."));
 
     registry
@@ -288,6 +291,7 @@ mod tests {
             "layout",
             "emoji_links",
             "debug_tools",
+            "tracing",
             "traceback",
             "export",
             "outro",

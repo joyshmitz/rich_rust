@@ -128,6 +128,20 @@ fn smoke_traceback() {
 }
 
 #[test]
+fn smoke_tracing() {
+    let result = smoke_runner("tracing").run().expect("should run");
+    assertions::assert_success(&result);
+    // Tracing scene shows either tracing demo or feature-disabled notice
+    assert!(
+        result.stdout_contains("Tracing")
+            || result.stdout_contains("tracing")
+            || result.stdout_contains("Observability"),
+        "tracing scene should produce recognizable output:\n{}",
+        result.diagnostic_output()
+    );
+}
+
+#[test]
 fn smoke_export() {
     let result = smoke_runner("export").run().expect("should run");
     assertions::assert_success(&result);
@@ -164,6 +178,7 @@ fn smoke_list_scenes() {
     assertions::assert_stdout_contains(&result, "hero");
     assertions::assert_stdout_contains(&result, "table");
     assertions::assert_stdout_contains(&result, "debug_tools");
+    assertions::assert_stdout_contains(&result, "tracing");
     assertions::assert_stdout_contains(&result, "traceback");
 }
 

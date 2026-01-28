@@ -73,6 +73,7 @@ fn test_list_scenes_shows_all_scenes() {
     assert_stdout_contains(&result, "layout");
     assert_stdout_contains(&result, "emoji_links");
     assert_stdout_contains(&result, "debug_tools");
+    assert_stdout_contains(&result, "tracing");
     assert_stdout_contains(&result, "traceback");
     assert_stdout_contains(&result, "export");
     assert_stdout_contains(&result, "outro");
@@ -464,12 +465,14 @@ fn test_piped_all_scenes_complete() {
     let scenes = [
         "hero",
         "debug_tools",
+        "tracing",
         "traceback",
         "table",
         "panels",
         "tree",
         "layout",
         "emoji_links",
+        "export",
     ];
 
     for scene in scenes {
@@ -572,12 +575,14 @@ fn test_piped_per_scene_output_bounded() {
     let scenes = [
         "hero",
         "debug_tools",
+        "tracing",
         "traceback",
         "table",
         "panels",
         "tree",
         "layout",
         "emoji_links",
+        "export",
     ];
     const MAX_SCENE_OUTPUT: usize = 50 * 1024; // 50 KB per scene
 
