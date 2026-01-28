@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 #[path = "demo_showcase/console_builder.rs"]
 mod console_builder;
+#[path = "demo_showcase/dashboard_scene.rs"]
+mod dashboard_scene;
 #[path = "demo_showcase/debug_tools.rs"]
 mod debug_tools;
 #[path = "demo_showcase/emoji_links_scene.rs"]
@@ -24,6 +26,8 @@ mod pager;
 mod panel_scene;
 #[path = "demo_showcase/scenes.rs"]
 mod scenes;
+#[path = "demo_showcase/simulation.rs"]
+mod simulation;
 #[path = "demo_showcase/state.rs"]
 mod state;
 #[path = "demo_showcase/syntax_scene.rs"]
@@ -406,6 +410,33 @@ impl Config {
             }
             ExportMode::Dir(path) => Some(path.clone()),
         }
+    }
+
+    /// Get the run ID (uses seed as a stable identifier).
+    fn run_id(&self) -> u64 {
+        self.seed
+    }
+
+    /// Get the seed value.
+    fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// Get the speed multiplier.
+    fn speed(&self) -> f64 {
+        self.speed
+    }
+
+    /// Check if quick mode is enabled.
+    fn is_quick(&self) -> bool {
+        self.quick
+    }
+
+    /// Check if interactive mode is enabled.
+    ///
+    /// Returns `false` if `--no-interactive` was specified, otherwise `true`.
+    fn is_interactive(&self) -> bool {
+        self.interactive.unwrap_or(true)
     }
 }
 

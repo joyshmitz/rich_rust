@@ -12,6 +12,7 @@ use std::sync::Arc;
 use rich_rust::console::Console;
 
 use crate::Config;
+use crate::dashboard_scene::DashboardScene;
 use crate::debug_tools::DebugToolsScene;
 use crate::emoji_links_scene::EmojiLinksScene;
 use crate::export_scene::ExportScene;
@@ -196,10 +197,7 @@ pub fn build_registry() -> SceneRegistry {
 
     // Register scenes in storyboard order
     registry.register(HeroScene::new());
-    registry.register(PlaceholderScene::new(
-        "dashboard",
-        "Live split-screen dashboard (services + pipeline + logs).",
-    ));
+    registry.register(DashboardScene::new());
     registry.register(MarkdownScene::new());
     registry.register(SyntaxScene::new());
     registry.register(JsonScene::new());
