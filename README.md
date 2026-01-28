@@ -29,7 +29,7 @@ cargo add rich_rust
 
 ## Run the Demo
 
-See rich_rust in action with the interactive demo:
+See rich_rust in action with the **Nebula Deploy** demo — a complete showcase of terminal UI capabilities wrapped in a fictional deployment narrative.
 
 ```bash
 # Full demo with all features (recommended)
@@ -38,6 +38,9 @@ cargo run --bin demo_showcase --features showcase
 # Quick mode for faster run
 cargo run --bin demo_showcase --features showcase -- --quick
 
+# CI-safe mode (non-blocking, deterministic output)
+cargo run --bin demo_showcase --features showcase -- --quick --no-live --no-interactive
+
 # List available scenes
 cargo run --bin demo_showcase --features showcase -- --list-scenes
 
@@ -45,7 +48,17 @@ cargo run --bin demo_showcase --features showcase -- --list-scenes
 cargo run --bin demo_showcase --features showcase -- --scene hero
 ```
 
-The demo showcases tables, panels, progress bars, syntax highlighting, markdown rendering, and more in a cohesive "Nebula Deploy" narrative.
+**What the demo showcases:**
+- **Typography** — styled text, colors, bold/italic/underline, themes
+- **Tables** — alignment, borders, headers, badges, ASCII fallback
+- **Panels** — box styles, titles, padding, nested layouts
+- **Trees** — hierarchical data, custom guides, icons
+- **Progress** — bars, spinners, live updates
+- **Syntax** — code highlighting for 100+ languages (Rust, YAML, TOML, etc.)
+- **Markdown** — CommonMark + GFM rendering
+- **JSON** — pretty-printed, theme-aware output
+- **Tracing** — structured logging integration
+- **Export** — HTML/SVG capture of terminal output
 
 ---
 
