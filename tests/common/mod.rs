@@ -32,6 +32,9 @@
 #![allow(dead_code)]
 
 pub mod assertions;
+pub mod e2e_harness;
+pub mod fake_terminal;
+pub mod fixtures;
 
 use std::sync::Once;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};

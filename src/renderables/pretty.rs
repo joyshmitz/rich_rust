@@ -305,6 +305,7 @@ fn extract_simple_struct_fields(repr: &str) -> Option<Vec<(String, String)>> {
 mod tests {
     use super::*;
     use crate::console::Console;
+    use std::collections::HashMap;
 
     #[derive(Debug)]
     #[allow(dead_code)]
@@ -320,6 +321,13 @@ mod tests {
         inner: Inner,
     }
 
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    struct Simple {
+        field1: String,
+        field2: i32,
+    }
+
     fn test_console(width: usize) -> Console {
         Console::builder()
             .no_color()
@@ -330,6 +338,483 @@ mod tests {
             .width(width)
             .build()
     }
+
+    // =========================================================================
+    // PrettyOptions Tests
+    // =========================================================================
+
+    #[test]
+    fn test_pretty_options_default() {
+        let options = PrettyOptions::default();
+        assert!(options.max_width.is_none());
+        assert!(!options.compact);
+        assert!(options.wrap);
+    }
+
+    #[test]
+    fn test_pretty_options_custom() {
+        let options = PrettyOptions {
+            max_width: Some(50),
+            compact: true,
+            wrap: false,
+        };
+        assert_eq!(options.max_width, Some(50));
+        assert!(options.compact);
+        assert!(!options.wrap);
+    }
+
+    // =========================================================================
+    // InspectOptions Tests
+    // =========================================================================
+
+    #[test]
+    fn test_inspect_options_default() {
+        let options = InspectOptions::default();
+        assert!(options.max_width.is_none());
+        assert!(options.show_type);
+        assert!(options.show_fields);
+    }
+
+    #[test]
+    fn test_inspect_options_custom() {
+        let options = InspectOptions {
+            max_width: Some(100),
+            show_type: false,
+            show_fields: false,
+        };
+        assert_eq!(options.max_width, Some(100));
+        assert!(!options.show_type);
+        assert!(!options.show_fields);
+    }
+
+    // =========================================================================
+    // Pretty Creation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_pretty_new() {
+        let value = 42i32;
+        let pretty = Pretty::new(&value);
+        assert!(!pretty.options.compact);
+        assert!(pretty.options.wrap);
+        assert!(pretty.style.is_none());
+    }
+
+    #[test]
+    fn test_pretty_builder_chain() {
+        let value = "test";
+        let pretty = Pretty::new(&value)
+            .max_width(40)
+            .compact(true)
+            .wrap(false)
+            .style(Style::new().bold());
+
+        assert_eq!(pretty.options.max_width, Some(40));
+        assert!(pretty.options.compact);
+        assert!(!pretty.options.wrap);
+        assert!(pretty.style.is_some());
+    }
+
+    // =========================================================================
+    // Inspect Creation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_inspect_new() {
+        let value = 42i32;
+        let inspect = Inspect::new(&value);
+        assert!(inspect.options.show_type);
+        assert!(inspect.options.show_fields);
+    }
+
+    #[test]
+    fn test_inspect_builder_chain() {
+        let value = "test";
+        let inspect = Inspect::new(&value)
+            .max_width(80)
+            .show_type(false)
+            .show_fields(false);
+
+        assert_eq!(inspect.options.max_width, Some(80));
+        assert!(!inspect.options.show_type);
+        assert!(!inspect.options.show_fields);
+    }
+
+    // =========================================================================
+    // Pretty Rendering Tests
+    // =========================================================================
+
+    #[test]
+    fn test_pretty_render_primitive() {
+        let value = 42i32;
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("42"));
+    }
+
+    #[test]
+    fn test_pretty_render_string() {
+        let value = "Hello, World!";
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Hello"));
+    }
+
+    #[test]
+    fn test_pretty_render_struct() {
+        let value = Simple {
+            field1: "test".to_string(),
+            field2: 123,
+        };
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Simple"));
+        assert!(text.contains("field1"));
+        assert!(text.contains("field2"));
+        assert!(text.contains("test"));
+        assert!(text.contains("123"));
+    }
+
+    #[test]
+    fn test_pretty_render_vec() {
+        let value = vec![1, 2, 3, 4, 5];
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("1"));
+        assert!(text.contains("5"));
+    }
+
+    #[test]
+    fn test_pretty_render_compact() {
+        let value = Simple {
+            field1: "test".to_string(),
+            field2: 123,
+        };
+        let console = test_console(80);
+        let pretty = Pretty::new(&value).compact(true);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        // Compact format should be single line
+        assert!(!text.contains('\n') || text.lines().count() == 1);
+    }
+
+    #[test]
+    fn test_pretty_render_no_wrap() {
+        let value = "a".repeat(100);
+        let console = test_console(20);
+        let pretty = Pretty::new(&value).wrap(false);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        // Without wrapping, line should exceed 20 chars
+        let longest_line = text.lines().map(str::len).max().unwrap_or(0);
+        assert!(longest_line > 20);
+    }
+
+    #[test]
+    fn test_pretty_render_with_style() {
+        let value = 42i32;
+        let console = test_console(80);
+        let style = Style::new().bold();
+        let pretty = Pretty::new(&value).style(style.clone());
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        // At least one segment should have the style
+        assert!(segments.iter().any(|s| s.style.as_ref() == Some(&style)));
+    }
+
+    // =========================================================================
+    // Inspect Rendering Tests
+    // =========================================================================
+
+    #[test]
+    fn test_inspect_render_with_type() {
+        let value = 42i32;
+        let console = test_console(80);
+        let inspect = Inspect::new(&value).show_type(true).show_fields(false);
+        let options = console.options();
+        let segments = inspect.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Type:"));
+        assert!(text.contains("i32"));
+    }
+
+    #[test]
+    fn test_inspect_render_without_type() {
+        let value = 42i32;
+        let console = test_console(80);
+        let inspect = Inspect::new(&value).show_type(false);
+        let options = console.options();
+        let segments = inspect.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(!text.contains("Type:"));
+    }
+
+    #[test]
+    fn test_inspect_render_struct_fields() {
+        let value = Simple {
+            field1: "hello".to_string(),
+            field2: 42,
+        };
+        let console = test_console(80);
+        let inspect = Inspect::new(&value).show_fields(true);
+        let options = console.options();
+        let segments = inspect.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        // Should contain field names
+        assert!(text.contains("field1") || text.contains("Simple"));
+    }
+
+    #[test]
+    fn test_inspect_render_without_fields() {
+        let value = Simple {
+            field1: "hello".to_string(),
+            field2: 42,
+        };
+        let console = test_console(80);
+        let inspect = Inspect::new(&value).show_type(false).show_fields(false);
+        let options = console.options();
+        let segments = inspect.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        // Should fall back to Pretty output
+        assert!(text.contains("Simple"));
+    }
+
+    // =========================================================================
+    // wrap_debug_preserving_indent Tests
+    // =========================================================================
+
+    #[test]
+    fn test_wrap_debug_short_lines() {
+        let text = "Short line\nAnother short";
+        let wrapped = wrap_debug_preserving_indent(text, 80);
+        assert_eq!(wrapped.len(), 2);
+        assert_eq!(wrapped[0], "Short line");
+        assert_eq!(wrapped[1], "Another short");
+    }
+
+    #[test]
+    fn test_wrap_debug_with_indent() {
+        let text = "    indented line";
+        let wrapped = wrap_debug_preserving_indent(text, 80);
+        assert_eq!(wrapped.len(), 1);
+        assert!(wrapped[0].starts_with("    "));
+    }
+
+    #[test]
+    fn test_wrap_line_preserving_indent_empty() {
+        let wrapped = wrap_line_preserving_indent("", 80);
+        assert_eq!(wrapped.len(), 1);
+        assert_eq!(wrapped[0], "");
+    }
+
+    #[test]
+    fn test_wrap_line_preserving_indent_only_whitespace() {
+        let wrapped = wrap_line_preserving_indent("    ", 80);
+        assert_eq!(wrapped.len(), 1);
+    }
+
+    #[test]
+    fn test_wrap_line_width_too_small() {
+        let wrapped = wrap_line_preserving_indent("    some text", 2);
+        // When width is too small, should return original
+        assert!(!wrapped.is_empty());
+    }
+
+    // =========================================================================
+    // extract_simple_struct_fields Tests
+    // =========================================================================
+
+    #[test]
+    fn test_extract_simple_struct_fields_valid() {
+        let repr = "MyStruct {\n    field1: \"value\",\n    field2: 42,\n}";
+        let fields = extract_simple_struct_fields(repr);
+        assert!(fields.is_some());
+        let fields = fields.unwrap();
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].0, "field1");
+        assert_eq!(fields[0].1, "\"value\"");
+        assert_eq!(fields[1].0, "field2");
+        assert_eq!(fields[1].1, "42");
+    }
+
+    #[test]
+    fn test_extract_simple_struct_fields_no_brace() {
+        let repr = "NotAStruct";
+        let fields = extract_simple_struct_fields(repr);
+        assert!(fields.is_none());
+    }
+
+    #[test]
+    fn test_extract_simple_struct_fields_empty() {
+        let repr = "EmptyStruct {\n}";
+        let fields = extract_simple_struct_fields(repr);
+        assert!(fields.is_none()); // No fields extracted
+    }
+
+    #[test]
+    fn test_extract_simple_struct_fields_nested() {
+        // Nested structs have deeper indentation
+        let repr = "Outer {\n    inner: Inner {\n        field: 1,\n    },\n}";
+        let fields = extract_simple_struct_fields(repr);
+        // Should only extract top-level fields
+        assert!(fields.is_some());
+        let fields = fields.unwrap();
+        // "inner" should be extracted with the nested value
+        assert!(fields.iter().any(|(name, _)| name == "inner"));
+    }
+
+    #[test]
+    fn test_extract_simple_struct_fields_no_colon() {
+        let repr = "TupleStruct {\n    element1\n}";
+        let fields = extract_simple_struct_fields(repr);
+        assert!(fields.is_none()); // No colon means no key-value
+    }
+
+    // =========================================================================
+    // inspect helper function Tests
+    // =========================================================================
+
+    #[test]
+    fn test_inspect_helper_function() {
+        let console = test_console(80);
+        let value = 42i32;
+        // Should not panic
+        inspect(&console, &value);
+    }
+
+    // =========================================================================
+    // Edge Cases
+    // =========================================================================
+
+    #[test]
+    fn test_pretty_render_nested_struct() {
+        let value = Outer {
+            id: 1,
+            inner: Inner {
+                name: "nested".to_string(),
+                values: vec![1, 2, 3],
+            },
+        };
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Outer"));
+        assert!(text.contains("Inner"));
+        assert!(text.contains("nested"));
+    }
+
+    #[test]
+    fn test_pretty_render_hashmap() {
+        let mut map = HashMap::new();
+        map.insert("key1", 1);
+        map.insert("key2", 2);
+
+        let console = test_console(80);
+        let pretty = Pretty::new(&map);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("key1") || text.contains("key2"));
+    }
+
+    #[test]
+    fn test_pretty_render_option_some() {
+        let value: Option<i32> = Some(42);
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Some"));
+        assert!(text.contains("42"));
+    }
+
+    #[test]
+    fn test_pretty_render_option_none() {
+        let value: Option<i32> = None;
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("None"));
+    }
+
+    #[test]
+    fn test_pretty_render_result_ok() {
+        let value: Result<i32, &str> = Ok(42);
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Ok"));
+    }
+
+    #[test]
+    fn test_pretty_render_result_err() {
+        let value: Result<i32, &str> = Err("error");
+        let console = test_console(80);
+        let pretty = Pretty::new(&value);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Err"));
+        assert!(text.contains("error"));
+    }
+
+    #[test]
+    fn test_pretty_narrow_width() {
+        let value = Simple {
+            field1: "a-very-long-string-value".to_string(),
+            field2: 12345,
+        };
+        let console = test_console(15);
+        let pretty = Pretty::new(&value).wrap(true);
+        let options = console.options();
+        let segments = pretty.render(&console, &options);
+
+        // Should produce multiple lines due to wrapping
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.lines().count() > 1);
+    }
+
+    // =========================================================================
+    // Snapshot Tests (kept from original)
+    // =========================================================================
 
     #[test]
     fn pretty_wraps_to_width_and_is_stable() {

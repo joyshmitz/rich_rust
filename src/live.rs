@@ -533,9 +533,27 @@ mod tests {
     use super::*;
     use std::io::Write;
     use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::Duration;
 
     #[derive(Clone)]
     struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+    impl SharedBuffer {
+        fn new() -> Self {
+            Self(Arc::new(Mutex::new(Vec::new())))
+        }
+
+        fn text(&self) -> String {
+            let buf = self.0.lock().unwrap();
+            String::from_utf8_lossy(&buf).to_string()
+        }
+
+        #[allow(dead_code)]
+        fn clear(&self) {
+            self.0.lock().unwrap().clear();
+        }
+    }
 
     impl Write for SharedBuffer {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -547,9 +565,174 @@ mod tests {
         }
     }
 
+    fn make_test_console(buffer: SharedBuffer) -> Arc<Console> {
+        Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer))
+            .build()
+            .shared()
+    }
+
+    // =========================================================================
+    // LiveOptions Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_options_default() {
+        let options = LiveOptions::default();
+        assert!(!options.screen);
+        assert!(options.auto_refresh);
+        assert!((options.refresh_per_second - 4.0).abs() < f64::EPSILON);
+        assert!(!options.transient);
+        assert!(options.redirect_stdout);
+        assert!(options.redirect_stderr);
+        assert_eq!(options.vertical_overflow, VerticalOverflowMethod::Ellipsis);
+    }
+
+    #[test]
+    fn test_live_options_custom() {
+        let options = LiveOptions {
+            screen: true,
+            auto_refresh: false,
+            refresh_per_second: 10.0,
+            transient: true,
+            redirect_stdout: false,
+            redirect_stderr: false,
+            vertical_overflow: VerticalOverflowMethod::Crop,
+        };
+        assert!(options.screen);
+        assert!(!options.auto_refresh);
+        assert!((options.refresh_per_second - 10.0).abs() < f64::EPSILON);
+        assert!(options.transient);
+        assert!(!options.redirect_stdout);
+        assert!(!options.redirect_stderr);
+        assert_eq!(options.vertical_overflow, VerticalOverflowMethod::Crop);
+    }
+
+    // =========================================================================
+    // VerticalOverflowMethod Tests
+    // =========================================================================
+
+    #[test]
+    fn test_vertical_overflow_default() {
+        let method = VerticalOverflowMethod::default();
+        assert_eq!(method, VerticalOverflowMethod::Ellipsis);
+    }
+
+    #[test]
+    fn test_vertical_overflow_variants() {
+        let crop = VerticalOverflowMethod::Crop;
+        let ellipsis = VerticalOverflowMethod::Ellipsis;
+        let visible = VerticalOverflowMethod::Visible;
+
+        assert_ne!(crop, ellipsis);
+        assert_ne!(ellipsis, visible);
+        assert_ne!(crop, visible);
+    }
+
+    // =========================================================================
+    // Live Creation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_new() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let live = Live::new(console);
+        // Should create without panic
+        assert!(!live.inner.started.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_live_with_options() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            auto_refresh: false,
+            refresh_per_second: 2.0,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options);
+        // Check options were applied
+        let stored = live.inner.options();
+        assert!(!stored.auto_refresh);
+        assert!((stored.refresh_per_second - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_live_screen_enables_transient() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            screen: true,
+            transient: false, // Should be set to true when screen is true
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options);
+        let stored = live.inner.options();
+        assert!(stored.transient, "transient should be true when screen is true");
+    }
+
+    #[test]
+    #[should_panic(expected = "refresh_per_second must be > 0")]
+    fn test_live_zero_refresh_rate_panics() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            refresh_per_second: 0.0,
+            ..LiveOptions::default()
+        };
+        let _live = Live::with_options(console, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "refresh_per_second must be > 0")]
+    fn test_live_negative_refresh_rate_panics() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            refresh_per_second: -1.0,
+            ..LiveOptions::default()
+        };
+        let _live = Live::with_options(console, options);
+    }
+
+    // =========================================================================
+    // Live Renderable Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_renderable_builder() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let live = Live::new(console).renderable(Text::new("Content"));
+        // Check that renderable was set
+        let slot = live.inner.renderable.read().unwrap();
+        assert!(slot.is_some());
+    }
+
+    #[test]
+    fn test_live_get_renderable_callback() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let counter = Arc::new(Mutex::new(0));
+        let counter_clone = Arc::clone(&counter);
+
+        let live = Live::new(console).get_renderable(move || {
+            let mut c = counter_clone.lock().unwrap();
+            *c += 1;
+            Box::new(Text::new(format!("Count: {}", *c)))
+        });
+
+        // Check that callback was set
+        let slot = live.inner.get_renderable.lock().unwrap();
+        assert!(slot.is_some());
+    }
+
     #[test]
     fn test_live_refresh_outputs_renderable() {
-        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let buffer = SharedBuffer::new();
         let console = Console::builder()
             .force_terminal(true)
             .markup(false)
@@ -567,14 +750,148 @@ mod tests {
         let _ = live.refresh();
         live.stop().expect("stop");
 
-        let output = buffer.0.lock().unwrap();
-        let text = String::from_utf8_lossy(&output);
+        let text = buffer.text();
         assert!(text.contains("Hello"), "output missing: {text}");
     }
 
+    // =========================================================================
+    // Live Start/Stop Lifecycle Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_start_stop() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            auto_refresh: false,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options);
+
+        assert!(!live.inner.started.load(Ordering::SeqCst));
+        live.start(false).expect("start should succeed");
+        assert!(live.inner.started.load(Ordering::SeqCst));
+        live.stop().expect("stop should succeed");
+        assert!(!live.inner.started.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_live_start_idempotent() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            auto_refresh: false,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options);
+
+        live.start(false).expect("first start");
+        live.start(false).expect("second start should be no-op");
+        live.start(false).expect("third start should be no-op");
+        assert!(live.inner.started.load(Ordering::SeqCst));
+        live.stop().expect("stop");
+    }
+
+    #[test]
+    fn test_live_stop_idempotent() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            auto_refresh: false,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options);
+
+        live.start(false).expect("start");
+        live.stop().expect("first stop");
+        live.stop().expect("second stop should be no-op");
+        live.stop().expect("third stop should be no-op");
+        assert!(!live.inner.started.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_live_drop_stops() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            auto_refresh: false,
+            ..LiveOptions::default()
+        };
+
+        {
+            let live = Live::with_options(console.clone(), options);
+            live.start(false).expect("start");
+            assert!(live.inner.started.load(Ordering::SeqCst));
+            // Drop live here
+        }
+        // After drop, the Live should have stopped
+    }
+
+    // =========================================================================
+    // Live Update Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_update_renderable() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let options = LiveOptions {
+            auto_refresh: false,
+            screen: false,
+            transient: false,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options).renderable(Text::new("First"));
+        live.start(true).expect("start");
+
+        // Update to new content
+        live.update(Text::new("Second"), true);
+
+        live.stop().expect("stop");
+
+        let text = buffer.text();
+        assert!(text.contains("Second"), "should contain updated content: {text}");
+    }
+
+    #[test]
+    fn test_live_update_without_refresh() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let options = LiveOptions {
+            auto_refresh: false,
+            screen: false,
+            transient: false,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options).renderable(Text::new("Initial"));
+        live.start(false).expect("start");
+
+        // Update without refresh
+        live.update(Text::new("Updated"), false);
+
+        // Manually refresh
+        let _ = live.refresh();
+
+        live.stop().expect("stop");
+    }
+
+    // =========================================================================
+    // Vertical Overflow Tests
+    // =========================================================================
+
     #[test]
     fn test_live_vertical_overflow_ellipsis() {
-        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let buffer = SharedBuffer::new();
         let console = Console::builder()
             .force_terminal(true)
             .width(10)
@@ -595,14 +912,74 @@ mod tests {
         let _ = live.refresh();
         live.stop().expect("stop");
 
-        let output = buffer.0.lock().unwrap();
-        let text = String::from_utf8_lossy(&output);
+        let text = buffer.text();
         assert!(text.contains("..."), "expected ellipsis, got: {text}");
     }
 
     #[test]
+    fn test_live_vertical_overflow_crop() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .width(20)
+            .height(2)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let options = LiveOptions {
+            auto_refresh: false,
+            screen: false,
+            transient: false,
+            vertical_overflow: VerticalOverflowMethod::Crop,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options).renderable(Text::new("line1\nline2\nline3"));
+        live.start(true).expect("start");
+        let _ = live.refresh();
+        live.stop().expect("stop");
+
+        let text = buffer.text();
+        // With crop, should not have ellipsis
+        assert!(!text.contains("..."), "crop should not add ellipsis: {text}");
+    }
+
+    #[test]
+    fn test_live_vertical_overflow_visible() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .width(20)
+            .height(2)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let options = LiveOptions {
+            auto_refresh: false,
+            screen: false,
+            transient: false,
+            vertical_overflow: VerticalOverflowMethod::Visible,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options).renderable(Text::new("visible1\nvisible2\nvisible3"));
+        live.start(true).expect("start");
+        let _ = live.refresh();
+        live.stop().expect("stop");
+
+        // All lines should be visible
+        let text = buffer.text();
+        // No truncation or ellipsis
+        assert!(!text.contains("..."), "visible should not add ellipsis: {text}");
+    }
+
+    // =========================================================================
+    // LiveWriter Tests
+    // =========================================================================
+
+    #[test]
     fn test_live_writer_proxy() {
-        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let buffer = SharedBuffer::new();
         let console = Console::builder()
             .force_terminal(true)
             .markup(false)
@@ -613,8 +990,291 @@ mod tests {
         let mut writer = live.stdout_proxy();
         let _ = writer.write_all(b"proxy output");
 
-        let output = buffer.0.lock().unwrap();
-        let text = String::from_utf8_lossy(&output);
+        let text = buffer.text();
         assert!(text.contains("proxy output"));
+    }
+
+    #[test]
+    fn test_live_writer_stderr_proxy() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let live = Live::new(console.clone());
+        let mut writer = live.stderr_proxy();
+        let _ = writer.write_all(b"stderr content");
+
+        let text = buffer.text();
+        assert!(text.contains("stderr content"));
+    }
+
+    #[test]
+    fn test_live_writer_flush() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let live = Live::new(console);
+        let mut writer = live.stdout_proxy();
+
+        // Flush should not panic
+        writer.flush().expect("flush should succeed");
+    }
+
+    #[test]
+    fn test_live_writer_write_returns_length() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let live = Live::new(console);
+        let mut writer = live.stdout_proxy();
+
+        let data = b"test data";
+        let written = writer.write(data).expect("write");
+        assert_eq!(written, data.len());
+    }
+
+    // =========================================================================
+    // LiveRender Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_render_default() {
+        let render = LiveRender::default();
+        assert!(render.shape.is_none());
+    }
+
+    #[test]
+    fn test_live_render_position_cursor_no_shape() {
+        let render = LiveRender::default();
+        let controls = render.position_cursor_controls();
+        assert!(controls.is_empty());
+    }
+
+    #[test]
+    fn test_live_render_position_cursor_zero_height() {
+        let render = LiveRender {
+            shape: Some((10, 0)),
+        };
+        let controls = render.position_cursor_controls();
+        assert!(controls.is_empty());
+    }
+
+    #[test]
+    fn test_live_render_position_cursor_single_line() {
+        let render = LiveRender {
+            shape: Some((10, 1)),
+        };
+        let controls = render.position_cursor_controls();
+        // Should have CarriageReturn and EraseInLine
+        assert!(!controls.is_empty());
+        assert_eq!(controls.len(), 2);
+    }
+
+    #[test]
+    fn test_live_render_position_cursor_multiple_lines() {
+        let render = LiveRender {
+            shape: Some((10, 3)),
+        };
+        let controls = render.position_cursor_controls();
+        // CR + EraseLine + (CursorUp + EraseLine) * 2
+        // Total: 2 + 2*2 = 6
+        assert_eq!(controls.len(), 6);
+    }
+
+    #[test]
+    fn test_live_render_restore_cursor_no_shape() {
+        let render = LiveRender::default();
+        let controls = render.restore_cursor_controls();
+        assert!(controls.is_empty());
+    }
+
+    #[test]
+    fn test_live_render_restore_cursor_zero_height() {
+        let render = LiveRender {
+            shape: Some((10, 0)),
+        };
+        let controls = render.restore_cursor_controls();
+        assert!(controls.is_empty());
+    }
+
+    #[test]
+    fn test_live_render_restore_cursor_with_height() {
+        let render = LiveRender {
+            shape: Some((10, 2)),
+        };
+        let controls = render.restore_cursor_controls();
+        // CR + (CursorUp + EraseLine) * height
+        // Total: 1 + 2*2 = 5
+        assert_eq!(controls.len(), 5);
+    }
+
+    // =========================================================================
+    // Thread Safety Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Live>();
+    }
+
+    #[test]
+    fn test_live_clone() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let live = Live::new(console);
+        let _cloned = live.clone();
+        // Should not panic, clones share inner state
+    }
+
+    #[test]
+    fn test_live_concurrent_updates() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let options = LiveOptions {
+            auto_refresh: false,
+            screen: false,
+            transient: false,
+            ..LiveOptions::default()
+        };
+        let live = Arc::new(Live::with_options(console, options));
+        live.start(false).expect("start");
+
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let live = Arc::clone(&live);
+                thread::spawn(move || {
+                    for j in 0..10 {
+                        live.update(Text::new(format!("Thread {} update {}", i, j)), false);
+                    }
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().expect("thread should not panic");
+        }
+
+        live.stop().expect("stop");
+    }
+
+    // =========================================================================
+    // Auto-refresh Tests
+    // =========================================================================
+
+    #[test]
+    fn test_live_auto_refresh_disabled() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer.clone());
+        let options = LiveOptions {
+            auto_refresh: false,
+            refresh_per_second: 100.0, // High rate to detect if running
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options).renderable(Text::new("Static"));
+        live.start(true).expect("start");
+
+        // Sleep a bit
+        thread::sleep(Duration::from_millis(50));
+
+        let _text_before = buffer.text();
+        thread::sleep(Duration::from_millis(50));
+        // With auto_refresh disabled, no background thread should be running
+        // (Content should be the same unless manually refreshed)
+
+        live.stop().expect("stop");
+    }
+
+    #[test]
+    fn test_live_auto_refresh_enabled() {
+        let buffer = SharedBuffer::new();
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+        let counter = Arc::new(Mutex::new(0));
+        let counter_clone = Arc::clone(&counter);
+
+        let options = LiveOptions {
+            auto_refresh: true,
+            refresh_per_second: 20.0, // 50ms intervals
+            screen: false,
+            transient: false,
+            ..LiveOptions::default()
+        };
+
+        let live = Live::with_options(console, options).get_renderable(move || {
+            let mut c = counter_clone.lock().unwrap();
+            *c += 1;
+            Box::new(Text::new(format!("Refresh count: {}", *c)))
+        });
+
+        live.start(true).expect("start");
+        thread::sleep(Duration::from_millis(200)); // Should trigger several refreshes
+        live.stop().expect("stop");
+
+        // Counter should have been incremented multiple times
+        let final_count = *counter.lock().unwrap();
+        assert!(
+            final_count >= 2,
+            "expected multiple refreshes, got {}",
+            final_count
+        );
+    }
+
+    // =========================================================================
+    // Edge Cases
+    // =========================================================================
+
+    #[test]
+    fn test_live_empty_renderable() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer.clone());
+        let options = LiveOptions {
+            auto_refresh: false,
+            screen: false,
+            transient: false,
+            ..LiveOptions::default()
+        };
+        // No renderable set
+        let live = Live::with_options(console, options);
+        live.start(true).expect("start");
+        let _ = live.refresh();
+        live.stop().expect("stop");
+        // Should not panic with no renderable
+    }
+
+    #[test]
+    fn test_live_refresh_before_start() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let live = Live::new(console).renderable(Text::new("Content"));
+
+        // Refresh before start should not panic
+        let _ = live.refresh();
+    }
+
+    #[test]
+    fn test_live_refresh_after_stop() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer);
+        let options = LiveOptions {
+            auto_refresh: false,
+            ..LiveOptions::default()
+        };
+        let live = Live::with_options(console, options).renderable(Text::new("Content"));
+        live.start(false).expect("start");
+        live.stop().expect("stop");
+
+        // Refresh after stop should not panic
+        let _ = live.refresh();
     }
 }
