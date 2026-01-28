@@ -901,3 +901,108 @@ fn test_output_toggles_matrix_combination() {
     // Note: --safe-box for tables is tracked separately
     // The scene runs successfully with all toggles combined
 }
+
+// ============================================================================
+// Narrow width verification tests (bd-2t54)
+// ============================================================================
+
+/// Verifies demo completes successfully at narrow width (70 cols).
+#[test]
+fn test_narrow_width_70_completes() {
+    common::init_test_logging();
+
+    let result = DemoRunner::quick()
+        .arg("--width")
+        .arg("70")
+        .non_interactive()
+        .no_color()
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+    assert_stdout_contains(&result, "scenes completed");
+}
+
+/// Verifies demo completes at very narrow width (50 cols).
+#[test]
+fn test_narrow_width_50_completes() {
+    common::init_test_logging();
+
+    let result = DemoRunner::quick()
+        .arg("--width")
+        .arg("50")
+        .non_interactive()
+        .no_color()
+        .run()
+        .expect("should run");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+    assert_stdout_contains(&result, "scenes completed");
+}
+
+/// Verifies individual scenes render without panic at narrow width.
+#[test]
+fn test_narrow_width_all_scenes() {
+    common::init_test_logging();
+
+    let scenes = [
+        "hero",
+        "table",
+        "panels",
+        "tree",
+        "layout",
+        "emoji_links",
+        "debug_tools",
+        "tracing",
+        "traceback",
+        "export",
+    ];
+
+    for scene in scenes {
+        let result = DemoRunner::new()
+            .arg("--scene")
+            .arg(scene)
+            .arg("--width")
+            .arg("60")
+            .arg("--quick")
+            .arg("--no-interactive")
+            .arg("--color-system")
+            .arg("none")
+            .timeout_secs(15)
+            .run()
+            .unwrap_or_else(|_| panic!("scene '{}' should run at narrow width", scene));
+
+        assert_success(&result);
+        assert_no_timeout(&result);
+        assert!(
+            !result.stdout.is_empty(),
+            "Scene '{}' should produce output at narrow width",
+            scene
+        );
+    }
+}
+
+/// Verifies no zero-width panic at minimum sensible width.
+#[test]
+fn test_narrow_width_minimum_no_panic() {
+    common::init_test_logging();
+
+    // Width of 40 is about the minimum for any reasonable output
+    let result = DemoRunner::new()
+        .arg("--scene")
+        .arg("hero")
+        .arg("--width")
+        .arg("40")
+        .arg("--quick")
+        .arg("--no-interactive")
+        .arg("--color-system")
+        .arg("none")
+        .timeout_secs(10)
+        .run()
+        .expect("should run at minimum width");
+
+    assert_success(&result);
+    assert_no_timeout(&result);
+}
