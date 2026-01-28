@@ -222,6 +222,70 @@ pub const DEFAULT_MAX_INPUT_LENGTH: usize = 64 * 1024;
 /// it prints the message once and does not animate.
 ///
 /// Dropping this value stops the live display (best-effort).
+///
+/// # Design RFC: Atomic `Status::update` (bd-gg33)
+///
+/// ## Problem
+///
+/// `Status::update` currently performs two operations: (1) write the new message
+/// into `Arc<Mutex<String>>`, then (2) call `live.refresh()`. These are not
+/// atomic: another thread could update the message between steps 1 and 2,
+/// causing refresh to display a message from a different `update` call.
+///
+/// ## Options Evaluated
+///
+/// | Option | Approach | Complexity | Breaking? |
+/// |--------|----------|-----------|-----------|
+/// | A | Message versioning (u64 counter + Live version check) | Medium | No |
+/// | **B** | **Deferred refresh (remove explicit refresh call)** | **Low** | **No** |
+/// | C | Combined mutex (hold during refresh) | High | Potentially |
+/// | D | Document as known limitation | None | No |
+///
+/// ## Decision: Option B — Deferred Refresh
+///
+/// **Remove the explicit `live.refresh()` call from `update()`.**
+///
+/// Rationale:
+/// - `Live` already runs a timer-based refresh at `refresh_per_second: 10.0`
+///   (100 ms interval). The explicit `refresh()` call is redundant.
+/// - Removing it eliminates the race window entirely: `update()` becomes a
+///   single mutex write, which is inherently atomic.
+/// - No performance cost. The message is guaranteed to appear on the next
+///   scheduled refresh cycle (within ~100 ms), which is imperceptible.
+/// - Simplest implementation: fewer lines of code, fewer failure modes.
+///
+/// Alternatives rejected:
+/// - **Option A** (versioning): Adds complexity for no user-visible benefit.
+///   The race condition is cosmetic (self-corrects in one refresh cycle).
+/// - **Option C** (combined mutex): Risk of deadlock with Live's internal
+///   mutexes. Increased lock contention under heavy concurrent updates.
+/// - **Option D** (document only): Leaves an unnecessary race when a simple
+///   fix exists.
+///
+/// ## Migration
+///
+/// ```rust,ignore
+/// // Before (current):
+/// pub fn update(&self, message: impl Into<String>) {
+///     *crate::sync::lock_recover(&self.message) = message.into();
+///     if let Some(live) = &self.live {
+///         let _ = live.refresh();  // <-- race window here
+///     }
+/// }
+///
+/// // After (Option B):
+/// pub fn update(&self, message: impl Into<String>) {
+///     *crate::sync::lock_recover(&self.message) = message.into();
+///     // Live's timer-based refresh picks up the new message automatically.
+/// }
+/// ```
+///
+/// ## Test Plan
+///
+/// 1. Existing `test_status_non_interactive_prints_message_once` still passes.
+/// 2. New test: rapid concurrent `update()` calls from multiple threads,
+///    verifying no panics and final message is one of the expected values.
+/// 3. New test: `update()` after `Live` has stopped (no-op, no crash).
 pub struct Status {
     message: Arc<Mutex<String>>,
     live: Option<Live>,
@@ -2025,5 +2089,458 @@ mod tests {
         assert_eq!(prompt.max_length, 256);
         assert_eq!(prompt.default, Some("default".to_string()));
         assert!(prompt.allow_empty);
+    }
+
+    // ========================================================================
+    // Select and Confirm max_length tests (bd-fal7)
+    // ========================================================================
+
+    #[test]
+    fn test_select_max_length_builder() {
+        let select = Select::new("Pick").choices(["a", "b"]).max_length(128);
+        assert_eq!(select.max_length, 128);
+    }
+
+    #[test]
+    fn test_select_default_max_length() {
+        let select = Select::new("Pick").choices(["a"]);
+        assert_eq!(select.max_length, super::DEFAULT_MAX_INPUT_LENGTH);
+    }
+
+    #[test]
+    fn test_select_input_too_long() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let select = Select::new("Pick").choices(["a", "b"]).max_length(3);
+        let input = b"this exceeds limit\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = select.ask_from(&console, &mut reader);
+        assert!(
+            matches!(result, Err(PromptError::InputTooLong { limit: 3, .. })),
+            "Expected InputTooLong, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_confirm_max_length_builder() {
+        let confirm = Confirm::new("Continue?").max_length(32);
+        assert_eq!(confirm.max_length, 32);
+    }
+
+    #[test]
+    fn test_confirm_default_max_length() {
+        let confirm = Confirm::new("Continue?");
+        assert_eq!(confirm.max_length, super::DEFAULT_MAX_INPUT_LENGTH);
+    }
+
+    #[test]
+    fn test_confirm_input_too_long() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?").max_length(3);
+        let input = b"this exceeds limit\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = confirm.ask_from(&console, &mut reader);
+        assert!(
+            matches!(result, Err(PromptError::InputTooLong { limit: 3, .. })),
+            "Expected InputTooLong, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_confirm_within_max_length() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?").max_length(100);
+        let input = b"y\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = confirm.ask_from(&console, &mut reader).expect("confirm");
+        assert!(answer);
+    }
+
+    // ========================================================================
+    // Comprehensive unit tests for interactive.rs (bd-ic9b)
+    // ========================================================================
+
+    // --- Pager tests ---
+
+    #[test]
+    fn test_pager_builder_defaults() {
+        let pager = Pager::new();
+        assert!(pager.command.is_none());
+        assert!(pager.allow_color);
+    }
+
+    #[test]
+    fn test_pager_custom_command() {
+        let pager = Pager::new().command("more -R");
+        assert_eq!(pager.command.as_deref(), Some("more -R"));
+    }
+
+    #[test]
+    fn test_pager_allow_color_false() {
+        let pager = Pager::new().allow_color(false);
+        assert!(!pager.allow_color);
+    }
+
+    #[test]
+    fn test_pager_default_impl() {
+        let pager = Pager::default();
+        assert!(pager.command.is_none());
+        assert!(pager.allow_color);
+    }
+
+    #[test]
+    fn test_pager_debug_impl() {
+        let pager = Pager::new().command("less");
+        let debug = format!("{pager:?}");
+        assert!(debug.contains("Pager"), "Debug should contain 'Pager': {debug}");
+        assert!(debug.contains("less"), "Debug should contain command: {debug}");
+    }
+
+    #[test]
+    fn test_pager_clone() {
+        let pager = Pager::new().command("cat").allow_color(false);
+        let cloned = pager.clone();
+        assert_eq!(cloned.command, pager.command);
+        assert_eq!(cloned.allow_color, pager.allow_color);
+    }
+
+    // --- Choice tests ---
+
+    #[test]
+    fn test_choice_new() {
+        let choice = Choice::new("option1");
+        assert_eq!(choice.value, "option1");
+        assert!(choice.label.is_none());
+        assert_eq!(choice.display(), "option1");
+    }
+
+    #[test]
+    fn test_choice_with_label() {
+        let choice = Choice::with_label("us-east-1", "US East (Virginia)");
+        assert_eq!(choice.value, "us-east-1");
+        assert_eq!(choice.label.as_deref(), Some("US East (Virginia)"));
+        assert_eq!(choice.display(), "US East (Virginia)");
+    }
+
+    #[test]
+    fn test_choice_from_string() {
+        let choice: Choice = "hello".into();
+        assert_eq!(choice.value, "hello");
+        assert!(choice.label.is_none());
+    }
+
+    #[test]
+    fn test_choice_from_owned_string() {
+        let choice: Choice = String::from("world").into();
+        assert_eq!(choice.value, "world");
+    }
+
+    #[test]
+    fn test_choice_debug_and_clone() {
+        let choice = Choice::with_label("val", "lbl");
+        let debug = format!("{choice:?}");
+        assert!(debug.contains("val"));
+        assert!(debug.contains("lbl"));
+
+        let cloned = choice.clone();
+        assert_eq!(cloned.value, "val");
+        assert_eq!(cloned.label.as_deref(), Some("lbl"));
+    }
+
+    // --- Select edge case tests ---
+
+    #[test]
+    fn test_select_empty_choices_error() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let select = Select::new("Pick");
+        let input = b"1\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = select.ask_from(&console, &mut reader);
+        assert!(
+            matches!(result, Err(PromptError::Validation(ref msg)) if msg.contains("No choices")),
+            "Expected Validation error about no choices, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_select_invalid_then_valid() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let select = Select::new("Pick").choices(["a", "b", "c"]);
+        // First: invalid input, then valid number
+        let input = b"999\n2\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = select.ask_from(&console, &mut reader).expect("select");
+        assert_eq!(result, "b");
+    }
+
+    #[test]
+    fn test_select_non_interactive_no_default_error() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let select = Select::new("Pick").choices(["a", "b"]);
+        // No default set, non-interactive
+        let result = select.ask(&console);
+        assert!(matches!(result, Err(PromptError::NotInteractive)));
+    }
+
+    #[test]
+    fn test_select_eof() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let select = Select::new("Pick").choices(["a", "b"]);
+        let input = b"";
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = select.ask_from(&console, &mut reader);
+        assert!(matches!(result, Err(PromptError::Eof)));
+    }
+
+    #[test]
+    fn test_select_builder_chaining() {
+        let select = Select::new("Pick")
+            .choices(["a", "b"])
+            .choice("c")
+            .default("b")
+            .show_default(false)
+            .markup(false)
+            .max_length(512);
+
+        assert_eq!(select.label, "Pick");
+        assert_eq!(select.choices.len(), 3);
+        assert_eq!(select.default.as_deref(), Some("b"));
+        assert!(!select.show_default);
+        assert!(!select.markup);
+        assert_eq!(select.max_length, 512);
+    }
+
+    // --- Confirm edge case tests ---
+
+    #[test]
+    fn test_confirm_all_yes_variants() {
+        let yes_inputs: &[&[u8]] = &[b"y\n", b"yes\n", b"true\n", b"1\n"];
+
+        for input_bytes in yes_inputs {
+            let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+            let console = Console::builder()
+                .force_terminal(true)
+                .markup(false)
+                .file(Box::new(buffer.clone()))
+                .build()
+                .shared();
+
+            let confirm = Confirm::new("Continue?");
+            let mut reader = io::Cursor::new(*input_bytes);
+            let answer = confirm
+                .ask_from(&console, &mut reader)
+                .unwrap_or_else(|_| panic!("Failed on input: {:?}", String::from_utf8_lossy(input_bytes)));
+            assert!(
+                answer,
+                "Expected true for input {:?}",
+                String::from_utf8_lossy(input_bytes)
+            );
+        }
+    }
+
+    #[test]
+    fn test_confirm_all_no_variants() {
+        let no_inputs: &[&[u8]] = &[b"n\n", b"no\n", b"false\n", b"0\n"];
+
+        for input_bytes in no_inputs {
+            let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+            let console = Console::builder()
+                .force_terminal(true)
+                .markup(false)
+                .file(Box::new(buffer.clone()))
+                .build()
+                .shared();
+
+            let confirm = Confirm::new("Continue?");
+            let mut reader = io::Cursor::new(*input_bytes);
+            let answer = confirm
+                .ask_from(&console, &mut reader)
+                .unwrap_or_else(|_| panic!("Failed on input: {:?}", String::from_utf8_lossy(input_bytes)));
+            assert!(
+                !answer,
+                "Expected false for input {:?}",
+                String::from_utf8_lossy(input_bytes)
+            );
+        }
+    }
+
+    #[test]
+    fn test_confirm_invalid_then_valid() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?");
+        // "maybe" is invalid, then "y" is valid
+        let input = b"maybe\ny\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = confirm.ask_from(&console, &mut reader).expect("confirm");
+        assert!(answer);
+
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        assert!(
+            text.contains("Please enter y or n"),
+            "Expected error prompt in output: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_confirm_default_false() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?").default(false);
+        let input = b"\n"; // Empty = use default
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = confirm.ask_from(&console, &mut reader).expect("confirm");
+        assert!(!answer);
+    }
+
+    #[test]
+    fn test_confirm_no_default_empty_reprompts() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?"); // No default
+        // First empty (reprompt), then yes
+        let input = b"\ny\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = confirm.ask_from(&console, &mut reader).expect("confirm");
+        assert!(answer);
+    }
+
+    #[test]
+    fn test_confirm_eof() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?");
+        let input = b"";
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = confirm.ask_from(&console, &mut reader);
+        assert!(matches!(result, Err(PromptError::Eof)));
+    }
+
+    #[test]
+    fn test_confirm_non_interactive_no_default_error() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let confirm = Confirm::new("Continue?"); // No default
+        let result = confirm.ask(&console);
+        assert!(matches!(result, Err(PromptError::NotInteractive)));
+    }
+
+    #[test]
+    fn test_confirm_builder_chaining() {
+        let confirm = Confirm::new("Delete?")
+            .default(false)
+            .markup(false)
+            .max_length(64);
+
+        assert_eq!(confirm.label, "Delete?");
+        assert_eq!(confirm.default, Some(false));
+        assert!(!confirm.markup);
+        assert_eq!(confirm.max_length, 64);
+    }
+
+    // --- trim_newline tests ---
+
+    #[test]
+    fn test_trim_newline_lf() {
+        assert_eq!(super::trim_newline("hello\n"), "hello");
+    }
+
+    #[test]
+    fn test_trim_newline_crlf() {
+        assert_eq!(super::trim_newline("hello\r\n"), "hello");
+    }
+
+    #[test]
+    fn test_trim_newline_none() {
+        assert_eq!(super::trim_newline("hello"), "hello");
+    }
+
+    #[test]
+    fn test_trim_newline_empty() {
+        assert_eq!(super::trim_newline(""), "");
+    }
+
+    #[test]
+    fn test_trim_newline_only_newline() {
+        assert_eq!(super::trim_newline("\n"), "");
     }
 }

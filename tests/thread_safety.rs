@@ -467,3 +467,182 @@ fn test_style_cache_consistency() {
         "Style cache returned inconsistent results"
     );
 }
+
+// ============================================================================
+// MUTEX POISON RECOVERY TESTS (bd-34us)
+// ============================================================================
+
+/// Test that library operations continue working after a thread panics
+/// during style parsing (which uses global style/color caches).
+#[test]
+fn test_style_operations_survive_thread_panic() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    // Pre-warm caches
+    let _ = Style::parse("bold red").unwrap();
+    let _ = Color::parse("blue").unwrap();
+
+    let panic_done = Arc::new(AtomicBool::new(false));
+    let panic_done_clone = Arc::clone(&panic_done);
+
+    // Spawn a thread that panics while doing style operations
+    let panic_handle = thread::spawn(move || {
+        let _ = Style::parse("bold").unwrap();
+        panic_done_clone.store(true, Ordering::SeqCst);
+        panic!("intentional panic during style operations");
+    });
+
+    // Wait for the panic thread to complete (it will return Err)
+    let _ = panic_handle.join();
+    assert!(panic_done.load(Ordering::SeqCst), "panic thread ran");
+
+    // Verify the library still works after the panic
+    let style = Style::parse("bold italic red on white").unwrap();
+    // Style was parsed successfully - verify it's not the null/default style
+    assert_ne!(style, Style::default());
+
+    let color = Color::parse("#ff0000").unwrap();
+    // Color parsed successfully
+    let _ = color;
+
+    // More operations to verify caches are functional
+    for _ in 0..100 {
+        let _ = Style::parse("dim cyan underline").unwrap();
+        let _ = Color::parse("bright_green").unwrap();
+    }
+}
+
+/// Test that cell_len continues working after a thread panics during
+/// cell width calculations.
+#[test]
+fn test_cell_len_survives_thread_panic() {
+    use rich_rust::cells::cell_len;
+
+    // Pre-warm cache
+    let _ = cell_len("Hello, World!");
+
+    // Spawn a thread that panics while doing cell_len
+    let panic_handle = thread::spawn(|| {
+        let _ = cell_len("test");
+        panic!("intentional panic during cell_len");
+    });
+
+    let _ = panic_handle.join();
+
+    // Verify cell_len still works
+    assert_eq!(cell_len("Hello"), 5);
+    assert_eq!(cell_len(""), 0);
+    assert_eq!(cell_len("中文"), 4); // CJK characters are width 2
+
+    // Batch operations to stress-test post-panic cache
+    for i in 0..100 {
+        let s = format!("test string number {i}");
+        let len = cell_len(&s);
+        assert!(len > 0);
+    }
+}
+
+/// Test that rendering operations survive a thread panic during rendering.
+#[test]
+fn test_rendering_survives_thread_panic() {
+    // Spawn a thread that panics mid-render
+    let panic_handle = thread::spawn(|| {
+        let text = Text::from("[bold]Hello[/]");
+        let _segments = text.render("\n");
+        panic!("intentional panic after rendering");
+    });
+
+    let _ = panic_handle.join();
+
+    // All rendering should still work
+    let text = Text::from("[bold red]After panic[/]");
+    let segments = text.render("\n");
+    assert!(!segments.is_empty());
+
+    let mut table = Table::new().with_column(Column::new("Name"));
+    table.add_row_cells(["Post-panic data"]);
+    let segments = table.render(80);
+    assert!(!segments.is_empty());
+
+    let panel = Panel::from_text("Recovered content");
+    let segments = panel.render(60);
+    assert!(!segments.is_empty());
+}
+
+/// Test concurrent access where some threads panic and others continue.
+/// This is the most realistic scenario: in a multi-threaded application,
+/// one task crashes but the rest should keep running.
+#[test]
+fn test_concurrent_access_with_panicking_threads() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let success_count = Arc::new(AtomicUsize::new(0));
+
+    let handles: Vec<_> = (0..12)
+        .map(|i| {
+            let success_count = Arc::clone(&success_count);
+            thread::spawn(move || {
+                // Threads 0 and 1 will panic; the rest should succeed
+                if i < 2 {
+                    let _ = Style::parse("bold").unwrap();
+                    panic!("intentional panic in thread {i}");
+                }
+
+                // Remaining threads do normal work
+                for _ in 0..100 {
+                    let _ = Style::parse("bold red").unwrap();
+                    let _ = Color::parse("#00ff00").unwrap();
+
+                    let text = Text::from("Concurrent rendering");
+                    let _ = text.render("\n");
+                }
+
+                success_count.fetch_add(1, Ordering::SeqCst);
+            })
+        })
+        .collect();
+
+    let mut panics = 0;
+    for handle in handles {
+        match handle.join() {
+            Ok(()) => {}
+            Err(_) => panics += 1,
+        }
+    }
+
+    // Exactly 2 threads should have panicked
+    assert_eq!(panics, 2);
+    // The remaining 10 threads should have completed successfully
+    assert_eq!(success_count.load(Ordering::SeqCst), 10);
+}
+
+/// Test that Status spinner (which uses Arc<Mutex<String>>) handles
+/// poison recovery via the sync module.
+#[test]
+fn test_status_mutex_poison_recovery() {
+    use std::sync::{Arc, Mutex};
+    use rich_rust::sync::lock_recover;
+
+    // Simulate what Status does internally: Arc<Mutex<String>>
+    let message = Arc::new(Mutex::new("Working...".to_string()));
+
+    // Poison the mutex
+    let msg_clone = Arc::clone(&message);
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _guard = msg_clone.lock().unwrap();
+        panic!("intentional panic to poison Status-like mutex");
+    }));
+
+    assert!(message.is_poisoned());
+
+    // Recover using the sync helper (as Status does)
+    let guard = lock_recover(&message);
+    assert_eq!(*guard, "Working...");
+    drop(guard);
+
+    // Update via recover (as Status::update does)
+    *lock_recover(&message) = "Still working!".to_string();
+    assert_eq!(*lock_recover(&message), "Still working!");
+}

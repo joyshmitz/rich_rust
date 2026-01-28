@@ -464,7 +464,9 @@ impl Color {
         // Try hex format: #RRGGBB or #RGB (shorthand)
         if let Some(hex) = color.strip_prefix('#') {
             // 6-digit hex: #RRGGBB
+            // Guard: hex.is_ascii() ensures byte-indexing is char-safe
             if hex.len() == 6
+                && hex.is_ascii()
                 && let (Ok(r), Ok(g), Ok(b)) = (
                     u8::from_str_radix(&hex[0..2], 16),
                     u8::from_str_radix(&hex[2..4], 16),
@@ -474,7 +476,8 @@ impl Color {
                 return Ok(Self::from_rgb(r, g, b));
             }
             // 3-digit hex shorthand: #RGB -> #RRGGBB
-            if hex.len() == 3 {
+            // Guard: hex.is_ascii() ensures len() == chars().count()
+            if hex.len() == 3 && hex.is_ascii() {
                 let chars: Vec<char> = hex.chars().collect();
                 if let (Ok(r), Ok(g), Ok(b)) = (
                     u8::from_str_radix(&format!("{}{}", chars[0], chars[0]), 16),

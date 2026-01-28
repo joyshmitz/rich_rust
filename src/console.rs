@@ -884,11 +884,7 @@ impl Console {
     }
 
     fn apply_render_hooks(&self, segments: Vec<Segment<'static>>) -> Vec<Segment<'static>> {
-        let hooks = self
-            .render_hooks
-            .lock()
-            .map(|hooks| hooks.clone())
-            .unwrap_or_default();
+        let hooks = lock_recover(&self.render_hooks).clone();
         if hooks.is_empty() {
             return segments;
         }
@@ -905,10 +901,9 @@ impl Console {
         writer: &mut W,
         segments: &[Segment<'_>],
     ) -> io::Result<()> {
-        if self.record.load(Ordering::Relaxed)
-            && let Ok(mut buffer) = self.buffer.lock()
-        {
-            buffer.extend(segments.iter().cloned().map(Segment::into_owned));
+        if self.record.load(Ordering::Relaxed) {
+            lock_recover(&self.buffer)
+                .extend(segments.iter().cloned().map(Segment::into_owned));
         }
 
         let color_system = self.color_system();
@@ -1018,9 +1013,8 @@ impl Console {
 
     /// Print a blank line.
     pub fn line(&self) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = writeln!(file);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = writeln!(file);
     }
 
     /// Print a rule (horizontal line).
@@ -1028,9 +1022,7 @@ impl Console {
         let width = self.width();
         let line_char = if self.safe_box { '-' } else { '\u{2500}' };
 
-        let Ok(mut file) = self.file.lock() else {
-            return;
-        };
+        let mut file = lock_recover(&self.file);
         if let Some(title) = title {
             // Ensure title fits within width, accounting for 2 spaces padding
             let max_title_width = width.saturating_sub(2);
@@ -1058,30 +1050,26 @@ impl Console {
 
     /// Clear the screen.
     pub fn clear(&self) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = terminal::control::clear_screen(&mut *file);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = terminal::control::clear_screen(&mut *file);
     }
 
     /// Clear the current line.
     pub fn clear_line(&self) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = terminal::control::clear_line(&mut *file);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = terminal::control::clear_line(&mut *file);
     }
 
     /// Set the terminal title.
     pub fn set_title(&self, title: &str) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = terminal::control::set_title(&mut *file, title);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = terminal::control::set_title(&mut *file, title);
     }
 
     /// Ring the terminal bell.
     pub fn bell(&self) {
-        if let Ok(mut file) = self.file.lock() {
-            let _ = terminal::control::bell(&mut *file);
-        }
+        let mut file = lock_recover(&self.file);
+        let _ = terminal::control::bell(&mut *file);
     }
 
     /// Print text without parsing markup.
@@ -1146,7 +1134,8 @@ impl Console {
             LogLevel::Error => ("[ERROR]", Style::parse("bold red").unwrap_or_default()),
         };
 
-        if let Ok(mut file) = self.file.lock() {
+        {
+            let mut file = lock_recover(&self.file);
             // Print timestamp if enabled
             if options.show_timestamp {
                 let timestamp = Self::format_timestamp(options.timestamp_format.as_deref());

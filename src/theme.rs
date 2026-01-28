@@ -794,4 +794,331 @@ mod tests {
         let theme2 = Theme::from_style_definitions([("test", "italic")], false).expect("theme2");
         assert_ne!(theme1, theme2);
     }
+
+    // =========================================================================
+    // std::error::Error Trait Tests
+    // =========================================================================
+
+    #[test]
+    fn test_theme_error_is_std_error() {
+        let err: Box<dyn std::error::Error> = Box::new(ThemeError::MissingStylesSection);
+        // ThemeError implements std::error::Error with no source
+        assert!(err.source().is_none());
+        assert!(!err.to_string().is_empty());
+    }
+
+    #[test]
+    fn test_theme_error_io_as_std_error() {
+        let err: Box<dyn std::error::Error> = Box::new(ThemeError::Io {
+            path: std::path::PathBuf::from("/tmp/test"),
+            err: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
+        });
+        assert!(err.source().is_none());
+        assert!(err.to_string().contains("denied"));
+    }
+
+    #[test]
+    fn test_theme_stack_error_is_std_error() {
+        let err: Box<dyn std::error::Error> = Box::new(ThemeStackError);
+        assert!(err.source().is_none());
+        assert_eq!(err.to_string(), "Unable to pop base theme");
+    }
+
+    // =========================================================================
+    // Theme Edge Case Tests
+    // =========================================================================
+
+    #[test]
+    fn test_theme_new_some_empty_map() {
+        // Some(empty HashMap) should behave like None
+        let theme_none = Theme::new(None, false);
+        let theme_empty = Theme::new(Some(HashMap::new()), false);
+        assert_eq!(theme_none, theme_empty);
+    }
+
+    #[test]
+    fn test_theme_new_some_empty_map_with_inherit() {
+        let theme_none = Theme::new(None, true);
+        let theme_empty = Theme::new(Some(HashMap::new()), true);
+        assert_eq!(theme_none, theme_empty);
+    }
+
+    #[test]
+    fn test_from_style_definitions_empty_with_inherit() {
+        let theme =
+            Theme::from_style_definitions(std::iter::empty::<(&str, &str)>(), true).expect("theme");
+        // Should contain default styles with no extras
+        assert!(theme.get("rule.line").is_some());
+        assert_eq!(theme, Theme::default());
+    }
+
+    #[test]
+    fn test_from_style_definitions_empty_no_inherit() {
+        let theme = Theme::from_style_definitions(std::iter::empty::<(&str, &str)>(), false)
+            .expect("theme");
+        assert!(theme.styles().is_empty());
+    }
+
+    // =========================================================================
+    // Config Export Edge Cases
+    // =========================================================================
+
+    #[test]
+    fn test_config_empty_theme() {
+        let theme = Theme::new(None, false);
+        let config = theme.config();
+        assert_eq!(config, "[styles]\n");
+    }
+
+    #[test]
+    fn test_config_roundtrip_many_styles() {
+        let defs = [
+            ("alpha", "bold"),
+            ("beta", "italic"),
+            ("gamma", "underline"),
+            ("delta", "dim"),
+            ("epsilon", "red"),
+        ];
+        let original = Theme::from_style_definitions(defs, false).expect("theme");
+        let config = original.config();
+        let parsed = Theme::from_ini_str(&config, false).expect("parsed");
+        assert_eq!(original.styles().len(), parsed.styles().len());
+        for (name, style) in original.styles() {
+            assert_eq!(
+                parsed.get(name).unwrap().to_string(),
+                style.to_string(),
+                "style mismatch for key {name:?}"
+            );
+        }
+    }
+
+    // =========================================================================
+    // INI Parsing Edge Cases
+    // =========================================================================
+
+    #[test]
+    fn test_from_ini_str_case_insensitive_section() {
+        let ini = "[STYLES]\nwarning = bold red\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert_eq!(theme.get("warning").unwrap().to_string(), "bold red");
+    }
+
+    #[test]
+    fn test_from_ini_str_mixed_case_section() {
+        let ini = "[Styles]\nerror = italic\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert_eq!(theme.get("error").unwrap().to_string(), "italic");
+    }
+
+    #[test]
+    fn test_from_ini_str_empty_styles_section() {
+        let ini = "[styles]\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert!(theme.styles().is_empty());
+    }
+
+    #[test]
+    fn test_from_ini_str_only_comments_in_styles() {
+        let ini = "[styles]\n# Just a comment\n; Another comment\n\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert!(theme.styles().is_empty());
+    }
+
+    #[test]
+    fn test_from_ini_str_whitespace_around_values() {
+        let ini = "[styles]\n  warning  =   bold red   \n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert_eq!(theme.get("warning").unwrap().to_string(), "bold red");
+    }
+
+    #[test]
+    fn test_from_ini_str_invalid_style_value() {
+        let ini = "[styles]\nbad = not-a-valid-style-xxxyyy\n";
+        let result = Theme::from_ini_str(ini, false);
+        assert!(matches!(result, Err(ThemeError::InvalidStyle { .. })));
+        if let Err(ThemeError::InvalidStyle { name, .. }) = result {
+            assert_eq!(name, "bad");
+        }
+    }
+
+    #[test]
+    fn test_from_ini_str_duplicate_key_line_no() {
+        // Line 1: [styles]
+        // Line 2: first = bold
+        // Line 3: first = italic (duplicate)
+        let ini = "[styles]\nfirst = bold\nfirst = italic\n";
+        let result = Theme::from_ini_str(ini, false);
+        if let Err(ThemeError::DuplicateIniKey { line_no, name }) = result {
+            assert_eq!(name, "first");
+            assert_eq!(line_no, 3); // 1-indexed, line 3
+        } else {
+            panic!("Expected DuplicateIniKey error");
+        }
+    }
+
+    #[test]
+    fn test_from_ini_str_styles_section_after_other() {
+        // Styles section is not first
+        let ini = "[other]\nfoo = bar\n[styles]\ncustom = bold\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert!(theme.get("custom").is_some());
+        assert_eq!(theme.styles().len(), 1);
+    }
+
+    #[test]
+    fn test_from_ini_str_styles_then_other_section() {
+        // Entries after leaving [styles] section should not be parsed
+        let ini = "[styles]\ncustom = bold\n[other]\nignored = italic\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert!(theme.get("custom").is_some());
+        assert!(theme.get("ignored").is_none());
+        assert_eq!(theme.styles().len(), 1);
+    }
+
+    #[test]
+    fn test_from_ini_str_section_name_with_whitespace() {
+        // Trimmed section name
+        let ini = "[  styles  ]\ncustom = bold\n";
+        let theme = Theme::from_ini_str(ini, false).expect("theme");
+        assert!(theme.get("custom").is_some());
+    }
+
+    // =========================================================================
+    // ThemeStack Advanced Tests
+    // =========================================================================
+
+    #[test]
+    fn test_theme_stack_deep_nesting() {
+        let base = Theme::from_style_definitions([("a", "bold"), ("b", "italic")], false)
+            .expect("base");
+        let mut stack = ThemeStack::new(base);
+
+        let layer1 =
+            Theme::from_style_definitions([("b", "underline"), ("c", "dim")], false).expect("l1");
+        stack.push_theme(layer1, true);
+
+        // layer1 inherits: a=bold, b=underline (overridden), c=dim
+        assert_eq!(stack.get("a").unwrap().to_string(), "bold");
+        assert_eq!(stack.get("b").unwrap().to_string(), "underline");
+        assert_eq!(stack.get("c").unwrap().to_string(), "dim");
+
+        let layer2 = Theme::from_style_definitions([("a", "red")], false).expect("l2");
+        stack.push_theme(layer2, true);
+
+        // layer2 inherits layer1: a=red (overridden), b=underline, c=dim
+        assert_eq!(stack.get("a").unwrap().to_string(), "red");
+        assert_eq!(stack.get("b").unwrap().to_string(), "underline");
+        assert_eq!(stack.get("c").unwrap().to_string(), "dim");
+
+        let layer3 = Theme::from_style_definitions([("d", "green")], false).expect("l3");
+        stack.push_theme(layer3, false); // no inherit
+
+        // layer3: only d=green
+        assert!(stack.get("a").is_none());
+        assert!(stack.get("b").is_none());
+        assert!(stack.get("c").is_none());
+        assert_eq!(stack.get("d").unwrap().to_string(), "green");
+
+        // Pop back through
+        stack.pop_theme().expect("pop l3");
+        assert_eq!(stack.get("a").unwrap().to_string(), "red");
+        assert!(stack.get("d").is_none());
+
+        stack.pop_theme().expect("pop l2");
+        assert_eq!(stack.get("a").unwrap().to_string(), "bold");
+        assert_eq!(stack.get("b").unwrap().to_string(), "underline");
+
+        stack.pop_theme().expect("pop l1");
+        assert_eq!(stack.get("a").unwrap().to_string(), "bold");
+        assert_eq!(stack.get("b").unwrap().to_string(), "italic");
+        assert!(stack.get("c").is_none());
+
+        // Can't pop base
+        assert!(stack.pop_theme().is_err());
+    }
+
+    #[test]
+    fn test_theme_stack_clone() {
+        let base = Theme::from_style_definitions([("x", "bold")], false).expect("base");
+        let mut stack = ThemeStack::new(base);
+
+        let overlay = Theme::from_style_definitions([("y", "italic")], false).expect("overlay");
+        stack.push_theme(overlay, true);
+
+        let cloned = stack.clone();
+        assert_eq!(
+            cloned.get("x").unwrap().to_string(),
+            stack.get("x").unwrap().to_string()
+        );
+        assert_eq!(
+            cloned.get("y").unwrap().to_string(),
+            stack.get("y").unwrap().to_string()
+        );
+    }
+
+    #[test]
+    fn test_theme_stack_debug() {
+        let base = Theme::from_style_definitions([("a", "bold")], false).expect("base");
+        let stack = ThemeStack::new(base);
+        let debug_str = format!("{:?}", stack);
+        assert!(debug_str.contains("ThemeStack"));
+        assert!(debug_str.contains("entries"));
+    }
+
+    #[test]
+    fn test_theme_debug() {
+        let theme = Theme::from_style_definitions([("test", "bold")], false).expect("theme");
+        let debug_str = format!("{:?}", theme);
+        assert!(debug_str.contains("Theme"));
+        assert!(debug_str.contains("styles"));
+    }
+
+    #[test]
+    fn test_theme_stack_error_clone_copy() {
+        let err = ThemeStackError;
+        let cloned = err.clone();
+        let copied = err; // Copy
+        assert_eq!(err, cloned);
+        assert_eq!(err, copied);
+    }
+
+    #[test]
+    fn test_theme_stack_error_debug() {
+        let err = ThemeStackError;
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("ThemeStackError"));
+    }
+
+    #[test]
+    fn test_theme_error_debug() {
+        let err = ThemeError::MissingStylesSection;
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("MissingStylesSection"));
+    }
+
+    #[test]
+    fn test_theme_override_default_style() {
+        // Custom styles should override defaults when inherit=true
+        let default_rule = Theme::default().get("rule.line").unwrap().to_string();
+        let theme = Theme::from_style_definitions([("rule.line", "bold magenta")], true)
+            .expect("theme");
+        let custom_rule = theme.get("rule.line").unwrap().to_string();
+        assert_ne!(default_rule, custom_rule);
+        assert_eq!(custom_rule, "bold magenta");
+    }
+
+    #[test]
+    fn test_theme_ne_different_keys() {
+        let theme1 = Theme::from_style_definitions([("a", "bold")], false).expect("t1");
+        let theme2 = Theme::from_style_definitions([("b", "bold")], false).expect("t2");
+        assert_ne!(theme1, theme2);
+    }
+
+    #[test]
+    fn test_theme_ne_different_count() {
+        let theme1 = Theme::from_style_definitions([("a", "bold")], false).expect("t1");
+        let theme2 =
+            Theme::from_style_definitions([("a", "bold"), ("b", "italic")], false).expect("t2");
+        assert_ne!(theme1, theme2);
+    }
 }

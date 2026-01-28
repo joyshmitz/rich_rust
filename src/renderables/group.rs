@@ -357,4 +357,410 @@ mod tests {
         assert!(text.contains("Middle"));
         assert_eq!(g.len(), 3);
     }
+
+    // =========================================================================
+    // Mixed Renderable Types
+    // =========================================================================
+
+    #[test]
+    fn test_group_mixed_text_and_str() {
+        use crate::text::Text;
+
+        let text_obj = Text::new("Styled text");
+        let g = Group::new()
+            .push("Plain string")
+            .push(text_obj)
+            .push("Another string");
+
+        assert_eq!(g.len(), 3);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("Plain string"));
+        assert!(output.contains("Styled text"));
+        assert!(output.contains("Another string"));
+    }
+
+    #[test]
+    fn test_group_mixed_str_and_rule() {
+        use crate::renderables::Rule;
+
+        let g = Group::new()
+            .push("Header text")
+            .push(Rule::new())
+            .push("Footer text");
+
+        assert_eq!(g.len(), 3);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("Header text"));
+        assert!(output.contains("Footer text"));
+        // Rule renders some characters (typically ─)
+        assert!(segments.len() >= 3);
+    }
+
+    #[test]
+    fn test_group_mixed_text_rule_string() {
+        use crate::renderables::Rule;
+        use crate::text::Text;
+
+        let g = Group::new()
+            .push(Text::new("Rich text"))
+            .push(Rule::new())
+            .push("Plain str".to_string());
+
+        assert_eq!(g.len(), 3);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("Rich text"));
+        assert!(output.contains("Plain str"));
+    }
+
+    #[test]
+    fn test_group_boxed_mixed_types() {
+        use crate::text::Text;
+
+        let boxed_str: Box<dyn Renderable> = Box::new("boxed str");
+        let boxed_text: Box<dyn Renderable> = Box::new(Text::new("boxed text"));
+
+        let g = Group::new().push_boxed(boxed_str).push_boxed(boxed_text);
+        assert_eq!(g.len(), 2);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("boxed str"));
+        assert!(output.contains("boxed text"));
+    }
+
+    // =========================================================================
+    // Width Propagation
+    // =========================================================================
+
+    #[test]
+    fn test_group_width_propagation_narrow() {
+        use crate::renderables::Rule;
+
+        let g = Group::new().push(Rule::new());
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .width(20)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        // Rule should render to fit within the narrow width
+        let total_width: usize = segments.iter().map(|s| s.cell_length()).sum();
+        assert!(
+            total_width <= 20,
+            "Rule should fit in 20 columns, got {total_width}"
+        );
+    }
+
+    #[test]
+    fn test_group_width_propagation_wide() {
+        use crate::renderables::Rule;
+
+        let g = Group::new().push(Rule::new());
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .width(120)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let total_width: usize = segments.iter().map(|s| s.cell_length()).sum();
+        // Rule should expand to fill the wider width
+        assert!(
+            total_width > 20,
+            "Rule at width 120 should be wider than 20 chars, got {total_width}"
+        );
+    }
+
+    #[test]
+    fn test_group_width_update() {
+        let g = Group::new().push("Short").push("Also short");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .width(40)
+            .build();
+        let options = console.options();
+        let narrowed = options.update_width(10);
+
+        // Both option sets should produce valid renders
+        let segs_normal = g.render(&console, &options);
+        let segs_narrow = g.render(&console, &narrowed);
+
+        assert!(!segs_normal.is_empty());
+        assert!(!segs_narrow.is_empty());
+    }
+
+    // =========================================================================
+    // Segment Joining Behavior
+    // =========================================================================
+
+    #[test]
+    fn test_group_newline_segments_between_items() {
+        let g = Group::new().push("A").push("B").push("C");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+
+        // Count newline segments - should have 2 (between A-B and B-C)
+        let newline_count = segments.iter().filter(|s| s.text.as_ref() == "\n").count();
+        assert_eq!(
+            newline_count, 2,
+            "Should have 2 newlines between 3 items, got {newline_count}"
+        );
+    }
+
+    #[test]
+    fn test_group_no_newline_in_fit_mode() {
+        let g = Group::new().push("A").push("B").push("C").fit(true);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+
+        let newline_count = segments.iter().filter(|s| s.text.as_ref() == "\n").count();
+        assert_eq!(
+            newline_count, 0,
+            "Fit mode should have no newlines, got {newline_count}"
+        );
+    }
+
+    #[test]
+    fn test_group_segments_are_owned() {
+        // Group's render uses into_owned() on child segments,
+        // so the returned segments should have 'static-compatible lifetimes
+        let g = Group::new().push("test content");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        // Verify segments contain expected content
+        let any_match = segments.iter().any(|s| s.text.as_ref().contains("test content"));
+        assert!(any_match);
+    }
+
+    #[test]
+    fn test_group_segment_count_no_fit() {
+        // Each push adds child segments + newline separator (except before first)
+        let g = Group::new().push("X").push("Y");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        // "X" renders to >=1 segment, then newline, then "Y" >=1 segment
+        assert!(
+            segments.len() >= 3,
+            "Should have at least 3 segments (X + newline + Y), got {}",
+            segments.len()
+        );
+    }
+
+    // =========================================================================
+    // Nested Groups (Extended)
+    // =========================================================================
+
+    #[test]
+    fn test_group_deeply_nested() {
+        let level3 = Group::new().push("L3");
+        let level2 = Group::new().push("L2").push(level3);
+        let level1 = Group::new().push("L1").push(level2);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = level1.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("L1"));
+        assert!(output.contains("L2"));
+        assert!(output.contains("L3"));
+    }
+
+    #[test]
+    fn test_group_nested_fit_modes() {
+        // Outer group: no fit (newlines). Inner group: fit (no newlines).
+        let inner = Group::new().push("A").push("B").fit(true);
+        let outer = Group::new().push("Before").push(inner).push("After");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = outer.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("Before"));
+        assert!(output.contains("A"));
+        assert!(output.contains("B"));
+        assert!(output.contains("After"));
+
+        // Inner group rendered in fit mode, so A and B should be adjacent (no newline between them)
+        // But outer group adds newlines between its children
+        let newlines_in_outer = segments
+            .iter()
+            .filter(|s| s.text.as_ref() == "\n")
+            .count();
+        // Outer has 3 children → 2 newlines from outer
+        assert_eq!(newlines_in_outer, 2);
+    }
+
+    #[test]
+    fn test_group_nested_empty_inner() {
+        let inner: Group = Group::new(); // empty
+        let outer = Group::new().push("Before").push(inner).push("After");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = outer.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("Before"));
+        assert!(output.contains("After"));
+    }
+
+    // =========================================================================
+    // group() Helper Function (Extended)
+    // =========================================================================
+
+    #[test]
+    fn test_group_function_empty_iter() {
+        let g = group(std::iter::empty::<&str>());
+        assert!(g.is_empty());
+        assert_eq!(g.len(), 0);
+    }
+
+    #[test]
+    fn test_group_function_single_item() {
+        let g = group(std::iter::once("only"));
+        assert_eq!(g.len(), 1);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("only"));
+    }
+
+    #[test]
+    fn test_group_function_from_vec() {
+        let items = vec!["one", "two", "three"];
+        let g = group(items);
+        assert_eq!(g.len(), 3);
+    }
+
+    #[test]
+    fn test_group_function_from_owned_strings() {
+        let items: Vec<String> = vec!["owned1".into(), "owned2".into()];
+        let g = group(items);
+        assert_eq!(g.len(), 2);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(output.contains("owned1"));
+        assert!(output.contains("owned2"));
+    }
+
+    // =========================================================================
+    // Builder Chaining
+    // =========================================================================
+
+    #[test]
+    fn test_group_builder_chain_returns_self() {
+        // Verify that push and fit return Self for chaining
+        let g = Group::new()
+            .fit(false)
+            .push("A")
+            .push("B")
+            .fit(true)
+            .push("C");
+
+        assert_eq!(g.len(), 3);
+        assert!(g.fit);
+    }
+
+    #[test]
+    fn test_group_push_after_fit_toggle() {
+        let g = Group::new().push("Before fit").fit(true).push("After fit");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        // fit was set to true, so no newlines
+        assert!(!output.contains('\n'));
+        assert!(output.contains("Before fit"));
+        assert!(output.contains("After fit"));
+    }
 }
