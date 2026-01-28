@@ -39,7 +39,9 @@ impl Scene for TreeScene {
     fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
         console.print("[section.title]Trees: Hierarchical Data Display[/]");
         console.print("");
-        console.print("[dim]Trees visualize hierarchical relationships with configurable guide styles.[/]");
+        console.print(
+            "[dim]Trees visualize hierarchical relationships with configurable guide styles.[/]",
+        );
         console.print("");
 
         // Demo 1: Deployment plan with icons
@@ -70,30 +72,69 @@ fn render_deployment_plan(console: &Console) {
     console.print("");
 
     // Build deployment plan tree with icons
-    let root = TreeNode::with_icon("📋", markup::render_or_plain("[bold]Nebula Deploy v2.4.1[/]"))
-        .child(
-            TreeNode::with_icon("🔍", markup::render_or_plain("[cyan]Pre-flight Checks[/]"))
-                .child(TreeNode::with_icon("✓", markup::render_or_plain("[green]Health checks passed[/]")))
-                .child(TreeNode::with_icon("✓", markup::render_or_plain("[green]Dependencies verified[/]")))
-                .child(TreeNode::with_icon("✓", markup::render_or_plain("[green]Config validated[/]")))
+    let root = TreeNode::with_icon(
+        "📋",
+        markup::render_or_plain("[bold]Nebula Deploy v2.4.1[/]"),
+    )
+    .child(
+        TreeNode::with_icon("🔍", markup::render_or_plain("[cyan]Pre-flight Checks[/]"))
+            .child(TreeNode::with_icon(
+                "✓",
+                markup::render_or_plain("[green]Health checks passed[/]"),
+            ))
+            .child(TreeNode::with_icon(
+                "✓",
+                markup::render_or_plain("[green]Dependencies verified[/]"),
+            ))
+            .child(TreeNode::with_icon(
+                "✓",
+                markup::render_or_plain("[green]Config validated[/]"),
+            )),
+    )
+    .child(
+        TreeNode::with_icon("📦", markup::render_or_plain("[cyan]Build Phase[/]"))
+            .child(TreeNode::with_icon(
+                "✓",
+                markup::render_or_plain("[green]Compile artifacts[/]"),
+            ))
+            .child(TreeNode::with_icon(
+                "✓",
+                markup::render_or_plain("[green]Run test suite[/]"),
+            ))
+            .child(TreeNode::with_icon(
+                "✓",
+                markup::render_or_plain("[green]Create container image[/]"),
+            )),
+    )
+    .child(
+        TreeNode::with_icon("🚀", markup::render_or_plain("[cyan]Deploy Phase[/]"))
+            .child(TreeNode::with_icon(
+                "→",
+                markup::render_or_plain("[yellow]Rolling update (in progress)[/]"),
+            ))
+            .child(TreeNode::with_icon(
+                "○",
+                markup::render_or_plain("[dim]Health verification[/]"),
+            ))
+            .child(TreeNode::with_icon(
+                "○",
+                markup::render_or_plain("[dim]Traffic migration[/]"),
+            )),
+    )
+    .child(
+        TreeNode::with_icon(
+            "📊",
+            markup::render_or_plain("[dim]Post-deploy Validation[/]"),
         )
-        .child(
-            TreeNode::with_icon("📦", markup::render_or_plain("[cyan]Build Phase[/]"))
-                .child(TreeNode::with_icon("✓", markup::render_or_plain("[green]Compile artifacts[/]")))
-                .child(TreeNode::with_icon("✓", markup::render_or_plain("[green]Run test suite[/]")))
-                .child(TreeNode::with_icon("✓", markup::render_or_plain("[green]Create container image[/]")))
-        )
-        .child(
-            TreeNode::with_icon("🚀", markup::render_or_plain("[cyan]Deploy Phase[/]"))
-                .child(TreeNode::with_icon("→", markup::render_or_plain("[yellow]Rolling update (in progress)[/]")))
-                .child(TreeNode::with_icon("○", markup::render_or_plain("[dim]Health verification[/]")))
-                .child(TreeNode::with_icon("○", markup::render_or_plain("[dim]Traffic migration[/]")))
-        )
-        .child(
-            TreeNode::with_icon("📊", markup::render_or_plain("[dim]Post-deploy Validation[/]"))
-                .child(TreeNode::with_icon("○", markup::render_or_plain("[dim]Smoke tests[/]")))
-                .child(TreeNode::with_icon("○", markup::render_or_plain("[dim]Metric baseline[/]")))
-        );
+        .child(TreeNode::with_icon(
+            "○",
+            markup::render_or_plain("[dim]Smoke tests[/]"),
+        ))
+        .child(TreeNode::with_icon(
+            "○",
+            markup::render_or_plain("[dim]Metric baseline[/]"),
+        )),
+    );
 
     let tree = Tree::new(root)
         .guides(TreeGuides::Rounded)
@@ -113,23 +154,47 @@ fn render_service_dependencies(console: &Console) {
     let root = TreeNode::with_icon("🌐", markup::render_or_plain("[bold]api-gateway[/]"))
         .child(
             TreeNode::with_icon("🔐", markup::render_or_plain("[cyan]auth-service[/]"))
-                .child(TreeNode::with_icon("🗄️", markup::render_or_plain("postgres-primary")))
-                .child(TreeNode::with_icon("📮", markup::render_or_plain("redis-sessions")))
+                .child(TreeNode::with_icon(
+                    "🗄️",
+                    markup::render_or_plain("postgres-primary"),
+                ))
+                .child(TreeNode::with_icon(
+                    "📮",
+                    markup::render_or_plain("redis-sessions"),
+                )),
         )
         .child(
             TreeNode::with_icon("👤", markup::render_or_plain("[cyan]user-service[/]"))
-                .child(TreeNode::with_icon("🗄️", markup::render_or_plain("postgres-primary")))
-                .child(TreeNode::with_icon("📮", markup::render_or_plain("redis-cache")))
+                .child(TreeNode::with_icon(
+                    "🗄️",
+                    markup::render_or_plain("postgres-primary"),
+                ))
+                .child(TreeNode::with_icon(
+                    "📮",
+                    markup::render_or_plain("redis-cache"),
+                )),
         )
         .child(
             TreeNode::with_icon("📊", markup::render_or_plain("[cyan]analytics-service[/]"))
-                .child(TreeNode::with_icon("🔍", markup::render_or_plain("elasticsearch")))
-                .child(TreeNode::with_icon("📨", markup::render_or_plain("kafka-cluster")))
+                .child(TreeNode::with_icon(
+                    "🔍",
+                    markup::render_or_plain("elasticsearch"),
+                ))
+                .child(TreeNode::with_icon(
+                    "📨",
+                    markup::render_or_plain("kafka-cluster"),
+                )),
         )
         .child(
             TreeNode::with_icon("💳", markup::render_or_plain("[cyan]billing-service[/]"))
-                .child(TreeNode::with_icon("🗄️", markup::render_or_plain("postgres-billing")))
-                .child(TreeNode::with_icon("🔒", markup::render_or_plain("vault-secrets")))
+                .child(TreeNode::with_icon(
+                    "🗄️",
+                    markup::render_or_plain("postgres-billing"),
+                ))
+                .child(TreeNode::with_icon(
+                    "🔒",
+                    markup::render_or_plain("vault-secrets"),
+                )),
         );
 
     let tree = Tree::new(root)
@@ -161,7 +226,7 @@ fn render_guide_styles(console: &Console) {
             .child(
                 TreeNode::new("branch-a")
                     .child(TreeNode::new("leaf-1"))
-                    .child(TreeNode::new("leaf-2"))
+                    .child(TreeNode::new("leaf-2")),
             )
             .child(TreeNode::new("branch-b"));
 
@@ -186,29 +251,45 @@ fn render_collapsed_tree(console: &Console) {
     let root = TreeNode::with_icon("📁", markup::render_or_plain("[bold]release-artifacts/[/]"))
         .child(
             TreeNode::with_icon("📁", markup::render_or_plain("[cyan]binaries/[/]"))
-                .child(TreeNode::with_icon("📄", markup::render_or_plain("nebula-linux-x86_64")))
-                .child(TreeNode::with_icon("📄", markup::render_or_plain("nebula-darwin-arm64")))
-                .child(TreeNode::with_icon("📄", markup::render_or_plain("nebula-windows-x86_64.exe")))
+                .child(TreeNode::with_icon(
+                    "📄",
+                    markup::render_or_plain("nebula-linux-x86_64"),
+                ))
+                .child(TreeNode::with_icon(
+                    "📄",
+                    markup::render_or_plain("nebula-darwin-arm64"),
+                ))
+                .child(TreeNode::with_icon(
+                    "📄",
+                    markup::render_or_plain("nebula-windows-x86_64.exe"),
+                )),
         )
         .child(
-            TreeNode::with_icon("📁", markup::render_or_plain("[dim]checksums/[/] [dim italic](3 items)[/]"))
-                .collapsed()
-                .child(TreeNode::new("SHA256SUMS"))
-                .child(TreeNode::new("SHA256SUMS.sig"))
-                .child(TreeNode::new("SHA512SUMS"))
+            TreeNode::with_icon(
+                "📁",
+                markup::render_or_plain("[dim]checksums/[/] [dim italic](3 items)[/]"),
+            )
+            .collapsed()
+            .child(TreeNode::new("SHA256SUMS"))
+            .child(TreeNode::new("SHA256SUMS.sig"))
+            .child(TreeNode::new("SHA512SUMS")),
         )
         .child(
-            TreeNode::with_icon("📁", markup::render_or_plain("[dim]docs/[/] [dim italic](5 items)[/]"))
-                .collapsed()
-                .child(TreeNode::new("README.md"))
-                .child(TreeNode::new("CHANGELOG.md"))
-                .child(TreeNode::new("LICENSE"))
-                .child(TreeNode::new("MIGRATION.md"))
-                .child(TreeNode::new("API.md"))
+            TreeNode::with_icon(
+                "📁",
+                markup::render_or_plain("[dim]docs/[/] [dim italic](5 items)[/]"),
+            )
+            .collapsed()
+            .child(TreeNode::new("README.md"))
+            .child(TreeNode::new("CHANGELOG.md"))
+            .child(TreeNode::new("LICENSE"))
+            .child(TreeNode::new("MIGRATION.md"))
+            .child(TreeNode::new("API.md")),
         )
-        .child(
-            TreeNode::with_icon("📄", markup::render_or_plain("manifest.json"))
-        );
+        .child(TreeNode::with_icon(
+            "📄",
+            markup::render_or_plain("manifest.json"),
+        ));
 
     let tree = Tree::new(root)
         .guides(TreeGuides::Rounded)

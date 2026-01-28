@@ -4,6 +4,8 @@ use std::path::PathBuf;
 mod console_builder;
 #[path = "demo_showcase/debug_tools.rs"]
 mod debug_tools;
+#[path = "demo_showcase/emoji_links_scene.rs"]
+mod emoji_links_scene;
 #[path = "demo_showcase/hero.rs"]
 mod hero;
 #[path = "demo_showcase/layout_scene.rs"]

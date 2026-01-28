@@ -13,6 +13,7 @@ use rich_rust::console::Console;
 
 use crate::Config;
 use crate::debug_tools::DebugToolsScene;
+use crate::emoji_links_scene::EmojiLinksScene;
 use crate::hero::HeroScene;
 use crate::layout_scene::LayoutScene;
 use crate::panel_scene::PanelScene;
@@ -210,6 +211,7 @@ pub fn build_registry() -> SceneRegistry {
     registry.register(PanelScene::new());
     registry.register(TreeScene::new());
     registry.register(LayoutScene::new());
+    registry.register(EmojiLinksScene::new());
     registry.register(DebugToolsScene::new());
     registry.register(TracebackScene::new());
     registry.register(PlaceholderScene::new("export", "Export HTML/SVG bundle."));
@@ -284,6 +286,7 @@ mod tests {
             "panels",
             "tree",
             "layout",
+            "emoji_links",
             "debug_tools",
             "traceback",
             "export",
