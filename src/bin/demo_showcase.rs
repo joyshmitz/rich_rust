@@ -521,4 +521,178 @@ mod tests {
         assert!(err.contains("Unknown flag"));
         assert!(err.contains("--help"));
     }
+
+    // ========== Additional CLI tests (bd-6tj5) ==========
+
+    #[test]
+    fn default_config_has_expected_values() {
+        let cfg = parse(&["demo_showcase"]).expect("parse");
+        // Default values from Config::with_defaults()
+        assert_eq!(cfg.speed, 1.0);
+        assert_eq!(cfg.seed, 0);
+        assert!(!cfg.quick);
+        assert!(!cfg.force_terminal);
+        assert!(!cfg.help);
+        assert!(!cfg.list_scenes);
+        assert!(cfg.scene.is_none());
+        assert!(cfg.width.is_none());
+        assert!(cfg.height.is_none());
+        assert!(cfg.interactive.is_none());
+        assert!(cfg.live.is_none());
+        assert!(cfg.screen.is_none());
+        assert!(cfg.emoji.is_none());
+        assert!(cfg.safe_box.is_none());
+        assert!(cfg.links.is_none());
+        assert!(matches!(cfg.color_system, ColorMode::Auto));
+        assert!(matches!(cfg.export, ExportMode::Off));
+    }
+
+    #[test]
+    fn quick_flag_parses() {
+        let cfg = parse(&["demo_showcase", "--quick"]).expect("parse");
+        assert!(cfg.quick);
+    }
+
+    #[test]
+    fn force_terminal_flag_parses() {
+        let cfg = parse(&["demo_showcase", "--force-terminal"]).expect("parse");
+        assert!(cfg.force_terminal);
+    }
+
+    #[test]
+    fn short_help_flag_works() {
+        let cfg = parse(&["demo_showcase", "-h"]).expect("parse");
+        assert!(cfg.help);
+    }
+
+    #[test]
+    fn all_color_system_variants_parse() {
+        let cases = [
+            ("auto", ColorMode::Auto),
+            ("none", ColorMode::None),
+            ("no", ColorMode::None),
+            ("off", ColorMode::None),
+            ("standard", ColorMode::Standard),
+            ("16", ColorMode::Standard),
+            ("eight_bit", ColorMode::EightBit),
+            ("eightbit", ColorMode::EightBit),
+            ("256", ColorMode::EightBit),
+            ("truecolor", ColorMode::TrueColor),
+            ("true", ColorMode::TrueColor),
+            ("24bit", ColorMode::TrueColor),
+        ];
+
+        for (input, expected) in cases {
+            let cfg = parse(&["demo_showcase", "--color-system", input])
+                .unwrap_or_else(|e| panic!("Failed to parse color-system {input}: {e}"));
+            assert_eq!(cfg.color_system, expected, "color-system {input}");
+        }
+    }
+
+    #[test]
+    fn missing_flag_value_gives_helpful_error() {
+        let cases = [
+            ("--speed", "Missing value for `--speed`"),
+            ("--seed", "Missing value for `--seed`"),
+            ("--width", "Missing value for `--width`"),
+            ("--height", "Missing value for `--height`"),
+            ("--color-system", "Missing value for `--color-system`"),
+            ("--scene", "Missing value for `--scene`"),
+            ("--export-dir", "Missing value for `--export-dir`"),
+        ];
+
+        for (flag, expected_msg) in cases {
+            let err = parse(&["demo_showcase", flag]).expect_err("should error");
+            assert!(
+                err.contains(expected_msg),
+                "Flag {flag} should report missing value, got: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn speed_rejects_non_finite_values() {
+        let err = parse(&["demo_showcase", "--speed", "inf"]).expect_err("error");
+        assert!(err.contains("finite") || err.contains("> 0"));
+
+        let err = parse(&["demo_showcase", "--speed", "nan"]).expect_err("error");
+        assert!(err.contains("expected a number") || err.contains("Invalid --speed"));
+    }
+
+    #[test]
+    fn speed_rejects_negative_values() {
+        let err = parse(&["demo_showcase", "--speed", "-1.0"]).expect_err("error");
+        assert!(err.contains("> 0"));
+    }
+
+    #[test]
+    fn all_boolean_flag_pairs_parse() {
+        // Test positive forms
+        let cfg = parse(&["demo_showcase", "--interactive"]).expect("parse");
+        assert_eq!(cfg.interactive, Some(true));
+
+        let cfg = parse(&["demo_showcase", "--live"]).expect("parse");
+        assert_eq!(cfg.live, Some(true));
+
+        let cfg = parse(&["demo_showcase", "--screen"]).expect("parse");
+        assert_eq!(cfg.screen, Some(true));
+
+        let cfg = parse(&["demo_showcase", "--emoji"]).expect("parse");
+        assert_eq!(cfg.emoji, Some(true));
+
+        let cfg = parse(&["demo_showcase", "--safe-box"]).expect("parse");
+        assert_eq!(cfg.safe_box, Some(true));
+
+        let cfg = parse(&["demo_showcase", "--links"]).expect("parse");
+        assert_eq!(cfg.links, Some(true));
+    }
+
+    #[test]
+    fn width_height_reject_non_integer() {
+        let err = parse(&["demo_showcase", "--width", "abc"]).expect_err("error");
+        assert!(err.contains("Invalid --width"));
+
+        let err = parse(&["demo_showcase", "--height", "1.5"]).expect_err("error");
+        assert!(err.contains("Invalid --height"));
+    }
+
+    #[test]
+    fn positional_args_rejected() {
+        let err = parse(&["demo_showcase", "--"]).expect_err("error");
+        assert!(err.contains("positional arguments"));
+    }
+
+    #[test]
+    fn multiple_independent_flags_combine() {
+        let cfg = parse(&[
+            "demo_showcase",
+            "--quick",
+            "--force-terminal",
+            "--width",
+            "120",
+            "--height",
+            "40",
+            "--seed",
+            "12345",
+            "--speed",
+            "2.0",
+            "--color-system",
+            "truecolor",
+            "--emoji",
+            "--no-safe-box",
+            "--links",
+        ])
+        .expect("parse");
+
+        assert!(cfg.quick);
+        assert!(cfg.force_terminal);
+        assert_eq!(cfg.width, Some(120));
+        assert_eq!(cfg.height, Some(40));
+        assert_eq!(cfg.seed, 12345);
+        assert_eq!(cfg.speed, 2.0);
+        assert_eq!(cfg.color_system, ColorMode::TrueColor);
+        assert_eq!(cfg.emoji, Some(true));
+        assert_eq!(cfg.safe_box, Some(false));
+        assert_eq!(cfg.links, Some(true));
+    }
 }
