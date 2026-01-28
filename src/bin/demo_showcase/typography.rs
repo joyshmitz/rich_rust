@@ -11,16 +11,15 @@
 // Many helpers are provided for future scene implementations
 #![allow(dead_code)]
 
-use rich_rust::console::{Console, ConsoleOptions, PrintOptions};
 use rich_rust::r#box::ROUNDED;
+use rich_rust::console::{Console, ConsoleOptions, PrintOptions};
+use rich_rust::renderables::Renderable;
 use rich_rust::renderables::layout::Layout;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::renderables::rule::Rule;
 use rich_rust::renderables::table::{Column, Table};
-use rich_rust::renderables::Renderable;
 use rich_rust::segment::Segment;
 use rich_rust::style::Style;
-use rich_rust::text::Text;
 
 use super::log_pane::LogPane;
 use super::state::{DemoStateSnapshot, PipelineStage, ServiceHealth, ServiceInfo, StageStatus};
@@ -363,9 +362,9 @@ pub fn build_dashboard_layout_wide(snapshot: &DemoStateSnapshot, log_limit: usiz
     root
 }
 
-/// Build the header bar text with headline and run info.
+/// Build the header bar as a TextBlock.
 #[must_use]
-pub fn build_header_bar(snapshot: &DemoStateSnapshot) -> Text {
+pub fn build_header_block(snapshot: &DemoStateSnapshot) -> TextBlock {
     let elapsed_secs = snapshot.elapsed.as_secs();
     let elapsed_ms = snapshot.elapsed.subsec_millis();
 
@@ -374,63 +373,201 @@ pub fn build_header_bar(snapshot: &DemoStateSnapshot) -> Text {
         snapshot.headline, snapshot.run_id, snapshot.seed, elapsed_secs, elapsed_ms
     );
 
-    rich_rust::markup::render_or_plain(&markup)
+    TextBlock::new(markup)
 }
 
 /// Build a services health table.
-///
-/// # Panics
-/// Currently unimplemented (bd-1xoj) - will panic if called.
 #[must_use]
-pub fn build_services_table(_services: &[ServiceInfo]) -> Table {
-    // TODO(bd-1xoj): Implement with proper cell conversion
-    todo!("bd-1xoj: services table")
+pub fn build_services_table(services: &[ServiceInfo]) -> Table {
+    let mut table = Table::new().title("Services").box_style(&ROUNDED);
+
+    table.add_column(Column::new("Service").style(Style::parse("bold").unwrap_or_default()));
+    table.add_column(Column::new("Health"));
+    table.add_column(Column::new("Latency").justify(rich_rust::text::JustifyMethod::Right));
+    table.add_column(Column::new("Version").style(Style::parse("dim").unwrap_or_default()));
+
+    for svc in services {
+        let health_markup = match svc.health {
+            ServiceHealth::Ok => "[status.ok]OK[/]".to_string(),
+            ServiceHealth::Warn => "[status.warn]WARN[/]".to_string(),
+            ServiceHealth::Err => "[status.err]ERR[/]".to_string(),
+        };
+
+        let latency = if svc.latency.as_millis() > 0 {
+            format!("{}ms", svc.latency.as_millis())
+        } else {
+            "—".to_string()
+        };
+
+        table.add_row_cells([
+            svc.name.as_str(),
+            health_markup.as_str(),
+            latency.as_str(),
+            svc.version.as_str(),
+        ]);
+    }
+
+    table
 }
 
-/// Build the pipeline progress panel.
-///
-/// # Panics
-/// Currently unimplemented (bd-1xoj) - will panic if called.
+/// Build the pipeline progress as a BorderedBlock.
 #[must_use]
-pub fn build_pipeline_panel(_stages: &[PipelineStage]) -> Panel<'static> {
-    // TODO(bd-1xoj): Implement with proper lifetime handling
-    todo!("bd-1xoj: pipeline panel")
+pub fn build_pipeline_block(stages: &[PipelineStage]) -> BorderedBlock {
+    let mut lines = Vec::new();
+
+    for stage in stages {
+        let (status_style, status_icon) = match stage.status {
+            StageStatus::Pending => ("dim", "○"),
+            StageStatus::Running => ("status.warn", "●"),
+            StageStatus::Done => ("status.ok", "✓"),
+            StageStatus::Failed => ("status.err", "✗"),
+        };
+
+        let progress_bar = if stage.status == StageStatus::Running {
+            let filled = (stage.progress * 10.0).round() as usize;
+            let empty = 10 - filled;
+            format!(" [{}{}]", "█".repeat(filled), "░".repeat(empty))
+        } else {
+            String::new()
+        };
+
+        let eta = stage
+            .eta
+            .map(|d| format!(" [dim](~{}s)[/]", d.as_secs()))
+            .unwrap_or_default();
+
+        lines.push(format!(
+            "[{status_style}]{status_icon}[/] [bold]{name}[/]{progress_bar}{eta}",
+            name = stage.name,
+        ));
+    }
+
+    let content = if lines.is_empty() {
+        "[dim]No stages defined[/]".to_string()
+    } else {
+        lines.join("\n")
+    };
+
+    BorderedBlock::new("Pipeline", content)
 }
 
-/// Build the current step info panel.
-///
-/// # Panics
-/// Currently unimplemented (bd-1xoj) - will panic if called.
+/// Build the current step info as a BorderedBlock.
 #[must_use]
-pub fn build_step_info_panel(_stages: &[PipelineStage]) -> Panel<'static> {
-    // TODO(bd-1xoj): Implement with proper lifetime handling
-    todo!("bd-1xoj: step info panel")
+pub fn build_step_info_block(stages: &[PipelineStage]) -> BorderedBlock {
+    let current = stages
+        .iter()
+        .find(|s| s.status == StageStatus::Running)
+        .or_else(|| {
+            stages
+                .iter()
+                .filter(|s| s.status != StageStatus::Pending)
+                .last()
+        });
+
+    let content = if let Some(stage) = current {
+        let progress_pct = (stage.progress * 100.0).round() as u32;
+        let status_desc = match stage.status {
+            StageStatus::Pending => "Waiting to start",
+            StageStatus::Running => "In progress",
+            StageStatus::Done => "Completed",
+            StageStatus::Failed => "Failed",
+        };
+
+        format!(
+            "{}\n{}\n{}",
+            kv_row("Stage", &stage.name),
+            kv_row("Status", status_desc),
+            kv_row("Progress", &format!("{progress_pct}%")),
+        )
+    } else {
+        "[dim]No active stage[/]".to_string()
+    };
+
+    BorderedBlock::new("Current Step", content)
 }
 
-/// Build the quick facts panel with summary stats.
-///
-/// # Panics
-/// Currently unimplemented (bd-1xoj) - will panic if called.
+/// Build the quick facts as a BorderedBlock.
 #[must_use]
-pub fn build_quick_facts_panel(_snapshot: &DemoStateSnapshot) -> Panel<'static> {
-    // TODO(bd-1xoj): Implement with proper lifetime handling
-    todo!("bd-1xoj: quick facts panel")
+pub fn build_quick_facts_block(snapshot: &DemoStateSnapshot) -> BorderedBlock {
+    let healthy_count = snapshot
+        .services
+        .iter()
+        .filter(|s| s.health == ServiceHealth::Ok)
+        .count();
+    let total_services = snapshot.services.len();
+
+    let completed_stages = snapshot
+        .pipeline
+        .iter()
+        .filter(|s| s.status == StageStatus::Done)
+        .count();
+    let total_stages = snapshot.pipeline.len();
+
+    let failed_stages = snapshot
+        .pipeline
+        .iter()
+        .filter(|s| s.status == StageStatus::Failed)
+        .count();
+
+    let content = format!(
+        "{}\n{}\n{}",
+        kv_row(
+            "Services",
+            &format!("{healthy_count}/{total_services} healthy")
+        ),
+        kv_row(
+            "Pipeline",
+            &format!("{completed_stages}/{total_stages} complete")
+        ),
+        if failed_stages > 0 {
+            kv_row_styled("Failures", "dim", &failed_stages.to_string(), "status.err")
+        } else {
+            kv_row("Failures", "0")
+        },
+    );
+
+    BorderedBlock::new("Quick Facts", content)
+}
+
+/// Build the log pane as a BorderedBlock.
+#[must_use]
+pub fn build_log_block(logs: &[super::state::LogLine], limit: usize) -> BorderedBlock {
+    let log_pane = LogPane::from_snapshot(logs, limit);
+    BorderedBlock::new("Logs", log_pane.render_markup())
 }
 
 /// Update an existing dashboard layout with new snapshot data.
 ///
 /// This updates only the leaf renderables, preserving the layout structure.
 /// Useful for Live display updates without rebuilding the entire tree.
-///
-/// # Panics
-/// Currently unimplemented (bd-1xoj) - will panic if called.
 pub fn update_dashboard_layout(
-    _layout: &mut Layout,
-    _snapshot: &DemoStateSnapshot,
-    _log_limit: usize,
+    layout: &mut Layout,
+    snapshot: &DemoStateSnapshot,
+    log_limit: usize,
 ) {
-    // TODO(bd-1xoj): Implement dashboard update
-    todo!("bd-1xoj: dashboard layout update")
+    if let Some(header) = layout.get_mut("header") {
+        header.update(build_header_block(snapshot));
+    }
+
+    if let Some(services) = layout.get_mut("services") {
+        services.update(build_services_table(&snapshot.services));
+    }
+
+    if let Some(pipeline) = layout.get_mut("pipeline") {
+        pipeline.update(build_pipeline_block(&snapshot.pipeline));
+    }
+
+    if let Some(step_info) = layout.get_mut("step_info") {
+        step_info.update(build_step_info_block(&snapshot.pipeline));
+    }
+
+    if let Some(quick_facts) = layout.get_mut("quick_facts") {
+        quick_facts.update(build_quick_facts_block(snapshot));
+    }
+
+    if let Some(logs) = layout.get_mut("logs") {
+        logs.update(build_log_block(&snapshot.logs, log_limit));
+    }
 }
 
 #[cfg(test)]
@@ -505,7 +642,6 @@ mod tests {
     // ========== Dashboard Layout Builder Tests ==========
 
     use super::super::state::{DemoState, LogLevel};
-    use std::time::Duration;
 
     fn make_test_snapshot() -> DemoStateSnapshot {
         let mut state = DemoState::demo_seeded(1, 42);
@@ -515,7 +651,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "bd-1xoj: dashboard components not yet implemented"]
     fn test_build_services_table_creates_table() {
         let snapshot = make_test_snapshot();
         let table = build_services_table(&snapshot.services);
@@ -525,34 +660,31 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "bd-1xoj: dashboard components not yet implemented"]
-    fn test_build_pipeline_panel_creates_panel() {
+    fn test_build_pipeline_block_creates_block() {
         let snapshot = make_test_snapshot();
-        let panel = build_pipeline_panel(&snapshot.pipeline);
-        let _ = panel;
+        let block = build_pipeline_block(&snapshot.pipeline);
+        let _ = block;
     }
 
     #[test]
-    #[ignore = "bd-1xoj: dashboard components not yet implemented"]
-    fn test_build_step_info_panel_creates_panel() {
+    fn test_build_step_info_block_creates_block() {
         let snapshot = make_test_snapshot();
-        let panel = build_step_info_panel(&snapshot.pipeline);
-        let _ = panel;
+        let block = build_step_info_block(&snapshot.pipeline);
+        let _ = block;
     }
 
     #[test]
-    #[ignore = "bd-1xoj: dashboard components not yet implemented"]
-    fn test_build_quick_facts_panel_creates_panel() {
+    fn test_build_quick_facts_block_creates_block() {
         let snapshot = make_test_snapshot();
-        let panel = build_quick_facts_panel(&snapshot);
-        let _ = panel;
+        let block = build_quick_facts_block(&snapshot);
+        let _ = block;
     }
 
     #[test]
-    fn test_build_header_bar_creates_text() {
+    fn test_build_header_block_creates_block() {
         let snapshot = make_test_snapshot();
-        let text = build_header_bar(&snapshot);
-        let _ = text;
+        let block = build_header_block(&snapshot);
+        let _ = block;
     }
 
     #[test]
@@ -612,17 +744,17 @@ mod tests {
     }
 
     #[test]
-    fn test_build_pipeline_panel_handles_empty_stages() {
+    fn test_build_pipeline_block_handles_empty_stages() {
         let stages: Vec<PipelineStage> = vec![];
-        let panel = build_pipeline_panel(&stages);
-        let _ = panel;
+        let block = build_pipeline_block(&stages);
+        let _ = block;
     }
 
     #[test]
-    fn test_build_step_info_panel_handles_empty_stages() {
+    fn test_build_step_info_block_handles_empty_stages() {
         let stages: Vec<PipelineStage> = vec![];
-        let panel = build_step_info_panel(&stages);
-        let _ = panel;
+        let block = build_step_info_block(&stages);
+        let _ = block;
     }
 
     #[test]
