@@ -491,7 +491,18 @@ fn build_renderable(
                     let name = frame.get("name").and_then(|v| v.as_str()).unwrap_or("");
                     let line = frame.get("line").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
                     if !name.is_empty() && line > 0 {
-                        frames.push(TracebackFrame::new(name, line));
+                        let mut tf = TracebackFrame::new(name, line);
+                        if let Some(filename) = frame.get("filename").and_then(|v| v.as_str()) {
+                            tf = tf.filename(filename);
+                        }
+                        if let Some(source) = frame.get("source_context").and_then(|v| v.as_str()) {
+                            let first_line = frame
+                                .get("source_first_line")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(1) as usize;
+                            tf = tf.source_context(source, first_line);
+                        }
+                        frames.push(tf);
                     }
                 }
             }
@@ -499,7 +510,13 @@ fn build_renderable(
             let exception_type =
                 value_string(input, "exception_type").unwrap_or_else(|| "Error".to_string());
             let exception_message = value_string(input, "exception_message").unwrap_or_default();
-            Box::new(Traceback::new(frames, exception_type, exception_message))
+            let extra_lines = input
+                .get("extra_lines")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as usize;
+            Box::new(
+                Traceback::new(frames, exception_type, exception_message).extra_lines(extra_lines),
+            )
         }
         other => {
             assert!(false, "unsupported kind: {other}");
