@@ -111,9 +111,19 @@ fn main() {
     if let Some(scene_name) = cfg.scene.as_deref() {
         let registry = scenes::build_registry();
         if let Some(scene) = registry.get(scene_name) {
+            // Start capture mode if exporting
+            if cfg.is_export() {
+                demo_console.console.begin_capture();
+            }
+
             if let Err(err) = scene.run(&demo_console.console, &cfg) {
                 eprintln!("Scene '{scene_name}' failed: {err}");
                 std::process::exit(1);
+            }
+
+            // Handle export for single scene if requested
+            if cfg.is_export() {
+                write_export_files(&cfg, &demo_console.console);
             }
         } else {
             eprintln!("Unknown scene: {scene_name}");
@@ -254,6 +264,41 @@ fn run_export_with_console(cfg: &Config, demo_console: &console_builder::DemoCon
 
     typography::print_divider(console);
     console.print("");
+
+    // Export HTML (don't clear buffer yet - we need it for SVG too)
+    let html_path = export_dir.join("demo_showcase.html");
+    let html_content = console.export_html(false);
+    match fs::File::create(&html_path).and_then(|mut f| f.write_all(html_content.as_bytes())) {
+        Ok(()) => eprintln!("Exported HTML: {}", html_path.display()),
+        Err(err) => eprintln!("Failed to write HTML: {err}"),
+    }
+
+    // Export SVG (clear buffer after this)
+    let svg_path = export_dir.join("demo_showcase.svg");
+    let svg_content = console.export_svg(true);
+    match fs::File::create(&svg_path).and_then(|mut f| f.write_all(svg_content.as_bytes())) {
+        Ok(()) => eprintln!("Exported SVG: {}", svg_path.display()),
+        Err(err) => eprintln!("Failed to write SVG: {err}"),
+    }
+
+    eprintln!("\nExport complete: {}", export_dir.display());
+}
+
+/// Write export files from already-captured console output.
+/// Used for single-scene export where begin_capture was called before the scene.
+fn write_export_files(cfg: &Config, console: &std::sync::Arc<rich_rust::console::Console>) {
+    use std::fs;
+    use std::io::Write;
+
+    let export_dir = cfg
+        .export_dir()
+        .expect("export_dir should be Some in export mode");
+
+    // Create export directory
+    if let Err(err) = fs::create_dir_all(&export_dir) {
+        eprintln!("Failed to create export directory: {err}");
+        std::process::exit(1);
+    }
 
     // Export HTML (don't clear buffer yet - we need it for SVG too)
     let html_path = export_dir.join("demo_showcase.html");

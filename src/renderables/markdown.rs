@@ -39,6 +39,7 @@
 //! - **Emphasis**: *italic*, **bold**, ~~strikethrough~~
 //! - **Code**: `inline code` and fenced code blocks
 //! - **Lists**: Ordered (1. 2. 3.) and unordered (- * +)
+//! - **Task lists**: GitHub-style `- [ ]` and `- [x]` with checkbox rendering
 //! - **Links**: `[text](url)` with optional URL display
 //! - **Blockquotes**: `> quoted text`
 //! - **Tables**: GitHub Flavored Markdown tables with alignment
@@ -95,7 +96,7 @@
 //! - **Images**: Image references are parsed but not rendered (terminals can't display images)
 //! - **HTML**: Inline HTML is ignored
 //! - **Footnotes**: Supported by the parser but rendering may be basic
-//! - **Task lists**: Not currently supported (`- [ ]` / `- [x]`)
+//! - **Task lists**: GitHub-style task lists (`- [ ]` / `- [x]`) render as checkboxes
 //! - **Code block languages**: Language hints in fenced code blocks are parsed but not
 //!   used for syntax highlighting (use the `syntax` feature for that)
 
@@ -334,8 +335,10 @@ impl Markdown {
         let mut in_table_head = false;
         let mut header_row = None;
 
-        let options =
-            Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES | Options::ENABLE_FOOTNOTES;
+        let options = Options::ENABLE_STRIKETHROUGH
+            | Options::ENABLE_TABLES
+            | Options::ENABLE_FOOTNOTES
+            | Options::ENABLE_TASKLISTS;
 
         let parser = Parser::new_ext(&self.source, options);
 
@@ -637,6 +640,17 @@ impl Markdown {
                         Some(Style::new().color_str("bright_black").unwrap_or_default()),
                     ));
                     segments.push(Segment::new("\n", None));
+                }
+                Event::TaskListMarker(checked) => {
+                    // Render checkbox for task list items
+                    // This event comes right after Start(Tag::Item), so the bullet is already rendered
+                    let checkbox = if checked { "☑ " } else { "☐ " };
+                    let style = if checked {
+                        Style::new().color_str("green").unwrap_or_default()
+                    } else {
+                        Style::new().color_str("bright_black").unwrap_or_default()
+                    };
+                    segments.push(Segment::new(checkbox.to_string(), Some(style)));
                 }
                 _ => {}
             }
@@ -1075,5 +1089,46 @@ mod tests {
         assert!(text.contains("Nested 1"));
         assert!(text.contains("Nested 2"));
         assert!(text.contains("Item 2"));
+    }
+
+    #[test]
+    fn test_render_task_list() {
+        let md = Markdown::new("- [ ] Unchecked\n- [x] Checked\n- [ ] Another");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        // Check for task text
+        assert!(text.contains("Unchecked"));
+        assert!(text.contains("Checked"));
+        assert!(text.contains("Another"));
+        // Check for checkbox symbols
+        assert!(text.contains("☐"), "unchecked box should appear");
+        assert!(text.contains("☑"), "checked box should appear");
+    }
+
+    #[test]
+    fn test_render_task_list_checkbox_styles() {
+        let md = Markdown::new("- [x] Done task");
+        let segments = md.render(80);
+        // Find the checked checkbox segment
+        let checkbox_segment = segments
+            .iter()
+            .find(|seg| seg.text.contains('☑'))
+            .expect("missing checkbox segment");
+        let style = checkbox_segment
+            .style
+            .as_ref()
+            .expect("checkbox should have a style");
+        // Checked boxes should be green
+        assert!(style.color.is_some(), "checkbox should have a color");
+    }
+
+    #[test]
+    fn test_render_task_list_mixed_with_regular() {
+        let md = Markdown::new("- Regular item\n- [ ] Task item\n- Another regular");
+        let segments = md.render(80);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Regular item"));
+        assert!(text.contains("Task item"));
+        assert!(text.contains("☐"), "task item should have checkbox");
     }
 }

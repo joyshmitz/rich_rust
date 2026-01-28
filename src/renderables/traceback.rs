@@ -4,8 +4,18 @@
 //! For deterministic testing and conformance fixtures, this implementation
 //! supports rendering from **synthetic frames** (function name + line number).
 //!
-//! A higher-fidelity Rust backtrace capture layer can be built on top by
-//! converting a backtrace to [`TracebackFrame`]s.
+//! # Automatic Capture (requires `backtrace` feature)
+//!
+//! When the `backtrace` feature is enabled, you can capture the current
+//! call stack automatically:
+//!
+//! ```ignore
+//! use rich_rust::renderables::{Traceback, TracebackFrame};
+//!
+//! // Capture current backtrace
+//! let traceback = Traceback::capture("MyError", "something went wrong");
+//! console.print_exception(&traceback);
+//! ```
 
 use crate::console::{Console, ConsoleOptions};
 use crate::renderables::Renderable;
@@ -13,6 +23,9 @@ use crate::segment::Segment;
 use crate::text::Text;
 
 use super::panel::Panel;
+
+#[cfg(feature = "backtrace")]
+use backtrace::Backtrace as BT;
 
 /// A single traceback frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,6 +133,160 @@ impl Traceback {
     /// Push a frame (builder-style).
     pub fn push_frame(&mut self, frame: TracebackFrame) {
         self.frames.push(frame);
+    }
+
+    /// Capture the current call stack and create a traceback.
+    ///
+    /// This is the primary way to create a Traceback from an actual runtime
+    /// error. It captures the current backtrace and converts it to frames.
+    ///
+    /// # Arguments
+    /// * `exception_type` - The type/name of the exception (e.g., `PanicError`)
+    /// * `exception_message` - The error message
+    ///
+    /// # Example
+    /// ```ignore
+    /// let traceback = Traceback::capture("ConnectionError", "failed to connect");
+    /// console.print_exception(&traceback);
+    /// ```
+    ///
+    /// Requires the `backtrace` feature.
+    #[cfg(feature = "backtrace")]
+    #[must_use]
+    pub fn capture(
+        exception_type: impl Into<String>,
+        exception_message: impl Into<String>,
+    ) -> Self {
+        let bt = BT::new();
+        Self::from_backtrace(&bt, exception_type, exception_message)
+    }
+
+    /// Create a Traceback from an existing `backtrace::Backtrace`.
+    ///
+    /// This is useful when you have a backtrace from a panic handler or
+    /// error type that provides its own backtrace.
+    ///
+    /// # Arguments
+    /// * `bt` - The backtrace to convert
+    /// * `exception_type` - The type/name of the exception
+    /// * `exception_message` - The error message
+    ///
+    /// Requires the `backtrace` feature.
+    #[cfg(feature = "backtrace")]
+    #[must_use]
+    pub fn from_backtrace(
+        bt: &BT,
+        exception_type: impl Into<String>,
+        exception_message: impl Into<String>,
+    ) -> Self {
+        let frames = Self::parse_backtrace(bt);
+        Self::new(frames, exception_type, exception_message)
+    }
+
+    /// Parse a backtrace into `TracebackFrame` list.
+    ///
+    /// Filters out runtime/std frames to show only relevant user code.
+    #[cfg(feature = "backtrace")]
+    fn parse_backtrace(bt: &BT) -> Vec<TracebackFrame> {
+        let mut frames = Vec::new();
+        let mut seen_user_code = false;
+
+        for frame in bt.frames() {
+            // Get symbols for this frame
+            let symbols: Vec<_> = {
+                let mut syms = Vec::new();
+                backtrace::resolve(frame.ip(), |symbol| {
+                    syms.push((
+                        symbol.name().map(|n| n.to_string()),
+                        symbol.filename().map(std::path::Path::to_path_buf),
+                        symbol.lineno(),
+                    ));
+                });
+                syms
+            };
+
+            for (name, filename, lineno) in symbols {
+                let Some(name) = name else {
+                    continue;
+                };
+
+                // Filter out internal/runtime frames
+                if Self::is_internal_frame(&name) {
+                    // Once we've seen user code, internal frames mark the end
+                    if seen_user_code {
+                        continue;
+                    }
+                    continue;
+                }
+
+                seen_user_code = true;
+
+                let mut frame = TracebackFrame::new(
+                    Self::demangle_name(&name),
+                    lineno.unwrap_or(0) as usize,
+                );
+
+                if let Some(ref path) = filename {
+                    frame = frame.filename(path.display().to_string());
+                }
+
+                frames.push(frame);
+            }
+        }
+
+        // Reverse so most recent call is last (like Python)
+        frames.reverse();
+        frames
+    }
+
+    /// Check if a frame name is internal/runtime that should be filtered.
+    #[cfg(feature = "backtrace")]
+    fn is_internal_frame(name: &str) -> bool {
+        // Filter common runtime prefixes
+        let internal_prefixes = [
+            "std::",
+            "core::",
+            "alloc::",
+            "backtrace::",
+            "<alloc::",
+            "<core::",
+            "<std::",
+            "rust_begin_unwind",
+            "__rust_",
+            "_start",
+            "main",
+            "__libc_",
+            "clone",
+        ];
+
+        for prefix in internal_prefixes {
+            if name.starts_with(prefix) {
+                return true;
+            }
+        }
+
+        // Filter Traceback's own capture functions
+        if name.contains("Traceback::capture") || name.contains("Traceback::from_backtrace") {
+            return true;
+        }
+
+        false
+    }
+
+    /// Simplify/demangle a function name for display.
+    #[cfg(feature = "backtrace")]
+    fn demangle_name(name: &str) -> String {
+        // The backtrace crate already demangles, but we can simplify further
+        let name = name.to_string();
+
+        // Remove hash suffixes like ::h1234567890abcdef
+        if let Some(pos) = name.rfind("::h") {
+            if name[pos + 3..].chars().all(|c| c.is_ascii_hexdigit()) {
+                return name[..pos].to_string();
+            }
+        }
+
+        name
     }
 
     /// Get source for a frame, preferring provided context over filesystem.
@@ -348,5 +515,80 @@ mod tests {
     fn source_first_line_minimum_is_one() {
         let frame = TracebackFrame::new("test", 1).source_context("code", 0);
         assert_eq!(frame.source_first_line, 1);
+    }
+
+    #[cfg(feature = "backtrace")]
+    mod backtrace_tests {
+        use super::*;
+
+        fn inner_function() -> Traceback {
+            Traceback::capture("TestError", "test message")
+        }
+
+        fn outer_function() -> Traceback {
+            inner_function()
+        }
+
+        #[test]
+        fn capture_creates_traceback_with_frames() {
+            let traceback = outer_function();
+
+            // Should have at least some frames (our functions)
+            assert!(!traceback.frames.is_empty(), "should capture frames");
+
+            // Exception info should be set
+            assert_eq!(traceback.exception_type, "TestError");
+            assert_eq!(traceback.exception_message, "test message");
+        }
+
+        #[test]
+        fn capture_filters_internal_frames() {
+            let traceback = Traceback::capture("Error", "test");
+
+            // Should not contain std/core frames
+            for frame in &traceback.frames {
+                assert!(
+                    !frame.name.starts_with("std::"),
+                    "should filter std:: frames: {}",
+                    frame.name
+                );
+                assert!(
+                    !frame.name.starts_with("core::"),
+                    "should filter core:: frames: {}",
+                    frame.name
+                );
+            }
+        }
+
+        #[test]
+        fn is_internal_frame_detects_runtime() {
+            assert!(Traceback::is_internal_frame("std::rt::lang_start"));
+            assert!(Traceback::is_internal_frame("core::ops::function::FnOnce"));
+            assert!(Traceback::is_internal_frame("__libc_start_main"));
+            assert!(Traceback::is_internal_frame("main"));
+            assert!(!Traceback::is_internal_frame("my_crate::my_function"));
+            assert!(!Traceback::is_internal_frame("app::handler::process"));
+        }
+
+        #[test]
+        fn demangle_removes_hash_suffix() {
+            assert_eq!(
+                Traceback::demangle_name("my_crate::func::h1234567890abcdef"),
+                "my_crate::func"
+            );
+            assert_eq!(
+                Traceback::demangle_name("my_crate::func"),
+                "my_crate::func"
+            );
+        }
+
+        #[test]
+        fn capture_renders_without_panic() {
+            let traceback = Traceback::capture("PanicError", "something went wrong");
+            let output = render_to_text(&traceback, 100);
+
+            assert!(output.contains("PanicError: something went wrong"));
+            assert!(output.contains("Traceback"));
+        }
     }
 }

@@ -1245,7 +1245,10 @@ fn test_export_html_contains_expected_content() {
     let temp_dir = std::env::temp_dir().join("demo_showcase_e2e_html_content_test");
     let _ = std::fs::remove_dir_all(&temp_dir);
 
+    // Use hero scene only for speed - it contains "Nebula" which we check for
     let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("hero")
         .arg("--export-dir")
         .arg(temp_dir.to_str().unwrap())
         .non_interactive()
@@ -1253,7 +1256,7 @@ fn test_export_html_contains_expected_content() {
         .arg("truecolor")
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_secs(60))
         .run()
         .expect("should run export");
 
@@ -1262,10 +1265,12 @@ fn test_export_html_contains_expected_content() {
     let html_path = temp_dir.join("demo_showcase.html");
     let html_content = std::fs::read_to_string(&html_path).expect("should read HTML file");
 
-    // HTML should contain demo title
+    // HTML should contain demo title (spaced letters in hero scene)
     assert!(
-        html_content.contains("Nebula") || html_content.contains("NEBULA"),
-        "HTML should contain demo title 'Nebula'"
+        html_content.contains("N E B U L A")
+            || html_content.contains("NEBULA")
+            || html_content.contains("Nebula"),
+        "HTML should contain demo title 'Nebula' (possibly with spaced letters)"
     );
 
     // HTML should be valid HTML structure
@@ -1291,7 +1296,10 @@ fn test_export_svg_contains_expected_content() {
     let temp_dir = std::env::temp_dir().join("demo_showcase_e2e_svg_content_test");
     let _ = std::fs::remove_dir_all(&temp_dir);
 
+    // Use hero scene only for speed - it contains "Nebula" which we check for
     let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("hero")
         .arg("--export-dir")
         .arg(temp_dir.to_str().unwrap())
         .non_interactive()
@@ -1299,7 +1307,7 @@ fn test_export_svg_contains_expected_content() {
         .arg("truecolor")
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_secs(60))
         .run()
         .expect("should run export");
 
@@ -1324,10 +1332,12 @@ fn test_export_svg_contains_expected_content() {
         "SVG should use foreignObject for text rendering"
     );
 
-    // SVG should contain demo title
+    // SVG should contain demo title (spaced letters in hero scene)
     assert!(
-        svg_content.contains("Nebula") || svg_content.contains("NEBULA"),
-        "SVG should contain demo title 'Nebula'"
+        svg_content.contains("N E B U L A")
+            || svg_content.contains("NEBULA")
+            || svg_content.contains("Nebula"),
+        "SVG should contain demo title 'Nebula' (possibly with spaced letters)"
     );
 
     let _ = std::fs::remove_dir_all(&temp_dir);
@@ -1400,7 +1410,10 @@ fn test_export_file_sizes_reasonable() {
     let temp_dir = std::env::temp_dir().join("demo_showcase_e2e_file_sizes");
     let _ = std::fs::remove_dir_all(&temp_dir);
 
+    // Use hero scene only for speed - file size assertions still valid for single scene
     let result = DemoRunner::quick()
+        .arg("--scene")
+        .arg("hero")
         .arg("--export-dir")
         .arg(temp_dir.to_str().unwrap())
         .non_interactive()
@@ -1408,7 +1421,7 @@ fn test_export_file_sizes_reasonable() {
         .arg("truecolor")
         .arg("--width")
         .arg("80")
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_secs(60))
         .run()
         .expect("should run export");
 
