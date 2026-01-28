@@ -12,6 +12,7 @@ use std::sync::Arc;
 use rich_rust::console::Console;
 
 use crate::Config;
+use crate::debug_tools::DebugToolsScene;
 use crate::hero::HeroScene;
 
 /// Error type for scene execution.
@@ -200,10 +201,7 @@ pub fn build_registry() -> SceneRegistry {
         "deep_dive_json",
         "API payload view (feature: json).",
     ));
-    registry.register(PlaceholderScene::new(
-        "debug_tools",
-        "Pretty/Inspect + Traceback + RichLogger (+ tracing).",
-    ));
+    registry.register(DebugToolsScene::new());
     registry.register(PlaceholderScene::new("export", "Export HTML/SVG bundle."));
     registry.register(PlaceholderScene::new("outro", "Summary + next steps."));
 

@@ -457,12 +457,7 @@ pub fn build_step_info_block(stages: &[PipelineStage]) -> BorderedBlock {
     let current = stages
         .iter()
         .find(|s| s.status == StageStatus::Running)
-        .or_else(|| {
-            stages
-                .iter()
-                .filter(|s| s.status != StageStatus::Pending)
-                .last()
-        });
+        .or_else(|| stages.iter().rfind(|s| s.status != StageStatus::Pending));
 
     let content = if let Some(stage) = current {
         let progress_pct = (stage.progress * 100.0).round() as u32;
