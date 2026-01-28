@@ -64,9 +64,9 @@ This document is the source of truth. If code or docs change, update this file, 
 | Align | Alignment | Implemented | `src/renderables/align.rs` | Golden tests |
 | Pretty / Inspect | Debug-based pretty printing + type inspection | Implemented | `src/renderables/pretty.rs` | Unit tests + snapshots in `src/renderables/snapshots/` |
 | Traceback | Traceback rendering + `Console::print_exception` | Implemented | `src/renderables/traceback.rs` | Deterministic synthetic frames + Python fixture conformance (`traceback/basic`). Code context via `extra_lines` + `source_context` (from file or embedded). Automatic Rust backtrace capture via `Traceback::capture()` (requires `backtrace` feature). No locals display yet. |
-| Syntax | Syntax highlighting | Implemented | `src/renderables/syntax.rs` (feature `syntax`) | Tests present; parity vs Python Rich not yet fixture-based |
-| Markdown | Markdown rendering | Implemented | `src/renderables/markdown.rs` (feature `markdown`) | Tests present; parity vs Python Rich not yet fixture-based |
-| JSON | JSON pretty-print | Implemented | `src/renderables/json.rs` (feature `json`) | Tests present; parity vs Python Rich not yet fixture-based |
+| Syntax | Syntax highlighting | Implemented | `src/renderables/syntax.rs` (feature `syntax`) | Python fixture conformance (`syntax/basic`, `syntax/no_terminal`). ANSI output differs (syntect vs Pygments); plain text parity verified. |
+| Markdown | Markdown rendering | Implemented | `src/renderables/markdown.rs` (feature `markdown`) | Python fixture conformance (`markdown/plain`, `markdown/emphasis_no_terminal`). Both plain and ANSI parity verified. |
+| JSON | JSON pretty-print | Implemented | `src/renderables/json.rs` (feature `json`) | Python fixture conformance (`json/basic`, `json/nested`). Both plain and ANSI parity verified. |
 
 ---
 
