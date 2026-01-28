@@ -72,7 +72,7 @@
 //!
 //! ## Thread Safety
 //!
-//! All public types in rich_rust are `Send + Sync`. You can safely:
+//! All public types in `rich_rust` are `Send + Sync`. You can safely:
 //!
 //! - Share a [`Console`] between threads via `Arc<Console>`
 //! - Call [`Console::print`], [`Console::log`], etc. from multiple threads
@@ -81,7 +81,7 @@
 //!
 //! ### Mutex Poison Recovery
 //!
-//! rich_rust uses **poison recovery** for all internal mutexes. If a thread panics
+//! `rich_rust` uses **poison recovery** for all internal mutexes. If a thread panics
 //! while holding a lock, subsequent operations will continue rather than propagate
 //! the panic. This is appropriate because:
 //!

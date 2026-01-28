@@ -22,6 +22,8 @@ mod layout_scene;
 mod log_pane;
 #[path = "demo_showcase/markdown_scene.rs"]
 mod markdown_scene;
+#[path = "demo_showcase/outro_scene.rs"]
+mod outro_scene;
 #[path = "demo_showcase/pager.rs"]
 mod pager;
 #[path = "demo_showcase/panel_scene.rs"]

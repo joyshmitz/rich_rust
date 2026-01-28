@@ -119,11 +119,14 @@ fn render_columns_demo(console: &Console) {
         "Tables", "Panels", "Trees", "Progress", "Syntax", "Markdown",
     ];
 
+    // Use max_width to limit expansion on very wide terminals (300+ columns)
+    // while still allowing a polished look with some expansion
     let cols = Columns::from_strings(&features)
         .column_count(3)
         .gutter(4)
         .equal_width(true)
-        .align(AlignMethod::Center);
+        .align(AlignMethod::Center)
+        .max_width(100);
 
     console.print_renderable(&cols);
     console.print("");
@@ -136,10 +139,12 @@ fn render_columns_demo(console: &Console) {
         "Progress: Live updates",
     ];
 
+    // Use max_width to limit expansion on very wide terminals
     let card_cols = Columns::from_strings(&cards)
         .column_count(2)
         .gutter(4)
-        .equal_width(true);
+        .equal_width(true)
+        .max_width(100);
 
     console.print_renderable(&card_cols);
 
@@ -319,5 +324,66 @@ mod tests {
 
         let result = scene.run(&console, &cfg);
         assert!(result.is_ok());
+    }
+
+    /// Test that layout scene doesn't have excessive whitespace on wide terminals.
+    /// Regression test for bd-2tvq: columns shouldn't stretch across 400+ columns.
+    #[test]
+    fn layout_scene_no_excessive_whitespace_on_wide_terminal() {
+        let scene = LayoutScene::new();
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(true)
+            .width(400) // Very wide terminal
+            .build()
+            .shared();
+        let cfg = Config::with_defaults();
+
+        console.begin_capture();
+        let result = scene.run(&console, &cfg);
+        assert!(result.is_ok());
+
+        let segments = console.end_capture();
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+
+        // Track which section we're in
+        // Skip sections that intentionally demonstrate padding/alignment with fixed widths
+        let mut in_multi_column_section = false;
+        let mut excessive_found = false;
+
+        for line in output.lines() {
+            // Detect section changes
+            if line.contains("Multi-Column Layout") {
+                in_multi_column_section = true;
+                continue;
+            }
+            if line.contains("Padding for Visual Hierarchy") {
+                in_multi_column_section = false;
+                continue;
+            }
+
+            // Only check the multi-column section for excessive whitespace
+            // The alignment demo intentionally uses fixed-width padding
+            if in_multi_column_section && !line.trim().is_empty() {
+                let mut space_count = 0;
+                for ch in line.chars() {
+                    if ch == ' ' {
+                        space_count += 1;
+                        // 50+ consecutive spaces indicates columns stretched too much
+                        if space_count >= 50 {
+                            excessive_found = true;
+                            break;
+                        }
+                    } else {
+                        space_count = 0;
+                    }
+                }
+            }
+        }
+
+        assert!(
+            !excessive_found,
+            "Multi-column section has excessive whitespace (50+ spaces between columns)"
+        );
     }
 }

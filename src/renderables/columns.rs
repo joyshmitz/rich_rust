@@ -47,6 +47,9 @@ pub struct Columns<'a> {
     padding: usize,
     /// Style for column separators (gutter).
     gutter_style: Style,
+    /// Maximum total width for the columns layout.
+    /// When set, prevents columns from spreading across very wide terminals.
+    max_width: Option<usize>,
 }
 
 impl Default for Columns<'_> {
@@ -60,6 +63,7 @@ impl Default for Columns<'_> {
             align: AlignMethod::Left,
             padding: 0,
             gutter_style: Style::new(),
+            max_width: None,
         }
     }
 }
@@ -128,6 +132,25 @@ impl<'a> Columns<'a> {
     #[must_use]
     pub fn gutter_style(mut self, style: Style) -> Self {
         self.gutter_style = style;
+        self
+    }
+
+    /// Set a maximum width for the columns layout.
+    ///
+    /// When set, the columns will not expand beyond this width even if
+    /// more terminal space is available. This prevents excessive whitespace
+    /// on very wide terminals (e.g., 300+ columns).
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let cols = Columns::from_strings(&["A", "B", "C"])
+    ///     .max_width(120)  // Never wider than 120 columns
+    ///     .expand(true);   // But expand up to that limit
+    /// ```
+    #[must_use]
+    pub fn max_width(mut self, width: usize) -> Self {
+        self.max_width = Some(width);
         self
     }
 
@@ -269,10 +292,16 @@ impl<'a> Columns<'a> {
             return vec![];
         }
 
+        // Apply max_width constraint to prevent excessive spreading on wide terminals
+        let effective_width = match self.max_width {
+            Some(max) => total_width.min(max),
+            None => total_width,
+        };
+
         let num_columns = self
             .column_count
-            .unwrap_or_else(|| self.auto_column_count(total_width));
-        let column_widths = self.calculate_column_widths(total_width, num_columns);
+            .unwrap_or_else(|| self.auto_column_count(effective_width));
+        let column_widths = self.calculate_column_widths(effective_width, num_columns);
 
         if column_widths.is_empty() {
             return vec![];
@@ -648,5 +677,85 @@ mod tests {
 
         // Should have padding around content
         assert!(text.starts_with("  ")); // 2 spaces padding
+    }
+
+    #[test]
+    fn test_columns_max_width_limits_expansion() {
+        // Without max_width, columns would expand to fill 400 columns
+        let cols = Columns::from_strings(&["A", "B", "C"])
+            .column_count(3)
+            .gutter(2)
+            .expand(true)
+            .max_width(60);
+
+        let lines = cols.render(400); // Simulating very wide terminal
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
+
+        // Width should be capped at 60, not 400
+        assert!(
+            text.len() <= 60,
+            "Output width {} exceeds max_width 60",
+            text.len()
+        );
+    }
+
+    #[test]
+    fn test_columns_max_width_no_effect_on_narrow_terminal() {
+        // max_width should not affect narrow terminals
+        let cols = Columns::from_strings(&["A", "B"])
+            .column_count(2)
+            .gutter(2)
+            .expand(true)
+            .max_width(100);
+
+        let lines = cols.render(40); // Narrow terminal
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
+
+        // Should use actual terminal width (40), not max_width (100)
+        assert!(
+            text.len() <= 40,
+            "Output width {} exceeds terminal width 40",
+            text.len()
+        );
+    }
+
+    #[test]
+    fn test_columns_at_400_width_without_max_causes_spread() {
+        // This test demonstrates the bug: without max_width, columns spread too wide
+        let cols = Columns::from_strings(&["A", "B", "C"])
+            .column_count(3)
+            .gutter(4)
+            .expand(true);
+
+        let lines = cols.render(400);
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
+
+        // Without max_width, output fills the 400 column width
+        // This would contain excessive whitespace (30+ consecutive spaces)
+        let has_excessive_whitespace = text.contains(&" ".repeat(30));
+        assert!(
+            has_excessive_whitespace,
+            "Expected excessive whitespace without max_width constraint"
+        );
+    }
+
+    #[test]
+    fn test_columns_at_400_width_with_max_prevents_spread() {
+        // With max_width, excessive spreading is prevented
+        let cols = Columns::from_strings(&["A", "B", "C"])
+            .column_count(3)
+            .gutter(4)
+            .expand(true)
+            .max_width(60);
+
+        let lines = cols.render(400);
+        let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
+
+        // With max_width=60, no runs of 30+ consecutive spaces
+        let has_excessive_whitespace = text.contains(&" ".repeat(30));
+        assert!(
+            !has_excessive_whitespace,
+            "max_width should prevent excessive whitespace runs"
+        );
     }
 }

@@ -20,6 +20,7 @@ use crate::hero::HeroScene;
 use crate::json_scene::JsonScene;
 use crate::layout_scene::LayoutScene;
 use crate::markdown_scene::MarkdownScene;
+use crate::outro_scene::OutroScene;
 use crate::panel_scene::PanelScene;
 use crate::syntax_scene::SyntaxScene;
 use crate::table_scene::TableScene;
@@ -210,7 +211,7 @@ pub fn build_registry() -> SceneRegistry {
     registry.register(TracingScene::new());
     registry.register(TracebackScene::new());
     registry.register(ExportScene::new());
-    registry.register(PlaceholderScene::new("outro", "Summary + next steps."));
+    registry.register(OutroScene::new());
 
     registry
 }
