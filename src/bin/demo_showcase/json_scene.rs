@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use rich_rust::console::Console;
 #[cfg(not(feature = "json"))]
+use rich_rust::markup::render_or_plain;
+#[cfg(not(feature = "json"))]
 use rich_rust::renderables::panel::Panel;
 use rich_rust::style::Style;
 
@@ -203,20 +205,22 @@ fn render_theme_demo(console: &Console) {
 /// Show notice when json feature is disabled.
 #[cfg(not(feature = "json"))]
 fn run_json_disabled_notice(console: &Arc<Console>) {
-    let notice = Panel::from_text(
+    let content = render_or_plain(
         "[bold]JSON feature not enabled[/]\n\n\
-         The JSON renderable requires the `json` feature.\n\n\
+         The JSON renderable requires the [cyan]json[/] feature.\n\n\
          To enable JSON support, build with:\n\n\
          [cyan]cargo build --features json[/]\n\n\
          Or enable all content features:\n\n\
          [cyan]cargo build --features full[/]\n\n\
          Or run the full showcase:\n\n\
          [cyan]cargo run --bin demo_showcase --features showcase[/]",
-    )
-    .title("[yellow]Feature Required[/]")
-    .border_style(Style::parse("yellow").unwrap_or_default())
-    .padding((1, 2))
-    .width(60);
+    );
+    let title = render_or_plain("[yellow]Feature Required[/]");
+    let notice = Panel::from_rich_text(&content, 56)
+        .title(title)
+        .border_style(Style::parse("yellow").unwrap_or_default())
+        .padding((1, 2))
+        .width(60);
 
     console.print_renderable(&notice);
 

@@ -13,6 +13,8 @@ use std::sync::Arc;
 
 use rich_rust::console::Console;
 #[cfg(not(feature = "markdown"))]
+use rich_rust::markup::render_or_plain;
+#[cfg(not(feature = "markdown"))]
 use rich_rust::renderables::panel::Panel;
 #[cfg(not(feature = "markdown"))]
 use rich_rust::style::Style;
@@ -135,7 +137,7 @@ For more details, see the [migration guide](https://docs.nebula.io/migrate).
 /// Otherwise, it renders inline.
 #[cfg(feature = "markdown")]
 fn render_runbook(console: &Arc<Console>, cfg: &Config) {
-    use crate::pager::{page_content, PagerConfig};
+    use crate::pager::{PagerConfig, page_content};
     use rich_rust::renderables::markdown::Markdown;
     use rich_rust::segment::Segment;
 
@@ -211,20 +213,22 @@ Expected response:
 /// Show notice when markdown feature is disabled.
 #[cfg(not(feature = "markdown"))]
 fn run_markdown_disabled_notice(console: &Arc<Console>) {
-    let notice = Panel::from_text(
+    let content = render_or_plain(
         "[bold]Markdown feature not enabled[/]\n\n\
-         The Markdown renderable requires the `markdown` feature.\n\n\
+         The Markdown renderable requires the [cyan]markdown[/] feature.\n\n\
          To enable Markdown rendering, build with:\n\n\
          [cyan]cargo build --features markdown[/]\n\n\
          Or enable all content features:\n\n\
          [cyan]cargo build --features full[/]\n\n\
          Or run the full showcase:\n\n\
          [cyan]cargo run --bin demo_showcase --features showcase[/]",
-    )
-    .title("[yellow]Feature Required[/]")
-    .border_style(Style::parse("yellow").unwrap_or_default())
-    .padding((1, 2))
-    .width(60);
+    );
+    let title = render_or_plain("[yellow]Feature Required[/]");
+    let notice = Panel::from_rich_text(&content, 56)
+        .title(title)
+        .border_style(Style::parse("yellow").unwrap_or_default())
+        .padding((1, 2))
+        .width(60);
 
     console.print_renderable(&notice);
 

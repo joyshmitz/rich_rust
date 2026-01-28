@@ -55,7 +55,7 @@ pub fn run_wizard(
     // Question 1: Run mode (full demo or specific scene)
     match ask_run_mode(console, scene_names) {
         Ok(Some(scene)) => choices.scene = Some(scene),
-        Ok(None) => {} // Full demo
+        Ok(None) => {}         // Full demo
         Err(_) => return None, // User cancelled or error
     }
 
@@ -90,16 +90,20 @@ fn ask_run_mode(console: &Console, scene_names: &[&str]) -> io::Result<Option<St
     if !scene_names.is_empty() {
         let preview: Vec<_> = scene_names.iter().take(5).copied().collect();
         let hint = if scene_names.len() > 5 {
-            format!("{}, ... ({} more)", preview.join(", "), scene_names.len() - 5)
+            format!(
+                "{}, ... ({} more)",
+                preview.join(", "),
+                scene_names.len() - 5
+            )
         } else {
             preview.join(", ")
         };
         console.print(&format!("[dim]Scenes: {hint}[/]"));
     }
 
-    let answer = prompt.ask(console).map_err(|e| {
-        io::Error::new(io::ErrorKind::Other, e.to_string())
-    })?;
+    let answer = prompt
+        .ask(console)
+        .map_err(|e| io::Error::other(e.to_string()))?;
 
     let answer = answer.trim().to_lowercase();
     if answer.is_empty() || answer == "full" || answer == "all" {
@@ -108,22 +112,22 @@ fn ask_run_mode(console: &Console, scene_names: &[&str]) -> io::Result<Option<St
         Ok(Some(answer))
     } else {
         // Unknown scene, fall back to full
-        console.print(&format!("[dim]Unknown scene '{answer}', running full demo.[/]"));
+        console.print(&format!(
+            "[dim]Unknown scene '{answer}', running full demo.[/]"
+        ));
         Ok(None)
     }
 }
 
 /// Ask user about demo speed.
 fn ask_speed(console: &Console) -> io::Result<bool> {
-    let prompt = Prompt::new("[bold]Speed[/]")
-        .default("normal")
-        .markup(true);
+    let prompt = Prompt::new("[bold]Speed[/]").default("normal").markup(true);
 
     console.print("[dim]Options: 'normal' for full experience, 'quick' for faster run[/]");
 
-    let answer = prompt.ask(console).map_err(|e| {
-        io::Error::new(io::ErrorKind::Other, e.to_string())
-    })?;
+    let answer = prompt
+        .ask(console)
+        .map_err(|e| io::Error::other(e.to_string()))?;
 
     let answer = answer.trim().to_lowercase();
     Ok(answer == "quick" || answer == "fast" || answer == "q")
@@ -137,9 +141,9 @@ fn ask_export(console: &Console) -> io::Result<bool> {
 
     console.print("[dim]Options: 'yes' to save output files, 'no' to skip[/]");
 
-    let answer = prompt.ask(console).map_err(|e| {
-        io::Error::new(io::ErrorKind::Other, e.to_string())
-    })?;
+    let answer = prompt
+        .ask(console)
+        .map_err(|e| io::Error::other(e.to_string()))?;
 
     let answer = answer.trim().to_lowercase();
     Ok(answer == "yes" || answer == "y" || answer == "true")
@@ -159,10 +163,7 @@ mod tests {
 
     #[test]
     fn wizard_skips_when_not_interactive() {
-        let console = Console::builder()
-            .force_terminal(false)
-            .build()
-            .shared();
+        let console = Console::builder().force_terminal(false).build().shared();
 
         let result = run_wizard(&console, false, &["hero", "outro"]);
         assert!(result.is_none());
@@ -170,10 +171,7 @@ mod tests {
 
     #[test]
     fn wizard_skips_when_not_tty() {
-        let console = Console::builder()
-            .force_terminal(false)
-            .build()
-            .shared();
+        let console = Console::builder().force_terminal(false).build().shared();
 
         let result = run_wizard(&console, true, &["hero", "outro"]);
         assert!(result.is_none());

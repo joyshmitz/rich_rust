@@ -52,8 +52,15 @@ pub fn page_content(content: &str, console: &Arc<Console>, cfg: &PagerConfig) ->
     }
 
     // Try to spawn less with ANSI support
+    // -R: interpret ANSI colors, -X: don't clear screen on exit
+    // -F: quit if content fits in one screen (skip if force_pager is true)
+    let args = if cfg.force_pager {
+        vec!["-R", "-X"]
+    } else {
+        vec!["-R", "-F", "-X"]
+    };
     let pager_result = Command::new("less")
-        .args(["-R", "-F", "-X"]) // -R: ANSI colors, -F: quit if fits, -X: no clear
+        .args(&args)
         .stdin(Stdio::piped())
         .spawn();
 
@@ -91,10 +98,7 @@ mod tests {
 
     #[test]
     fn non_interactive_falls_back_to_inline() {
-        let console = Console::builder()
-            .force_terminal(false)
-            .build()
-            .shared();
+        let console = Console::builder().force_terminal(false).build().shared();
         let cfg = PagerConfig {
             interactive_allowed: false,
             force_pager: false,
