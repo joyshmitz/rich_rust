@@ -35,6 +35,7 @@ pub mod assertions;
 pub mod e2e_harness;
 pub mod fake_terminal;
 pub mod fixtures;
+pub mod flaky;
 pub mod platform;
 pub mod validation;
 
