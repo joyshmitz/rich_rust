@@ -223,6 +223,15 @@ pub const DEFAULT_MAX_INPUT_LENGTH: usize = 64 * 1024;
 ///
 /// Dropping this value stops the live display (best-effort).
 ///
+/// # Thread Safety
+///
+/// `Status` is `Send + Sync` and can be safely shared between threads. The
+/// [`update`](Status::update) method is safe to call concurrently from multiple
+/// threads — it performs a single atomic mutex write with poison recovery.
+///
+/// Updates are eventually consistent: the displayed message is guaranteed to
+/// reflect one of the recent `update()` calls within ~100ms (one refresh cycle).
+///
 /// # Design RFC: Atomic `Status::update` (bd-gg33)
 ///
 /// ## Problem
@@ -336,13 +345,20 @@ impl Status {
         })
     }
 
-    /// Update the displayed message (best-effort).
+    /// Update the displayed message.
+    ///
+    /// # Design Note (RFC bd-gg33)
+    ///
+    /// This method does NOT explicitly trigger a refresh. The Live display's
+    /// background thread (running at 10Hz) will pick up the new message on its
+    /// next tick. This design eliminates a race condition where concurrent
+    /// `update()` calls could cause message ordering issues.
+    ///
+    /// See the module-level RFC documentation on [`Status`] for full analysis.
     pub fn update(&self, message: impl Into<String>) {
         *crate::sync::lock_recover(&self.message) = message.into();
-
-        if let Some(live) = &self.live {
-            let _ = live.refresh();
-        }
+        // Live's timer-based refresh (10Hz) picks up the new message automatically.
+        // No explicit refresh() call needed - this eliminates the race condition.
     }
 }
 

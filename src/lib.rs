@@ -70,6 +70,33 @@
 //! rich_rust = { version = "0.1", features = ["syntax", "markdown", "json"] }
 //! ```
 //!
+//! ## Thread Safety
+//!
+//! All public types in rich_rust are `Send + Sync`. You can safely:
+//!
+//! - Share a [`Console`] between threads via `Arc<Console>`
+//! - Call [`Console::print`], [`Console::log`], etc. from multiple threads
+//! - Use [`live::Live`] displays with concurrent updates
+//! - Use [`interactive::Status`] spinners from any thread
+//!
+//! ### Mutex Poison Recovery
+//!
+//! rich_rust uses **poison recovery** for all internal mutexes. If a thread panics
+//! while holding a lock, subsequent operations will continue rather than propagate
+//! the panic. This is appropriate because:
+//!
+//! 1. **Caches**: Style/cell/color caches can safely use potentially stale data
+//! 2. **Output buffers**: A corrupted buffer produces garbled output, not crashes
+//! 3. **Configuration**: Theme/options are read-mostly and self-healing
+//!
+//! See the [`sync`] module for details on the poison recovery strategy.
+//!
+//! ### Caveats
+//!
+//! - Output may interleave when printing from multiple threads simultaneously
+//! - Style/color parsing caches are thread-safe but not deterministic under contention
+//! - For deterministic output ordering, synchronize at the application level
+//!
 //! ## Examples
 //!
 //! ### Styled Text

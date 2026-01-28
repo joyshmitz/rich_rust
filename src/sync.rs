@@ -51,7 +51,7 @@
 //!
 //! ```rust
 //! use std::sync::Mutex;
-//! use rich::sync::lock_recover;
+//! use rich_rust::sync::lock_recover;
 //!
 //! let data = Mutex::new(vec![1, 2, 3]);
 //!
@@ -94,7 +94,7 @@ use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 ///
 /// ```rust
 /// use std::sync::Mutex;
-/// use rich::sync::lock_recover;
+/// use rich_rust::sync::lock_recover;
 ///
 /// let mutex = Mutex::new(42);
 /// let guard = lock_recover(&mutex);
@@ -125,7 +125,7 @@ pub fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 ///
 /// ```rust
 /// use std::sync::Mutex;
-/// use rich::sync::lock_recover_debug;
+/// use rich_rust::sync::lock_recover_debug;
 ///
 /// let mutex = Mutex::new("hello");
 /// let guard = lock_recover_debug(&mutex, "my_function");
@@ -152,7 +152,7 @@ pub fn lock_recover_debug<'a, T>(mutex: &'a Mutex<T>, context: &str) -> MutexGua
 ///
 /// ```rust
 /// use std::sync::RwLock;
-/// use rich::sync::read_recover;
+/// use rich_rust::sync::read_recover;
 ///
 /// let rwlock = RwLock::new(42);
 /// let guard = read_recover(&rwlock);
@@ -174,7 +174,7 @@ pub fn read_recover<T>(rwlock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
 ///
 /// ```rust
 /// use std::sync::RwLock;
-/// use rich::sync::write_recover;
+/// use rich_rust::sync::write_recover;
 ///
 /// let rwlock = RwLock::new(42);
 /// let mut guard = write_recover(&rwlock);

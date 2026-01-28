@@ -330,6 +330,41 @@ pub trait RenderHook: Send + Sync {
 }
 
 /// The main Console for rendering styled output.
+///
+/// `Console` is the central entry point for all terminal output operations.
+/// It handles color detection, terminal dimensions, markup parsing, and
+/// ANSI escape code generation.
+///
+/// # Thread Safety
+///
+/// `Console` is `Send + Sync` and can be safely shared between threads using
+/// `Arc<Console>`. All internal state is protected by mutexes that use poison
+/// recovery (see the [`sync`](crate::sync) module).
+///
+/// When multiple threads print concurrently, their output may interleave at
+/// the line level. For strictly ordered output, synchronize at the application
+/// level or use a single printing thread.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use std::thread;
+/// use rich_rust::Console;
+///
+/// let console = Arc::new(Console::new());
+///
+/// let handles: Vec<_> = (0..4).map(|i| {
+///     let c = Arc::clone(&console);
+///     thread::spawn(move || {
+///         c.print(&format!("Hello from thread {i}"));
+///     })
+/// }).collect();
+///
+/// for h in handles {
+///     h.join().unwrap();
+/// }
+/// ```
 pub struct Console {
     /// Color system to use (None = auto-detect).
     color_system: Option<ColorSystem>,

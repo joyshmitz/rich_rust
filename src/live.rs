@@ -52,7 +52,44 @@ impl Default for LiveOptions {
     }
 }
 
-/// Live display handle.
+/// Live display handle for dynamic terminal updates.
+///
+/// `Live` provides Rich-style live updates with cursor control, allowing
+/// content to be updated in-place without scrolling.
+///
+/// # Thread Safety
+///
+/// `Live` is `Send + Sync` and can be cloned to share between threads. The
+/// [`update`](Live::update) and [`refresh`](Live::refresh) methods are safe
+/// to call concurrently.
+///
+/// When using auto-refresh, an internal thread handles periodic updates.
+/// All internal state is protected by mutexes with poison recovery.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use std::thread;
+/// use rich_rust::prelude::*;
+///
+/// let console = Arc::new(Console::new());
+/// let live = Arc::new(Live::new(Arc::clone(&console))
+///     .renderable(Text::new("Initial")));
+///
+/// live.start(true).unwrap();
+///
+/// // Safe to update from multiple threads
+/// let handles: Vec<_> = (0..4).map(|i| {
+///     let l = Arc::clone(&live);
+///     thread::spawn(move || {
+///         l.update(Text::new(format!("From thread {i}")), true);
+///     })
+/// }).collect();
+///
+/// for h in handles { h.join().unwrap(); }
+/// live.stop().unwrap();
+/// ```
 #[derive(Clone)]
 pub struct Live {
     inner: Arc<LiveInner>,
