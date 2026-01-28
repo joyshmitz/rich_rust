@@ -773,6 +773,7 @@ impl Confirm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error as StdError;
     use std::io::Write;
 
     #[derive(Clone)]
@@ -1057,5 +1058,411 @@ mod tests {
 
         let labeled = Choice::with_label("value", "Display Label");
         assert_eq!(labeled.display(), "Display Label");
+    }
+
+    // ========================================================================
+    // Comprehensive Prompt Tests (bd-1trs)
+    // ========================================================================
+
+    #[test]
+    fn test_prompt_builder_chain() {
+        // Test that all builder methods work and return Self for chaining
+        let prompt = Prompt::new("Enter name")
+            .default("Alice")
+            .allow_empty(true)
+            .show_default(false)
+            .markup(false)
+            .validate(|_| Ok(()));
+
+        assert_eq!(prompt.label, "Enter name");
+        assert_eq!(prompt.default, Some("Alice".to_string()));
+        assert!(prompt.allow_empty);
+        assert!(!prompt.show_default);
+        assert!(!prompt.markup);
+        assert!(prompt.validator.is_some());
+    }
+
+    #[test]
+    fn test_prompt_display_shows_default() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        // Disable markup on prompt so [Bob] appears literally in output
+        let prompt = Prompt::new("Name")
+            .default("Bob")
+            .show_default(true)
+            .markup(false);
+        let input = b"Alice\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let _ = prompt.ask_from(&console, &mut reader);
+
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        // Should show "Name [Bob]: " format
+        assert!(text.contains("Name"), "Expected 'Name' in output: {text:?}");
+        assert!(
+            text.contains("[Bob]"),
+            "Expected '[Bob]' in output: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_prompt_display_hides_default() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Name").default("Bob").show_default(false);
+        let input = b"Alice\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let _ = prompt.ask_from(&console, &mut reader);
+
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        // Should show "Name: " without the default
+        assert!(text.contains("Name"), "Expected 'Name' in output: {text:?}");
+        assert!(
+            !text.contains("[Bob]"),
+            "Should NOT show '[Bob]' when show_default=false: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_prompt_display_escapes_markup_in_default() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(true) // Markup enabled
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        // Default contains markup-like text that should be escaped
+        let prompt = Prompt::new("Name").default("[bold]text[/]").markup(true);
+        let input = b"Alice\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let _ = prompt.ask_from(&console, &mut reader);
+
+        // The default should be escaped so it displays literally
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        // The escaped version should appear (markup::escape converts [ to \[)
+        assert!(text.contains("Name"), "Expected 'Name' in output: {text:?}");
+    }
+
+    #[test]
+    fn test_prompt_empty_input_uses_default() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Name").default("DefaultName");
+        let input = b"\n"; // Empty input
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = prompt.ask_from(&console, &mut reader).expect("prompt");
+        assert_eq!(answer, "DefaultName");
+    }
+
+    #[test]
+    fn test_prompt_no_default_no_allow_empty_reprompts() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Name").allow_empty(false);
+        // First empty, then valid
+        let input = b"\nAlice\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = prompt.ask_from(&console, &mut reader).expect("prompt");
+        assert_eq!(answer, "Alice");
+
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        assert!(
+            text.contains("Input required"),
+            "Expected 'Input required' error message: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_prompt_allow_empty_true() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Name").allow_empty(true);
+        let input = b"\n"; // Empty input
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = prompt.ask_from(&console, &mut reader).expect("prompt");
+        assert_eq!(answer, ""); // Empty is allowed
+    }
+
+    #[test]
+    fn test_prompt_validation_passes_on_valid_input() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Email").validate(|value| {
+            if value.contains('@') {
+                Ok(())
+            } else {
+                Err("must contain @".to_string())
+            }
+        });
+
+        let input = b"test@example.com\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = prompt.ask_from(&console, &mut reader).expect("prompt");
+        assert_eq!(answer, "test@example.com");
+
+        // No error message should be printed
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        assert!(
+            !text.contains("must contain @"),
+            "Should not show error for valid input: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_prompt_multiple_validation_failures() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Number").validate(|value| {
+            value
+                .parse::<i32>()
+                .map(|_| ())
+                .map_err(|_| "must be a number".to_string())
+        });
+
+        // Multiple invalid inputs, then valid
+        let input = b"abc\nxyz\n42\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = prompt.ask_from(&console, &mut reader).expect("prompt");
+        assert_eq!(answer, "42");
+
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        // Should have shown the error message (at least twice)
+        let error_count = text.matches("must be a number").count();
+        assert!(
+            error_count >= 2,
+            "Expected at least 2 error messages, found {}: {text:?}",
+            error_count
+        );
+    }
+
+    #[test]
+    fn test_prompt_input_whitespace_trimmed() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Name");
+        let input = b"  Alice  \n"; // Whitespace around input
+        let mut reader = io::Cursor::new(&input[..]);
+        let answer = prompt.ask_from(&console, &mut reader).expect("prompt");
+        // Trailing whitespace should be trimmed
+        assert_eq!(answer, "  Alice");
+    }
+
+    #[test]
+    fn test_prompt_eof_returns_error() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        let prompt = Prompt::new("Name");
+        let input = b""; // Empty input (EOF)
+        let mut reader = io::Cursor::new(&input[..]);
+        let result = prompt.ask_from(&console, &mut reader);
+        assert!(matches!(result, Err(PromptError::Eof)));
+    }
+
+    #[test]
+    fn test_prompt_debug_impl() {
+        let prompt = Prompt::new("Name").default("Alice").validate(|_| Ok(()));
+
+        let debug_str = format!("{prompt:?}");
+        assert!(
+            debug_str.contains("Prompt"),
+            "Debug should contain 'Prompt': {debug_str}"
+        );
+        assert!(
+            debug_str.contains("Name"),
+            "Debug should contain label: {debug_str}"
+        );
+        assert!(
+            debug_str.contains("Alice"),
+            "Debug should contain default: {debug_str}"
+        );
+        assert!(
+            debug_str.contains("<validator>"),
+            "Debug should show validator placeholder: {debug_str}"
+        );
+    }
+
+    #[test]
+    fn test_prompt_error_display() {
+        let not_interactive = PromptError::NotInteractive;
+        assert_eq!(
+            format!("{not_interactive}"),
+            "prompt requires an interactive console"
+        );
+
+        let eof = PromptError::Eof;
+        assert_eq!(format!("{eof}"), "prompt input reached EOF");
+
+        let validation = PromptError::Validation("invalid input".to_string());
+        assert_eq!(format!("{validation}"), "invalid input");
+
+        let io_err = PromptError::Io(io::Error::new(io::ErrorKind::NotFound, "file not found"));
+        assert!(format!("{io_err}").contains("file not found"));
+    }
+
+    #[test]
+    fn test_prompt_error_source() {
+        let not_interactive = PromptError::NotInteractive;
+        assert!(StdError::source(&not_interactive).is_none());
+
+        let eof = PromptError::Eof;
+        assert!(StdError::source(&eof).is_none());
+
+        let validation = PromptError::Validation("test".to_string());
+        assert!(StdError::source(&validation).is_none());
+
+        let io_err = PromptError::Io(io::Error::new(io::ErrorKind::NotFound, "test"));
+        assert!(StdError::source(&io_err).is_some());
+    }
+
+    #[test]
+    fn test_prompt_error_from_io_error() {
+        let io_err = io::Error::new(io::ErrorKind::PermissionDenied, "access denied");
+        let prompt_err: PromptError = io_err.into();
+        assert!(matches!(prompt_err, PromptError::Io(_)));
+        assert!(format!("{prompt_err}").contains("access denied"));
+    }
+
+    #[test]
+    fn test_prompt_markup_in_label() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(true)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        // Label with markup - should be processed when markup=true
+        let prompt = Prompt::new("[bold]Name[/]").markup(true);
+        let input = b"Alice\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let _ = prompt.ask_from(&console, &mut reader);
+
+        // The prompt label should have been printed
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        assert!(text.contains("Name"), "Expected 'Name' in output: {text:?}");
+    }
+
+    #[test]
+    fn test_prompt_markup_disabled_in_label() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(true)
+            .markup(true)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        // Label with markup tags - should be printed literally when markup=false
+        let prompt = Prompt::new("[bold]Name[/]").markup(false);
+        let input = b"Alice\n";
+        let mut reader = io::Cursor::new(&input[..]);
+        let _ = prompt.ask_from(&console, &mut reader);
+
+        let out = buffer.0.lock().unwrap();
+        let text = String::from_utf8_lossy(&out);
+        // With markup=false, the literal brackets should appear
+        assert!(
+            text.contains("[bold]Name[/]"),
+            "Expected literal '[bold]Name[/]' in output: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_prompt_clone() {
+        let prompt = Prompt::new("Name")
+            .default("Alice")
+            .allow_empty(true)
+            .show_default(false)
+            .markup(false);
+
+        let cloned = prompt.clone();
+        assert_eq!(cloned.label, prompt.label);
+        assert_eq!(cloned.default, prompt.default);
+        assert_eq!(cloned.allow_empty, prompt.allow_empty);
+        assert_eq!(cloned.show_default, prompt.show_default);
+        assert_eq!(cloned.markup, prompt.markup);
+    }
+
+    // ========================================================================
+    // Additional PromptError Tests
+    // ========================================================================
+
+    #[test]
+    fn test_prompt_not_interactive_error() {
+        let buffer = SharedBuffer(Arc::new(Mutex::new(Vec::new())));
+        let console = Console::builder()
+            .force_terminal(false) // Not interactive
+            .markup(false)
+            .file(Box::new(buffer.clone()))
+            .build()
+            .shared();
+
+        // No default set
+        let prompt = Prompt::new("Name");
+        let result = prompt.ask(&console);
+        assert!(matches!(result, Err(PromptError::NotInteractive)));
     }
 }

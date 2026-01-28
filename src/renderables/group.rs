@@ -198,4 +198,163 @@ mod tests {
         let g = group(items);
         assert_eq!(g.len(), 3);
     }
+
+    #[test]
+    fn test_group_single_item() {
+        let g = Group::new().push("Solo");
+        assert_eq!(g.len(), 1);
+        assert!(!g.is_empty());
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Solo"));
+        // Single item should have no newlines
+        assert!(!text.contains('\n'));
+    }
+
+    #[test]
+    fn test_group_empty_render() {
+        let g: Group = Group::new();
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn test_group_nested() {
+        let inner = Group::new().push("Inner 1").push("Inner 2");
+        let outer = Group::new().push("Outer").push(inner);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = outer.render(&console, &options);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+
+        assert!(text.contains("Outer"));
+        assert!(text.contains("Inner 1"));
+        assert!(text.contains("Inner 2"));
+    }
+
+    #[test]
+    fn test_group_push_boxed() {
+        let boxed: Box<dyn Renderable> = Box::new("Boxed content");
+        let g = Group::new().push_boxed(boxed);
+        assert_eq!(g.len(), 1);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Boxed content"));
+    }
+
+    #[test]
+    fn test_group_is_empty_after_push() {
+        let g = Group::new();
+        assert!(g.is_empty());
+
+        let g2 = g.push("Item");
+        assert!(!g2.is_empty());
+    }
+
+    #[test]
+    fn test_group_default() {
+        let g: Group = Group::default();
+        assert!(g.is_empty());
+        assert_eq!(g.len(), 0);
+        assert!(!g.fit);
+    }
+
+    #[test]
+    fn test_group_fit_toggle() {
+        let g = Group::new().fit(false);
+        assert!(!g.fit);
+
+        let g2 = g.fit(true);
+        assert!(g2.fit);
+    }
+
+    #[test]
+    fn test_group_many_items() {
+        let mut g = Group::new();
+        for i in 0..10 {
+            g = g.push(format!("Item {i}"));
+        }
+        assert_eq!(g.len(), 10);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+
+        for i in 0..10 {
+            assert!(text.contains(&format!("Item {i}")));
+        }
+    }
+
+    #[test]
+    fn test_group_fit_with_multiple() {
+        // Test that fit mode works with many items
+        let g = Group::new()
+            .push("A")
+            .push("B")
+            .push("C")
+            .push("D")
+            .fit(true);
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+
+        // In fit mode, all items should be on same conceptual line
+        assert!(!text.contains('\n'));
+        assert!(text.contains('A'));
+        assert!(text.contains('D'));
+    }
+
+    #[test]
+    fn test_group_empty_items() {
+        // Group with empty strings should still work
+        let g = Group::new().push("").push("Middle").push("");
+
+        let console = Console::builder()
+            .force_terminal(false)
+            .markup(false)
+            .build();
+        let options = console.options();
+
+        let segments = g.render(&console, &options);
+        let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        assert!(text.contains("Middle"));
+        assert_eq!(g.len(), 3);
+    }
 }
