@@ -27,6 +27,28 @@ cargo add rich_rust
 
 ---
 
+## Run the Demo
+
+See rich_rust in action with the interactive demo:
+
+```bash
+# Full demo with all features (recommended)
+cargo run --bin demo_showcase --features showcase
+
+# Quick mode for faster run
+cargo run --bin demo_showcase --features showcase -- --quick
+
+# List available scenes
+cargo run --bin demo_showcase --features showcase -- --list-scenes
+
+# Run a specific scene
+cargo run --bin demo_showcase --features showcase -- --scene hero
+```
+
+The demo showcases tables, panels, progress bars, syntax highlighting, markdown rendering, and more in a cohesive "Nebula Deploy" narrative.
+
+---
+
 ## TL;DR
 
 ### The Problem
@@ -658,12 +680,19 @@ We’re building a standalone `demo_showcase` binary that shows off rich_rust en
 
 | Scene | Purpose | Exercises |
 |------|---------|----------|
-| `hero` | Introduce Nebula Deploy and the visual “brand”. | markup, Style/Theme, Emoji, Rule/Panel |
+| `hero` | Introduce Nebula Deploy and the visual "brand". | markup, Style/Theme, Emoji, Rule/Panel |
 | `dashboard` | Show the live split-screen dashboard (services + pipeline + logs). | Layout, Live, Progress, logging |
-| `deep_dive_markdown` | Show a runbook / release notes view. | Markdown (feature `markdown`) |
-| `deep_dive_syntax` | Show a config/code snippet view. | Syntax (feature `syntax`) |
-| `deep_dive_json` | Show an API payload view. | Json (feature `json`) |
-| `debug_tools` | Walk through a failure and recovery workflow. | Pretty/Inspect, Traceback, RichLogger (+ tracing with feature `tracing`) |
+| `markdown` | Show a runbook / release notes view. | Markdown (feature `markdown`) |
+| `syntax` | Show a config/code snippet view. | Syntax (feature `syntax`) |
+| `json` | Show an API payload view. | Json (feature `json`) |
+| `table` | Show data tables with various styles. | Table with sorting, alignment |
+| `panels` | Show boxed content with titles. | Panel with borders, padding |
+| `tree` | Show hierarchical data structures. | Tree with nested nodes |
+| `layout` | Show split-screen layouts. | Layout with columns/rows |
+| `emoji_links` | Show emoji and hyperlink support. | Emoji, OSC8 links |
+| `debug_tools` | Walk through a failure and recovery workflow. | Pretty/Inspect, Traceback |
+| `tracing` | Show tracing integration. | RichTracingLayer (feature `tracing`) |
+| `traceback` | Show error tracebacks. | Traceback rendering |
 | `export` | Export the run to artifacts for sharing. | `Console::export_html`, `Console::export_svg` |
 | `outro` | Wrap up with a crisp summary and next steps. | Table, Tree, Rule |
 
