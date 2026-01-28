@@ -42,6 +42,8 @@ mod tracing_scene;
 mod tree_scene;
 #[path = "demo_showcase/typography.rs"]
 mod typography;
+#[path = "demo_showcase/wizard.rs"]
+mod wizard;
 
 /// Standalone rich_rust showcase binary (roadmap).
 ///
@@ -74,6 +76,30 @@ fn main() {
     // Initialize RichLogger if log level is not Off
     if cfg.log_level != LogLevel::Off {
         init_logger(&demo_console.console, cfg.log_level);
+    }
+
+    // Run interactive wizard if no scene specified and interactive is allowed
+    let mut cfg = cfg;
+    if cfg.scene.is_none() && !cfg.is_export() && cfg.is_interactive_allowed() {
+        let registry = scenes::build_registry();
+        let scene_names: Vec<_> = registry.all().map(|s| s.name()).collect();
+
+        if let Some(choices) = wizard::run_wizard(
+            &demo_console.console,
+            cfg.is_interactive_allowed(),
+            &scene_names,
+        ) {
+            // Apply wizard choices to config
+            if let Some(scene) = choices.scene {
+                cfg.scene = Some(scene);
+            }
+            if choices.quick {
+                cfg.quick = true;
+            }
+            if choices.export {
+                cfg.export = ExportMode::TempDir;
+            }
+        }
     }
 
     if let Some(scene_name) = cfg.scene.as_deref() {
