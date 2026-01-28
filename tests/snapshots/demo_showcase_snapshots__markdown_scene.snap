@@ -1,6 +1,5 @@
 ---
 source: tests/demo_showcase_snapshots.rs
-assertion_line: 245
 expression: normalized
 ---
 Markdown: Documentation Rendering
@@ -47,10 +46,10 @@ Deployment Runbook (Excerpt)
 Pre-Deployment Checklist
 
 Before deploying to production, verify:
-  • [ ] All tests pass in CI
-  • [ ] Staging environment validated
-  • [ ] Database migrations reviewed
-  • [ ] Rollback plan documented
+  • ☐ All tests pass in CI
+  • ☐ Staging environment validated
+  • ☐ Database migrations reviewed
+  • ☐ Rollback plan documented
 
 
 Deployment Steps

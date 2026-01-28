@@ -3,14 +3,14 @@ source: tests/demo_showcase_snapshots.rs
 expression: normalized
 ---
 Validating environment…
-╭───────────────────────────────────────────╮
-│                                           │
-│     ✦  N E B U L A   D E P L O Y  ✦     │
-│                                           │
-╰───────────────────────────────────────────╯
+                   ╭───────────────────────────────────────╮
+                   │                                       │
+                   │    ✦  N E B U L A   D E P L O Y  ✦    │
+                   │                                       │
+                   ╰───────────────────────────────────────╯
 
-      Beautiful terminal output for Rust
-             powered by rich_rust
+                       Beautiful terminal output for Rust
+                              powered by rich_rust
 
 ╭──── Environment Detection ─────╮
 │ Terminal size: 80 × 24 cells   │
