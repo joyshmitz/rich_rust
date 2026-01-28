@@ -4,9 +4,12 @@
 //! When running in export mode, displays the export summary.
 
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 use rich_rust::r#box::{DOUBLE, ROUNDED};
 use rich_rust::console::Console;
+use rich_rust::interactive::Status;
 use rich_rust::markup::render_or_plain;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::style::Style;
@@ -51,6 +54,15 @@ impl Scene for ExportScene {
 
         // If we're in export mode, show what will be exported
         if cfg.is_export() {
+            // Brief spinner moment: "Generating export bundle…"
+            if let Ok(_status) = Status::new(console, "Generating export bundle…") {
+                let duration = if cfg.is_quick() {
+                    Duration::from_millis(200)
+                } else {
+                    Duration::from_millis(500)
+                };
+                thread::sleep(duration);
+            }
             render_export_summary(console, cfg);
             console.print("");
         }

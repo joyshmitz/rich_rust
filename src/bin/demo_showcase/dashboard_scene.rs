@@ -11,9 +11,11 @@
 //! - Non-interactive: Single snapshot render
 
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use rich_rust::console::Console;
+use rich_rust::interactive::Status;
 use rich_rust::live::{Live, LiveOptions, VerticalOverflowMethod};
 use rich_rust::markup::render_or_plain;
 use rich_rust::renderables::Renderable;
@@ -50,6 +52,16 @@ impl Scene for DashboardScene {
     }
 
     fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
+        // Brief spinner moment: "Building deployment plan…"
+        if let Ok(_status) = Status::new(console, "Building deployment plan…") {
+            let duration = if cfg.is_quick() {
+                Duration::from_millis(200)
+            } else {
+                Duration::from_millis(600)
+            };
+            thread::sleep(duration);
+        }
+
         // Create demo state
         let state = SharedDemoState::new(cfg.run_id(), cfg.seed());
         init_services(&state);

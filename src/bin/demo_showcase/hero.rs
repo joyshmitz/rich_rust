@@ -4,8 +4,11 @@
 //! Content: branded title, capability detection panel, palette preview, hyperlink CTAs.
 
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 use rich_rust::console::Console;
+use rich_rust::interactive::Status;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::renderables::table::{Column, Table};
 use rich_rust::style::Style;
@@ -33,7 +36,19 @@ impl Scene for HeroScene {
         "Introduce Nebula Deploy and the visual brand."
     }
 
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+    fn run(&self, console: &Arc<Console>, cfg: &Config) -> Result<(), SceneError> {
+        // Brief spinner moment: "Validating environment…"
+        if let Ok(_status) = Status::new(console, "Validating environment…") {
+            // Hold the spinner briefly in quick mode, longer in normal mode
+            let duration = if cfg.is_quick() {
+                Duration::from_millis(200)
+            } else {
+                Duration::from_millis(800)
+            };
+            thread::sleep(duration);
+            // Status is dropped here, stopping the spinner
+        }
+
         // Big branded title
         render_brand_title(console);
 

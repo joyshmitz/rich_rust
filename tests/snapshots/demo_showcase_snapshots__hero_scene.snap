@@ -2,6 +2,7 @@
 source: tests/demo_showcase_snapshots.rs
 expression: normalized
 ---
+Validating environment…
 ╭───────────────────────────────────────────╮
 │                                           │
 │     ✦  N E B U L A   D E P L O Y  ✦     │
