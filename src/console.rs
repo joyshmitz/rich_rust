@@ -639,7 +639,10 @@ impl Console {
     }
 
     /// Enable recording mode.
-    pub fn begin_capture(&mut self) {
+    ///
+    /// All subsequent console output will be captured to an internal buffer
+    /// until [`end_capture`](Self::end_capture) is called.
+    pub fn begin_capture(&self) {
         self.record.store(true, Ordering::Relaxed);
         if let Ok(mut buffer) = self.buffer.lock() {
             buffer.clear();
@@ -647,7 +650,10 @@ impl Console {
     }
 
     /// End recording and return captured segments.
-    pub fn end_capture(&mut self) -> Vec<Segment<'static>> {
+    ///
+    /// Returns all segments captured since [`begin_capture`](Self::begin_capture)
+    /// was called, and clears the internal buffer.
+    pub fn end_capture(&self) -> Vec<Segment<'static>> {
         self.record.store(false, Ordering::Relaxed);
         self.buffer
             .lock()

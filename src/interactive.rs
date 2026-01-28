@@ -495,8 +495,7 @@ mod tests {
         // so we just check for the text content rather than a literal sequence with newline.
         assert!(
             text.contains("digits only"),
-            "Expected error message 'digits only' in output, got: {:?}",
-            text
+            "Expected error message 'digits only' in output, got: {text:?}"
         );
     }
 

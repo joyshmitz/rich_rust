@@ -77,6 +77,7 @@ markdown = ["pulldown-cmark"]
 json = ["serde_json"]
 tracing = ["dep:tracing", "dep:tracing-subscriber"]
 full = ["syntax", "markdown", "json"]
+showcase = ["full", "tracing"]
 
 [profile.release]
 opt-level = "z"

@@ -72,22 +72,29 @@ fn apply_color_mode(
     force_terminal: bool,
 ) -> rich_rust::console::ConsoleBuilder {
     match mode {
-        ColorMode::Auto => builder,
+        ColorMode::Auto => {
+            // If the user explicitly asked to force terminal mode, apply it here.
+            builder.pipe_if(force_terminal, |b| b.force_terminal(true))
+        }
         ColorMode::None => {
             // rich_rust represents "no color" as `ColorSystem = None`.
             // We currently can't directly clear the detected color system without also forcing
             // `is_terminal=false`, so we do the conservative thing and treat output as non-TTY.
             //
             // This is acceptable for the demo_showcase safety model (no ANSI in pipes).
+            // NOTE: `--color-system none` takes precedence over `--force-terminal`.
             builder.force_terminal(false)
         }
-        ColorMode::Standard => builder.color_system(ColorSystem::Standard),
-        ColorMode::EightBit => builder.color_system(ColorSystem::EightBit),
-        ColorMode::TrueColor => builder.color_system(ColorSystem::TrueColor),
+        ColorMode::Standard => builder
+            .color_system(ColorSystem::Standard)
+            .pipe_if(force_terminal, |b| b.force_terminal(true)),
+        ColorMode::EightBit => builder
+            .color_system(ColorSystem::EightBit)
+            .pipe_if(force_terminal, |b| b.force_terminal(true)),
+        ColorMode::TrueColor => builder
+            .color_system(ColorSystem::TrueColor)
+            .pipe_if(force_terminal, |b| b.force_terminal(true)),
     }
-    // If the user explicitly asked to force terminal mode, keep that unless `color-system none`
-    // overrode it above.
-    .pipe_if(force_terminal, |b| b.force_terminal(true))
 }
 
 trait PipeIf: Sized {
@@ -96,11 +103,7 @@ trait PipeIf: Sized {
 
 impl PipeIf for rich_rust::console::ConsoleBuilder {
     fn pipe_if(self, cond: bool, f: impl FnOnce(Self) -> Self) -> Self {
-        if cond {
-            f(self)
-        } else {
-            self
-        }
+        if cond { f(self) } else { self }
     }
 }
 
@@ -113,4 +116,3 @@ fn resolve_links_enabled(cfg: &Config) -> bool {
     let is_tty = cfg.force_terminal || std::io::stdout().is_terminal();
     is_tty && !terminal::is_dumb_terminal() && cfg.interactive.unwrap_or(true)
 }
-
