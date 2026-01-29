@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use rich_rust::r#box::{DOUBLE, HEAVY, MINIMAL, SIMPLE};
+use rich_rust::r#box::{DOUBLE, HEAVY, SIMPLE};
 use rich_rust::console::Console;
 use rich_rust::markup;
 use rich_rust::renderables::panel::Panel;
@@ -186,14 +186,13 @@ fn render_practical_panels(console: &Console, cfg: &Config) {
     console.print_renderable(&warning);
     console.print("");
 
-    // Tip panel (minimal style)
+    // Tip panel (light borders with blue styling)
     let tip_content = markup::render_or_plain(
         "Use --quick for faster iteration\n\
          Use --seed 42 for reproducible output",
     );
     let tip = Panel::from_rich_text(&tip_content, 45)
         .title_from_markup("[bold blue]Tip[/]")
-        .box_style(&MINIMAL)
         .border_style(Style::parse("blue dim").unwrap_or_default())
         .safe_box(cfg.is_safe_box());
     console.print_renderable(&tip);

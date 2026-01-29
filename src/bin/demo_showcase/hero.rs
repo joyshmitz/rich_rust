@@ -8,15 +8,20 @@ use std::thread;
 use std::time::Duration;
 
 use rich_rust::cells::cell_len;
-use rich_rust::console::Console;
+use rich_rust::console::{Console, ConsoleOptions};
 use rich_rust::interactive::Status;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::renderables::table::{Column, Table};
+use rich_rust::renderables::Renderable;
+use rich_rust::segment::Segment;
 use rich_rust::style::Style;
 use rich_rust::text::Text;
 
 use crate::Config;
 use crate::scenes::{Scene, SceneError};
+
+/// Maximum content width for readable output on wide terminals.
+const MAX_CONTENT_WIDTH: usize = 120;
 
 /// Hero scene: branding, capabilities, palette preview.
 pub struct HeroScene;
@@ -79,6 +84,53 @@ fn center_padding(content_visible_width: usize, total_width: usize) -> String {
     }
     let padding = (total_width - content_visible_width) / 2;
     " ".repeat(padding)
+}
+
+/// Print a renderable centered within the console width.
+///
+/// This handles wide terminals (300+ columns) by:
+/// 1. Rendering the component at a reasonable max width
+/// 2. Centering the output in the full terminal width
+fn print_centered_renderable<R: Renderable>(console: &Console, renderable: &R) {
+    let terminal_width = console.width();
+    let render_width = terminal_width.min(MAX_CONTENT_WIDTH);
+
+    // Render at the constrained width
+    let options = ConsoleOptions::from_terminal(render_width, console.height());
+    let segments = renderable.render(console, &options);
+
+    // Split into lines and center each one
+    let mut current_line: Vec<Segment> = Vec::new();
+    for seg in segments {
+        if seg.text.contains('\n') {
+            // Handle newlines within segments
+            for (i, part) in seg.text.split('\n').enumerate() {
+                if i > 0 {
+                    // Print previous line centered
+                    print_line_centered(console, &current_line, terminal_width);
+                    current_line.clear();
+                }
+                if !part.is_empty() {
+                    current_line.push(Segment::new(part.to_string(), seg.style.clone()));
+                }
+            }
+        } else {
+            current_line.push(seg.into_owned());
+        }
+    }
+    // Print final line
+    if !current_line.is_empty() {
+        print_line_centered(console, &current_line, terminal_width);
+    }
+}
+
+/// Print a single line of segments centered.
+fn print_line_centered(console: &Console, segments: &[Segment], terminal_width: usize) {
+    let line_width: usize = segments.iter().map(|s| cell_len(&s.text)).sum();
+    let padding = center_padding(line_width, terminal_width);
+    console.print_plain(&padding);
+    console.print_segments(segments);
+    console.print_plain("\n");
 }
 
 /// Render the big branded title with tagline.
@@ -214,7 +266,7 @@ fn render_capabilities_panel(console: &Console) {
         .border_style(Style::parse("dim #38bdf8").unwrap_or_default())
         .expand(false);
 
-    console.print_renderable(&panel);
+    print_centered_renderable(console, &panel);
 }
 
 /// Render the color palette preview.
