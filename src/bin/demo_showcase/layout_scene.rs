@@ -277,7 +277,7 @@ fn render_composition_demo(console: &Console, cfg: &Config) {
          Latency: 12ms",
     );
     let card1 = Panel::from_rich_text(&card1_content, 26)
-        .title("[green]us-west-2[/]")
+        .title_from_markup("[green]us-west-2[/]")
         .width(28)
         .safe_box(cfg.is_safe_box());
 
@@ -288,7 +288,7 @@ fn render_composition_demo(console: &Console, cfg: &Config) {
          Latency: 45ms",
     );
     let card2 = Panel::from_rich_text(&card2_content, 26)
-        .title("[green]eu-west-1[/]")
+        .title_from_markup("[green]eu-west-1[/]")
         .width(28)
         .safe_box(cfg.is_safe_box());
 
@@ -299,7 +299,7 @@ fn render_composition_demo(console: &Console, cfg: &Config) {
          Latency: 120ms",
     );
     let card3 = Panel::from_rich_text(&card3_content, 26)
-        .title("[yellow]ap-south-1[/]")
+        .title_from_markup("[yellow]ap-south-1[/]")
         .width(28)
         .safe_box(cfg.is_safe_box());
 
