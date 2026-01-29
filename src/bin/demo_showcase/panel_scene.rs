@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use rich_rust::r#box::{DOUBLE, HEAVY, SIMPLE};
+use rich_rust::r#box::{DOUBLE, HEAVY};
 use rich_rust::console::Console;
 use rich_rust::markup;
 use rich_rust::renderables::panel::Panel;
@@ -198,14 +198,13 @@ fn render_practical_panels(console: &Console, cfg: &Config) {
     console.print_renderable(&tip);
     console.print("");
 
-    // Simple style for quotes/callouts
+    // Quote panel with subtle rounded borders
     let quote_content = markup::render_or_plain(
         "[italic]The best error message is the one that\n\
          never shows up.[/]\n\n\
          [dim]— Thomas Fuchs[/]",
     );
     let quote = Panel::from_rich_text(&quote_content, 45)
-        .box_style(&SIMPLE)
         .border_style(Style::parse("dim").unwrap_or_default())
         .padding((0, 1))
         .safe_box(cfg.is_safe_box());
