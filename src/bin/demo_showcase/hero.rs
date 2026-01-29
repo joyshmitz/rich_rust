@@ -13,7 +13,6 @@ use rich_rust::interactive::Status;
 use rich_rust::renderables::Renderable;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::renderables::table::{Column, Table};
-use rich_rust::segment::Segment;
 use rich_rust::style::Style;
 use rich_rust::text::Text;
 
@@ -104,11 +103,20 @@ fn print_centered_renderable<R: Renderable>(console: &Console, renderable: &R) {
             .update_dimensions(MAX_CONTENT_WIDTH, console.height());
         let segments = renderable.render(console, &options);
 
-        // Convert to string, add indent to each line, print
+        // Convert to string and add indent after each newline
         let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
-        for line in output.lines() {
-            console.print_plain(&format!("{indent}{line}\n"));
-        }
+        // Add indent at start and after each newline (except trailing)
+        let indented = format!("{indent}{}", output.replace('\n', &format!("\n{indent}")));
+        // Remove trailing indent if output ended with newline
+        let indented = if output.ends_with('\n') {
+            indented
+                .strip_suffix(&indent)
+                .unwrap_or(&indented)
+                .to_string()
+        } else {
+            indented
+        };
+        console.print_plain(&indented);
     } else {
         // Normal width - just print directly
         console.print_renderable(renderable);
