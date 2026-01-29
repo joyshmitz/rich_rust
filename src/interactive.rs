@@ -939,20 +939,21 @@ impl Select {
 
             // Empty input uses default
             if input.is_empty() {
-                if let Some(default) = &self.default {
-                    if self.find_choice(default).is_some() {
-                        return Ok(default.clone());
-                    }
+                if let Some(default) = &self.default
+                    && self.find_choice(default).is_some()
+                {
+                    return Ok(default.clone());
                 }
                 self.print_error(console, "Please select an option.");
                 continue;
             }
 
             // Try as number first
-            if let Ok(num) = input.parse::<usize>() {
-                if num >= 1 && num <= self.choices.len() {
-                    return Ok(self.choices[num - 1].value.clone());
-                }
+            if let Ok(num) = input.parse::<usize>()
+                && num >= 1
+                && num <= self.choices.len()
+            {
+                return Ok(self.choices[num - 1].value.clone());
             }
 
             // Try as exact match (case insensitive)
@@ -989,21 +990,20 @@ impl Select {
 
     fn print_prompt(&self, console: &Console) {
         let mut prompt = self.label.clone();
-        if self.show_default {
-            if let Some(default) = &self.default {
-                let default_display = self
-                    .find_choice(default)
-                    .map(Choice::display)
-                    .unwrap_or(default.as_str());
-                let escaped = if self.markup {
-                    markup::escape(default_display)
-                } else {
-                    default_display.to_string()
-                };
-                prompt.push_str(" [");
-                prompt.push_str(&escaped);
-                prompt.push(']');
-            }
+        if self.show_default
+            && let Some(default) = &self.default
+        {
+            let default_display = self
+                .find_choice(default)
+                .map_or(default.as_str(), Choice::display);
+            let escaped = if self.markup {
+                markup::escape(default_display)
+            } else {
+                default_display.to_string()
+            };
+            prompt.push_str(" [");
+            prompt.push_str(&escaped);
+            prompt.push(']');
         }
         prompt.push_str(": ");
 
