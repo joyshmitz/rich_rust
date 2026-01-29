@@ -947,7 +947,10 @@ fn e2e_table_extremely_narrow_width() {
     let output = table.render_plain(5);
 
     // Should still produce some output without panicking
-    assert!(!output.is_empty(), "Table should produce output even at narrow width");
+    assert!(
+        !output.is_empty(),
+        "Table should produce output even at narrow width"
+    );
     tracing::info!("Extremely narrow width test PASSED");
 }
 
@@ -1036,8 +1039,7 @@ fn e2e_table_conflicting_min_max() {
     init_test_logging();
     tracing::info!("Testing conflicting min/max width constraints");
 
-    let mut table = Table::new()
-        .with_column(Column::new("Header").min_width(20).max_width(10));
+    let mut table = Table::new().with_column(Column::new("Header").min_width(20).max_width(10));
 
     table.add_row_cells(["Content"]);
 
