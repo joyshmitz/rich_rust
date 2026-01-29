@@ -198,7 +198,7 @@ fn render_service_dependencies(console: &Console) {
         );
 
     let tree = Tree::new(root)
-        .guides(TreeGuides::Unicode)
+        .guides(TreeGuides::Rounded)
         .guide_style(Style::parse("dim").unwrap_or_default());
 
     console.print_renderable(&tree);
