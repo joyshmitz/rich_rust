@@ -66,6 +66,9 @@ proptest = "1.6"
 # Snapshot testing for visual regression detection
 insta = { version = "1.46", features = ["glob", "filters"] }
 
+# Test serialization for env var tests
+serial_test = "3.2"
+
 # Test logging infrastructure
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt", "json"] }

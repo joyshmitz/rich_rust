@@ -544,6 +544,7 @@ impl Default for TerminalEnv {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_platform_info() {
@@ -585,6 +586,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_with_env_var() {
         let original = std::env::var("TEST_PLATFORM_VAR").ok();
 
@@ -597,6 +599,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_terminal_env_apply() {
         let env = TerminalEnv::dumb();
         env.apply(|| {
@@ -605,6 +608,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_terminal_env_no_color() {
         let env = TerminalEnv::no_color();
         env.apply(|| {
