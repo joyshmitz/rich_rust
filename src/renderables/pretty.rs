@@ -337,6 +337,10 @@ fn extract_simple_struct_fields(repr: &str) -> Option<Vec<(String, String)>> {
             let closer = if opener == '[' { ']' } else { '}' };
             value = format!("{opener}...{closer}");
             nesting_depth = 0; // We're collapsing, so reset depth
+        } else if value.ends_with('{') && nesting_depth > 0 {
+            // Named struct like "Inner {" -> "Inner {...}"
+            value = format!("{value}...}}");
+            nesting_depth = 0;
         }
 
         current_field = Some((name, value));
@@ -737,8 +741,11 @@ mod tests {
         // Should only extract top-level fields
         assert!(fields.is_some());
         let fields = fields.unwrap();
-        // "inner" should be extracted with the nested value
-        assert!(fields.iter().any(|(name, _)| name == "inner"));
+        // "inner" should be extracted with the collapsed value
+        let inner_field = fields.iter().find(|(name, _)| name == "inner");
+        assert!(inner_field.is_some(), "should have 'inner' field");
+        let (_, value) = inner_field.unwrap();
+        assert_eq!(value, "Inner {...}", "nested struct should be collapsed");
     }
 
     #[test]
