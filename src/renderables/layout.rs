@@ -524,7 +524,7 @@ mod tests {
     #[test]
     fn test_region_clone() {
         let r1 = Region::new(1, 2, 3, 4);
-        let r2 = r1.clone();
+        let r2 = r1; // Region is Copy
         assert_eq!(r1, r2);
     }
 
@@ -868,7 +868,7 @@ mod tests {
         let segments = layout.render(&console, &options);
         // Should render placeholder
         let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
-        assert!(text.contains("empty") || text.contains("20") || text.contains("5"));
+        assert!(text.contains("empty") || text.contains("20") || text.contains('5'));
     }
 
     #[test]
@@ -981,7 +981,7 @@ mod tests {
         let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("myname"));
         assert!(text.contains("20"));
-        assert!(text.contains("5"));
+        assert!(text.contains('5'));
     }
 
     #[test]
@@ -989,7 +989,7 @@ mod tests {
         let segments = placeholder_segments(None, 20, 5);
         let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(text.contains("20"));
-        assert!(text.contains("5"));
+        assert!(text.contains('5'));
     }
 
     // =========================================================================

@@ -3609,10 +3609,7 @@ mod tests {
 
     #[test]
     fn test_io_concurrent_writes() {
-        // Test thread-safe writes to shared buffer
         use std::thread;
-
-        let buffer = Arc::new(Mutex::new(Vec::new()));
 
         struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
 
@@ -3632,6 +3629,8 @@ mod tests {
             }
         }
 
+        // Test thread-safe writes to shared buffer
+        let buffer = Arc::new(Mutex::new(Vec::new()));
         let shared = SharedBuffer(Arc::clone(&buffer));
         let console = Console::builder()
             .width(80)

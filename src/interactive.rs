@@ -1658,8 +1658,7 @@ mod tests {
         let error_count = text.matches("must be a number").count();
         assert!(
             error_count >= 2,
-            "Expected at least 2 error messages, found {}: {text:?}",
-            error_count
+            "Expected at least 2 error messages, found {error_count}: {text:?}"
         );
     }
 
@@ -1887,7 +1886,7 @@ mod tests {
         let validation = PromptError::Validation("test".to_string());
         assert!(!validation.is_input_too_long());
 
-        let io_err = PromptError::Io(io::Error::new(io::ErrorKind::Other, "test"));
+        let io_err = PromptError::Io(io::Error::other("test"));
         assert!(!io_err.is_input_too_long());
     }
 

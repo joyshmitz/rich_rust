@@ -1185,7 +1185,7 @@ mod tests {
                 let live = Arc::clone(&live);
                 thread::spawn(move || {
                     for j in 0..10 {
-                        live.update(Text::new(format!("Thread {} update {}", i, j)), false);
+                        live.update(Text::new(format!("Thread {i} update {j}")), false);
                     }
                 })
             })
@@ -1259,8 +1259,7 @@ mod tests {
         let final_count = *counter.lock().unwrap();
         assert!(
             final_count >= 2,
-            "expected multiple refreshes, got {}",
-            final_count
+            "expected multiple refreshes, got {final_count}",
         );
     }
 

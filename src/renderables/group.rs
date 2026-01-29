@@ -477,7 +477,7 @@ mod tests {
 
         let segments = g.render(&console, &options);
         // Rule should render to fit within the narrow width
-        let total_width: usize = segments.iter().map(|s| s.cell_length()).sum();
+        let total_width: usize = segments.iter().map(Segment::cell_length).sum();
         assert!(
             total_width <= 20,
             "Rule should fit in 20 columns, got {total_width}"
@@ -498,7 +498,7 @@ mod tests {
         let options = console.options();
 
         let segments = g.render(&console, &options);
-        let total_width: usize = segments.iter().map(|s| s.cell_length()).sum();
+        let total_width: usize = segments.iter().map(Segment::cell_length).sum();
         // Rule should expand to fill the wider width
         assert!(
             total_width > 20,
@@ -647,8 +647,8 @@ mod tests {
         let segments = outer.render(&console, &options);
         let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
         assert!(output.contains("Before"));
-        assert!(output.contains("A"));
-        assert!(output.contains("B"));
+        assert!(output.contains('A'));
+        assert!(output.contains('B'));
         assert!(output.contains("After"));
 
         // Inner group rendered in fit mode, so A and B should be adjacent (no newline between them)
