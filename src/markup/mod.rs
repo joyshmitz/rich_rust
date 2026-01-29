@@ -148,9 +148,11 @@ fn parse_tag(content: &str) -> Tag {
     }
 
     // Check for handler syntax @handler(args)
+    // Guard: paren_start < paren_end prevents panic on malformed input like "@)("
     if (trimmed.starts_with('@') || trimmed.starts_with("/@"))
         && let Some(paren_start) = trimmed.find('(')
         && let Some(paren_end) = trimmed.rfind(')')
+        && paren_start < paren_end
     {
         let name = trimmed[..paren_start].to_string();
         let param = trimmed[paren_start + 1..paren_end].to_string();
@@ -635,6 +637,21 @@ mod tests {
         let tag = parse_tag("@click(button1)");
         assert_eq!(tag.name, "@click");
         assert_eq!(tag.parameters, Some("button1".to_string()));
+    }
+
+    #[test]
+    fn test_handler_syntax_malformed_parens() {
+        // Malformed handler with reversed parens should not panic (bd-panic-fix)
+        // Previously this would cause a slice panic: paren_start + 1 > paren_end
+        let tag = parse_tag("@)(");
+        // Falls through to plain tag parsing since parens are reversed
+        assert_eq!(tag.name, "@)(");
+        assert!(tag.parameters.is_none());
+
+        // Also test with content
+        let tag2 = parse_tag("@handler)(args");
+        assert_eq!(tag2.name, "@handler)(args");
+        assert!(tag2.parameters.is_none());
     }
 
     // --- Multiple Tags Same Line ---
