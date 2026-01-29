@@ -58,6 +58,7 @@
 
 use bitflags::bitflags;
 use lru::LruCache;
+use smallvec::SmallVec;
 use std::fmt::{self, Write as _};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
@@ -120,8 +121,9 @@ impl Attributes {
     ];
 
     /// Get the ANSI SGR codes for enabled attributes.
+    /// Uses SmallVec to avoid heap allocation for typical 1-4 attribute cases.
     #[must_use]
-    pub fn to_sgr_codes(&self) -> Vec<u8> {
+    pub fn to_sgr_codes(&self) -> SmallVec<[u8; 4]> {
         Self::SGR_CODES
             .iter()
             .filter_map(|(attr, code)| {
@@ -1382,19 +1384,19 @@ mod tests {
     #[test]
     fn test_all_attributes_sgr_codes() {
         // Test each attribute produces correct SGR code
-        assert_eq!(Attributes::BOLD.to_sgr_codes(), vec![1]);
-        assert_eq!(Attributes::DIM.to_sgr_codes(), vec![2]);
-        assert_eq!(Attributes::ITALIC.to_sgr_codes(), vec![3]);
-        assert_eq!(Attributes::UNDERLINE.to_sgr_codes(), vec![4]);
-        assert_eq!(Attributes::BLINK.to_sgr_codes(), vec![5]);
-        assert_eq!(Attributes::BLINK2.to_sgr_codes(), vec![6]);
-        assert_eq!(Attributes::REVERSE.to_sgr_codes(), vec![7]);
-        assert_eq!(Attributes::CONCEAL.to_sgr_codes(), vec![8]);
-        assert_eq!(Attributes::STRIKE.to_sgr_codes(), vec![9]);
-        assert_eq!(Attributes::UNDERLINE2.to_sgr_codes(), vec![21]);
-        assert_eq!(Attributes::FRAME.to_sgr_codes(), vec![51]);
-        assert_eq!(Attributes::ENCIRCLE.to_sgr_codes(), vec![52]);
-        assert_eq!(Attributes::OVERLINE.to_sgr_codes(), vec![53]);
+        assert_eq!(Attributes::BOLD.to_sgr_codes().as_slice(), &[1]);
+        assert_eq!(Attributes::DIM.to_sgr_codes().as_slice(), &[2]);
+        assert_eq!(Attributes::ITALIC.to_sgr_codes().as_slice(), &[3]);
+        assert_eq!(Attributes::UNDERLINE.to_sgr_codes().as_slice(), &[4]);
+        assert_eq!(Attributes::BLINK.to_sgr_codes().as_slice(), &[5]);
+        assert_eq!(Attributes::BLINK2.to_sgr_codes().as_slice(), &[6]);
+        assert_eq!(Attributes::REVERSE.to_sgr_codes().as_slice(), &[7]);
+        assert_eq!(Attributes::CONCEAL.to_sgr_codes().as_slice(), &[8]);
+        assert_eq!(Attributes::STRIKE.to_sgr_codes().as_slice(), &[9]);
+        assert_eq!(Attributes::UNDERLINE2.to_sgr_codes().as_slice(), &[21]);
+        assert_eq!(Attributes::FRAME.to_sgr_codes().as_slice(), &[51]);
+        assert_eq!(Attributes::ENCIRCLE.to_sgr_codes().as_slice(), &[52]);
+        assert_eq!(Attributes::OVERLINE.to_sgr_codes().as_slice(), &[53]);
     }
 
     #[test]

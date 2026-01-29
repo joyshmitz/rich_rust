@@ -5,6 +5,7 @@
 
 use crate::cells::cell_len;
 use crate::style::Style;
+use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -31,10 +32,11 @@ pub enum ControlType {
 }
 
 /// A control code with optional parameters.
+/// Uses SmallVec to avoid heap allocation for typical 0-2 parameter cases.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ControlCode {
     pub control_type: ControlType,
-    pub params: Vec<i32>,
+    pub params: SmallVec<[i32; 2]>,
 }
 
 impl ControlCode {
@@ -43,16 +45,25 @@ impl ControlCode {
     pub fn new(control_type: ControlType) -> Self {
         Self {
             control_type,
-            params: Vec::new(),
+            params: SmallVec::new(),
         }
     }
 
     /// Create a control code with parameters.
     #[must_use]
-    pub fn with_params(control_type: ControlType, params: Vec<i32>) -> Self {
+    pub fn with_params(control_type: ControlType, params: SmallVec<[i32; 2]>) -> Self {
         Self {
             control_type,
             params,
+        }
+    }
+
+    /// Create a control code with parameters from a Vec (for backward compatibility).
+    #[must_use]
+    pub fn with_params_vec(control_type: ControlType, params: Vec<i32>) -> Self {
+        Self {
+            control_type,
+            params: SmallVec::from_vec(params),
         }
     }
 }
@@ -253,6 +264,7 @@ where
 }
 
 /// Split segments into lines at newline characters.
+/// Uses direct iterator over split() to avoid intermediate Vec allocation.
 pub fn split_lines<'a>(segments: impl Iterator<Item = Segment<'a>>) -> Vec<Vec<Segment<'a>>> {
     let mut lines: Vec<Vec<Segment<'a>>> = vec![Vec::new()];
 
@@ -264,25 +276,27 @@ pub fn split_lines<'a>(segments: impl Iterator<Item = Segment<'a>>) -> Vec<Vec<S
 
         match segment.text {
             Cow::Borrowed(s) => {
-                let parts: Vec<&str> = s.split('\n').collect();
-                for (i, part) in parts.iter().enumerate() {
-                    if i > 0 {
+                let mut first = true;
+                for part in s.split('\n') {
+                    if !first {
                         lines.push(Vec::new());
                     }
+                    first = false;
                     if !part.is_empty() {
                         lines
                             .last_mut()
                             .expect("at least one line")
-                            .push(Segment::new(*part, segment.style.clone()));
+                            .push(Segment::new(part, segment.style.clone()));
                     }
                 }
             }
-            Cow::Owned(s) => {
-                let parts: Vec<&str> = s.split('\n').collect();
-                for (i, part) in parts.iter().enumerate() {
-                    if i > 0 {
+            Cow::Owned(ref s) => {
+                let mut first = true;
+                for part in s.split('\n') {
+                    if !first {
                         lines.push(Vec::new());
                     }
+                    first = false;
                     if !part.is_empty() {
                         lines
                             .last_mut()
@@ -738,7 +752,7 @@ mod tests {
         assert_eq!(seg.cell_length(), 0);
 
         // Control segment with params still 0
-        let seg = Segment::control(vec![ControlCode::with_params(
+        let seg = Segment::control(vec![ControlCode::with_params_vec(
             ControlType::CursorMoveTo,
             vec![1, 2],
         )]);
@@ -991,8 +1005,8 @@ mod tests {
         assert!(code.params.is_empty());
 
         // With params (e.g., CURSOR_MOVE_TO uses x, y)
-        let code = ControlCode::with_params(ControlType::CursorMoveTo, vec![10, 20]);
-        assert_eq!(code.params, vec![10, 20]);
+        let code = ControlCode::with_params_vec(ControlType::CursorMoveTo, vec![10, 20]);
+        assert_eq!(code.params.as_slice(), &[10, 20]);
     }
 
     // Additional: split_at_cell for CJK

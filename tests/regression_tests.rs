@@ -1592,15 +1592,15 @@ fn regression_console_control_segments_emit_sequences() {
 
     let segments = vec![
         Segment::control(vec![ControlCode::new(ControlType::Bell)]),
-        Segment::control(vec![ControlCode::with_params(
+        Segment::control(vec![ControlCode::with_params_vec(
             ControlType::CursorUp,
             vec![2],
         )]),
-        Segment::control(vec![ControlCode::with_params(
+        Segment::control(vec![ControlCode::with_params_vec(
             ControlType::CursorMoveTo,
             vec![3, 4],
         )]),
-        Segment::control(vec![ControlCode::with_params(
+        Segment::control(vec![ControlCode::with_params_vec(
             ControlType::EraseInLine,
             vec![2],
         )]),

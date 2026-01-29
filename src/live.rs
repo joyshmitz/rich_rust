@@ -518,12 +518,18 @@ impl LiveRender {
 
         let mut controls = Vec::new();
         controls.push(ControlCode::new(ControlType::CarriageReturn));
-        controls.push(ControlCode::with_params(ControlType::EraseInLine, vec![2]));
+        controls.push(ControlCode::with_params_vec(
+            ControlType::EraseInLine,
+            vec![2],
+        ));
 
         if height > 1 {
             for _ in 0..(height - 1) {
-                controls.push(ControlCode::with_params(ControlType::CursorUp, vec![1]));
-                controls.push(ControlCode::with_params(ControlType::EraseInLine, vec![2]));
+                controls.push(ControlCode::with_params_vec(ControlType::CursorUp, vec![1]));
+                controls.push(ControlCode::with_params_vec(
+                    ControlType::EraseInLine,
+                    vec![2],
+                ));
             }
         }
 
@@ -541,8 +547,11 @@ impl LiveRender {
         let mut controls = Vec::new();
         controls.push(ControlCode::new(ControlType::CarriageReturn));
         for _ in 0..height {
-            controls.push(ControlCode::with_params(ControlType::CursorUp, vec![1]));
-            controls.push(ControlCode::with_params(ControlType::EraseInLine, vec![2]));
+            controls.push(ControlCode::with_params_vec(ControlType::CursorUp, vec![1]));
+            controls.push(ControlCode::with_params_vec(
+                ControlType::EraseInLine,
+                vec![2],
+            ));
         }
         controls
     }

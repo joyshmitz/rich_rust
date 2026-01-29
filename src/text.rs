@@ -706,20 +706,8 @@ impl Text {
 
         match overflow {
             OverflowMethod::Crop | OverflowMethod::Fold => {
-                // Find character position that fits
-                let chars: Vec<char> = self.plain.chars().collect();
-                let mut width = 0;
-                let mut cut_pos = 0;
-
-                for (i, c) in chars.iter().enumerate() {
-                    let char_width = crate::cells::get_character_cell_size(*c);
-                    if width + char_width > max_width {
-                        break;
-                    }
-                    width += char_width;
-                    cut_pos = i + 1;
-                }
-
+                // Find character position that fits - iterate directly without collecting
+                let (cut_pos, width) = self.find_truncation_point(max_width);
                 *self = self.slice(0, cut_pos);
 
                 if pad && width < max_width {
@@ -729,36 +717,13 @@ impl Text {
             }
             OverflowMethod::Ellipsis => {
                 if max_width < 3 {
-                    let chars: Vec<char> = self.plain.chars().collect();
-                    let mut width = 0;
-                    let mut cut_pos = 0;
-
-                    for (i, c) in chars.iter().enumerate() {
-                        let char_width = crate::cells::get_character_cell_size(*c);
-                        if width + char_width > max_width {
-                            break;
-                        }
-                        width += char_width;
-                        cut_pos = i + 1;
-                    }
-
+                    let (cut_pos, _) = self.find_truncation_point(max_width);
                     *self = self.slice(0, cut_pos);
                     return;
                 }
 
                 let target_width = max_width - 3;
-                let chars: Vec<char> = self.plain.chars().collect();
-                let mut width = 0;
-                let mut cut_pos = 0;
-
-                for (i, c) in chars.iter().enumerate() {
-                    let char_width = crate::cells::get_character_cell_size(*c);
-                    if width + char_width > target_width {
-                        break;
-                    }
-                    width += char_width;
-                    cut_pos = i + 1;
-                }
+                let (cut_pos, _) = self.find_truncation_point(target_width);
 
                 *self = self.slice(0, cut_pos);
                 self.append("...");
@@ -775,6 +740,24 @@ impl Text {
                 // Do nothing
             }
         }
+    }
+
+    /// Find the character position and cell width for truncation at `max_width`.
+    /// Returns `(cut_position, accumulated_width)`.
+    fn find_truncation_point(&self, max_width: usize) -> (usize, usize) {
+        let mut width = 0;
+        let mut cut_pos = 0;
+
+        for (i, c) in self.plain.chars().enumerate() {
+            let char_width = crate::cells::get_character_cell_size(c);
+            if width + char_width > max_width {
+                break;
+            }
+            width += char_width;
+            cut_pos = i + 1;
+        }
+
+        (cut_pos, width)
     }
 
     /// Pad text to a specific width.

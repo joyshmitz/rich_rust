@@ -1151,6 +1151,7 @@ dependencies = [
  "regex",
  "serde_json",
  "serial_test",
+ "smallvec",
  "syntect",
  "test-log",
  "time",
