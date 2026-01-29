@@ -3346,10 +3346,7 @@ mod tests {
         }
 
         fn flush(&mut self) -> io::Result<()> {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "flush failed: disk full",
-            ))
+            Err(io::Error::other("flush failed: disk full"))
         }
     }
 
@@ -3599,14 +3596,14 @@ mod tests {
         let mut not_found = NotFoundWriter;
         let result1 = console.print_to(&mut not_found, "test", &PrintOptions::new());
         assert!(matches!(
-            result1.as_ref().map_err(|e| e.kind()),
+            result1.as_ref().map_err(std::io::Error::kind),
             Err(io::ErrorKind::NotFound)
         ));
 
         let mut permission = PermissionWriter;
         let result2 = console.print_to(&mut permission, "test", &PrintOptions::new());
         assert!(matches!(
-            result2.as_ref().map_err(|e| e.kind()),
+            result2.as_ref().map_err(std::io::Error::kind),
             Err(io::ErrorKind::PermissionDenied)
         ));
     }
@@ -3700,7 +3697,7 @@ mod tests {
         let result = console.print_to(&mut writer, "test", &PrintOptions::new());
         assert!(
             result.is_ok()
-                || result.as_ref().map_err(|e| e.kind()) == Err(io::ErrorKind::Interrupted)
+                || result.as_ref().map_err(std::io::Error::kind) == Err(io::ErrorKind::Interrupted)
         );
     }
 }

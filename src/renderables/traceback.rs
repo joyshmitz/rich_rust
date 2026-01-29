@@ -647,7 +647,7 @@ mod tests {
     #[test]
     fn test_frame_debug() {
         let frame = TracebackFrame::new("test", 1);
-        let debug = format!("{:?}", frame);
+        let debug = format!("{frame:?}");
         assert!(debug.contains("TracebackFrame"));
         assert!(debug.contains("test"));
     }
@@ -667,7 +667,7 @@ mod tests {
     #[test]
     fn test_frame_empty_source_context() {
         let frame = TracebackFrame::new("func", 1).source_context("", 1);
-        assert_eq!(frame.source_context, Some("".to_string()));
+        assert_eq!(frame.source_context, Some(String::new()));
     }
 
     // =========================================================================
@@ -709,8 +709,8 @@ mod tests {
 
         let output = render_to_text(&traceback, 80);
         // With extra_lines=2, should show lines 1-5 (all of them)
-        assert!(output.contains("a"));
-        assert!(output.contains("e"));
+        assert!(output.contains('a'));
+        assert!(output.contains('e'));
     }
 
     #[test]
@@ -800,9 +800,9 @@ mod tests {
         let output = render_to_text(&traceback, 80);
 
         // Should show line numbers
-        assert!(output.contains("1"));
-        assert!(output.contains("2"));
-        assert!(output.contains("3"));
+        assert!(output.contains('1'));
+        assert!(output.contains('2'));
+        assert!(output.contains('3'));
     }
 
     #[test]
@@ -865,7 +865,7 @@ mod tests {
         let output = render_to_text(&traceback, 80);
         // Should render with "in func:line" format when no filename
         assert!(output.contains("anonymous"));
-        assert!(output.contains("5"));
+        assert!(output.contains('5'));
     }
 
     #[test]

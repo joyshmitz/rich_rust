@@ -330,25 +330,25 @@ mod tests {
 
         // Poison the mutex multiple times and verify we can always recover
         for i in 1..=3 {
-            println!("[TEST] Iteration {}: poisoning mutex...", i);
+            println!("[TEST] Iteration {i}: poisoning mutex...");
 
             // Set value BEFORE poisoning to ensure it's visible
             {
                 let mut guard = lock_recover(&mutex);
                 *guard = i;
-                println!("[TEST] Iteration {}: set value to {}", i, *guard);
+                println!("[TEST] Iteration {i}: set value to {}", *guard);
             }
 
             // Now poison by panicking while holding lock
             let _ = panic::catch_unwind(AssertUnwindSafe(|| {
                 let _guard = mutex.lock().unwrap();
-                println!("[TEST] Iteration {}: about to panic", i);
-                panic!("intentional panic #{}", i);
+                println!("[TEST] Iteration {i}: about to panic");
+                panic!("intentional panic #{i}");
             }));
 
-            println!("[TEST] Iteration {}: recovering...", i);
+            println!("[TEST] Iteration {i}: recovering...");
             let guard = lock_recover(&mutex);
-            println!("[TEST] Iteration {}: recovered value = {}", i, *guard);
+            println!("[TEST] Iteration {i}: recovered value = {}", *guard);
             // Value should be i since we set it before poisoning
             assert_eq!(*guard, i);
         }
