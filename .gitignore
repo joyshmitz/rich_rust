@@ -20,3 +20,7 @@ golden_outputs/
 # Python caches (conformance tooling)
 __pycache__/
 *.pyc
+
+# Profiling artifacts
+perf.data
+perf.data.*
