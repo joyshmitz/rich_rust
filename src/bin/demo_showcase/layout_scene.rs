@@ -102,14 +102,15 @@ fn render_alignment_demo(console: &Console) {
 
     console.print("");
 
-    // Centered hero block
+    // Centered hero block - use console width for proper centering
     let hero_lines = [
         "[bold cyan]Nebula Deploy[/]",
         "[dim]Production-ready in minutes[/]",
     ];
 
+    let width = console.width().min(100); // Cap at 100 for readability
     for line in hero_lines {
-        let aligned = Align::from_str(line, 60).center().render();
+        let aligned = Align::from_str(line, width).center().render();
         let text: String = aligned.iter().map(|s| s.text.as_ref()).collect();
         console.print(&text);
     }
