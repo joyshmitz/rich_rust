@@ -12,7 +12,6 @@ use rich_rust::emoji;
 use rich_rust::markup;
 use rich_rust::renderables::emoji::Emoji;
 use rich_rust::renderables::panel::Panel;
-use rich_rust::style::Style;
 
 use crate::Config;
 use crate::scenes::{Scene, SceneError};
@@ -109,32 +108,10 @@ fn render_hyperlink_demo(console: &Console, cfg: &Config) {
     console.print("[dim]Modern terminals support clickable hyperlinks:[/]");
     console.print("");
 
-    // Create styled links
-    let doc_link = Style::new()
-        .link("https://docs.rs/rich_rust")
-        .color_str("cyan")
-        .unwrap_or_default()
-        .underline();
-    let repo_link = Style::new()
-        .link("https://github.com/Dicklesworthstone/rich_rust")
-        .color_str("cyan")
-        .unwrap_or_default()
-        .underline();
-    let crates_link = Style::new()
-        .link("https://crates.io/crates/rich_rust")
-        .color_str("cyan")
-        .unwrap_or_default()
-        .underline();
-
-    // Print with styled segments
-    console.print_styled("  :book: Documentation: ", Style::new());
-    console.print_styled("docs.rs/rich_rust\n", doc_link);
-
-    console.print_styled("  :file_folder: Repository: ", Style::new());
-    console.print_styled("github.com/Dicklesworthstone/rich_rust\n", repo_link);
-
-    console.print_styled("  :package: Crates.io: ", Style::new());
-    console.print_styled("crates.io/crates/rich_rust\n", crates_link);
+    // Print links using markup syntax
+    console.print("  📖 Documentation: [link=https://docs.rs/rich_rust][cyan underline]docs.rs/rich_rust[/][/link]");
+    console.print("  📁 Repository: [link=https://github.com/Dicklesworthstone/rich_rust][cyan underline]github.com/Dicklesworthstone/rich_rust[/][/link]");
+    console.print("  📦 Crates.io: [link=https://crates.io/crates/rich_rust][cyan underline]crates.io/crates/rich_rust[/][/link]");
 
     console.print("");
 
@@ -143,7 +120,7 @@ fn render_hyperlink_demo(console: &Console, cfg: &Config) {
         "Terminals that don't support OSC8 will show the\n\
          text without the link - no broken escape codes.",
     )
-    .title("[dim]Graceful Fallback[/]")
+    .title_from_markup("[dim]Graceful Fallback[/]")
     .width(50)
     .safe_box(cfg.is_safe_box());
     console.print_renderable(&fallback_panel);
