@@ -496,8 +496,8 @@ mod tests {
         let segments = pretty.render(&console, &options);
 
         let text: String = segments.iter().map(|s| s.text.as_ref()).collect();
-        assert!(text.contains("1"));
-        assert!(text.contains("5"));
+        assert!(text.contains('1'));
+        assert!(text.contains('5'));
     }
 
     #[test]

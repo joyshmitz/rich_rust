@@ -3566,9 +3566,6 @@ mod tests {
 
     #[test]
     fn test_io_error_types() {
-        // Verify different error types are preserved
-        let console = Console::builder().width(80).markup(false).build();
-
         // Create writers with different error types
         struct NotFoundWriter;
         impl Write for NotFoundWriter {
@@ -3593,6 +3590,8 @@ mod tests {
             }
         }
 
+        // Verify different error types are preserved
+        let console = Console::builder().width(80).markup(false).build();
         let mut not_found = NotFoundWriter;
         let result1 = console.print_to(&mut not_found, "test", &PrintOptions::new());
         assert!(matches!(
