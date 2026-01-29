@@ -260,26 +260,57 @@ fn wrap_line_preserving_indent(line: &str, width: usize) -> Vec<String> {
 }
 
 fn extract_simple_struct_fields(repr: &str) -> Option<Vec<(String, String)>> {
-    let mut lines = repr.lines();
+    let mut lines = repr.lines().peekable();
     let first = lines.next()?.trim_end();
     if !first.ends_with('{') {
         return None;
     }
 
     let mut fields = Vec::new();
+    let mut current_field: Option<(String, String)> = None;
+    let mut nesting_depth = 0;
+
     for line in lines {
         let trimmed = line.trim_end();
-        if trimmed == "}" {
+        if trimmed == "}" && nesting_depth == 0 {
+            // End of top-level struct, save any pending field
+            if let Some((name, value)) = current_field.take() {
+                fields.push((name, value));
+            }
             break;
         }
-        // Only consider simple `Debug` fields which are single-line.
+
+        // Only consider lines indented exactly 4 spaces (top-level fields)
         let Some(stripped) = trimmed.strip_prefix("    ") else {
+            // Handle continuation of multi-line values
+            if nesting_depth > 0 || current_field.is_some() {
+                // Track nesting for multi-line values
+                nesting_depth += trimmed.chars().filter(|&c| c == '[' || c == '{').count();
+                nesting_depth = nesting_depth
+                    .saturating_sub(trimmed.chars().filter(|&c| c == ']' || c == '}').count());
+            }
             continue;
         };
+
+        // Check if this line is further indented (part of a nested structure)
+        if stripped.starts_with(' ') || stripped.starts_with('\t') {
+            // This is a nested field, not a top-level one - track nesting
+            nesting_depth += stripped.chars().filter(|&c| c == '[' || c == '{').count();
+            nesting_depth = nesting_depth
+                .saturating_sub(stripped.chars().filter(|&c| c == ']' || c == '}').count());
+            continue;
+        }
+
+        // Save any pending field before starting a new one
+        if let Some((name, value)) = current_field.take() {
+            fields.push((name, value));
+        }
+
+        // Parse field name and value
         let Some((name, value)) = stripped.split_once(':') else {
             continue;
         };
-        let name = name.trim().to_string();
+        let name = name.to_string();
         if name.is_empty() {
             continue;
         }
@@ -291,6 +322,28 @@ fn extract_simple_struct_fields(repr: &str) -> Option<Vec<(String, String)>> {
         if value.is_empty() {
             continue;
         }
+
+        // Track nesting for multi-line values
+        nesting_depth = value.chars().filter(|&c| c == '[' || c == '{').count();
+        nesting_depth = nesting_depth
+            .saturating_sub(value.chars().filter(|&c| c == ']' || c == '}').count());
+
+        // Simplify nested structures for display
+        if (value.starts_with('[') && !value.ends_with(']'))
+            || (value.starts_with('{') && !value.ends_with('}'))
+        {
+            // Multi-line array or struct - show as collapsed
+            let opener = value.chars().next().unwrap();
+            let closer = if opener == '[' { ']' } else { '}' };
+            value = format!("{opener}...{closer}");
+            nesting_depth = 0; // We're collapsing, so reset depth
+        }
+
+        current_field = Some((name, value));
+    }
+
+    // Handle any remaining field
+    if let Some((name, value)) = current_field {
         fields.push((name, value));
     }
 

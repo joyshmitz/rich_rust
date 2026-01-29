@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use rich_rust::r#box::{DOUBLE, HEAVY, MINIMAL, SIMPLE};
 use rich_rust::console::Console;
+use rich_rust::markup;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::style::Style;
 use rich_rust::text::JustifyMethod;
@@ -135,9 +136,9 @@ fn render_titled_panels(console: &Console, cfg: &Config) {
 
     // Styled title with alignment
     let styled = Panel::from_text("Titles can be styled and aligned")
-        .title("[bold cyan]Styled Title[/]")
+        .title_from_markup("[bold cyan]Styled Title[/]")
         .title_align(JustifyMethod::Center)
-        .subtitle("[dim]Right-aligned subtitle[/]")
+        .subtitle_from_markup("[dim]Right-aligned subtitle[/]")
         .subtitle_align(JustifyMethod::Right)
         .border_style(Style::parse("cyan").unwrap_or_default())
         .width(50)
@@ -156,59 +157,59 @@ fn render_practical_panels(console: &Console, cfg: &Config) {
     console.print("");
 
     // Status panel
-    let status = Panel::from_text(
+    let status_content = markup::render_or_plain(
         "[bold green]Deployment successful[/]\n\n\
          Version: 2.4.1\n\
          Region: us-west-2\n\
          Duration: 2m 15s",
-    )
-    .title("[green]Status[/]")
-    .border_style(Style::parse("green").unwrap_or_default())
-    .padding((1, 2))
-    .width(40)
-    .safe_box(cfg.is_safe_box());
+    );
+    let status = Panel::from_rich_text(&status_content, 40)
+        .title_from_markup("[green]Status[/]")
+        .border_style(Style::parse("green").unwrap_or_default())
+        .padding((1, 2))
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&status);
     console.print("");
 
     // Warning panel
-    let warning = Panel::from_text(
+    let warning_content = markup::render_or_plain(
         "[yellow]Memory usage is at 85%[/]\n\n\
          Consider scaling up the worker\n\
          pool or optimizing queries.",
-    )
-    .title("[bold yellow]Warning[/]")
-    .border_style(Style::parse("yellow").unwrap_or_default())
-    .box_style(&HEAVY)
-    .padding((1, 2))
-    .width(40)
-    .safe_box(cfg.is_safe_box());
+    );
+    let warning = Panel::from_rich_text(&warning_content, 40)
+        .title_from_markup("[bold yellow]Warning[/]")
+        .border_style(Style::parse("yellow").unwrap_or_default())
+        .box_style(&HEAVY)
+        .padding((1, 2))
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&warning);
     console.print("");
 
     // Tip panel (minimal style)
-    let tip = Panel::from_text(
+    let tip_content = markup::render_or_plain(
         "Use --quick for faster iteration\n\
          Use --seed 42 for reproducible output",
-    )
-    .title("[bold blue]Tip[/]")
-    .box_style(&MINIMAL)
-    .border_style(Style::parse("blue dim").unwrap_or_default())
-    .width(45)
-    .safe_box(cfg.is_safe_box());
+    );
+    let tip = Panel::from_rich_text(&tip_content, 45)
+        .title_from_markup("[bold blue]Tip[/]")
+        .box_style(&MINIMAL)
+        .border_style(Style::parse("blue dim").unwrap_or_default())
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&tip);
     console.print("");
 
     // Simple style for quotes/callouts
-    let quote = Panel::from_text(
+    let quote_content = markup::render_or_plain(
         "[italic]The best error message is the one that\n\
          never shows up.[/]\n\n\
          [dim]— Thomas Fuchs[/]",
-    )
-    .box_style(&SIMPLE)
-    .border_style(Style::parse("dim").unwrap_or_default())
-    .padding((0, 1))
-    .width(45)
-    .safe_box(cfg.is_safe_box());
+    );
+    let quote = Panel::from_rich_text(&quote_content, 45)
+        .box_style(&SIMPLE)
+        .border_style(Style::parse("dim").unwrap_or_default())
+        .padding((0, 1))
+        .safe_box(cfg.is_safe_box());
     console.print_renderable(&quote);
 
     console.print("");

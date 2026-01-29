@@ -136,7 +136,7 @@ fn run_live_dashboard(
         screen: false,
         auto_refresh: true,
         refresh_per_second: 10.0,
-        transient: true,
+        transient: false, // Keep dashboard visible after stop()
         redirect_stdout: false,
         redirect_stderr: false,
         vertical_overflow: VerticalOverflowMethod::Ellipsis,

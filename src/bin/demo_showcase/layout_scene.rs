@@ -13,7 +13,8 @@ use rich_rust::renderables::align::{Align, AlignMethod};
 use rich_rust::renderables::columns::Columns;
 use rich_rust::renderables::padding::{Padding, PaddingDimensions};
 use rich_rust::renderables::panel::Panel;
-use rich_rust::segment::Segment;
+use rich_rust::segment::{split_lines, Segment};
+use rich_rust::style::Style;
 
 use crate::Config;
 use crate::scenes::{Scene, SceneError};
@@ -73,21 +74,30 @@ fn render_alignment_demo(console: &Console) {
     let width = 50;
 
     // Left aligned (default)
-    let left = Align::from_str("Left-aligned text", width).left().render();
-    let left_text: String = left.iter().map(|s| s.text.as_ref()).collect();
-    console.print(&format!("|{}|", left_text));
+    let left_segments = Align::from_str("Left-aligned text", width).left().render();
+    let left_panel = Panel::new(split_lines(left_segments.into_iter()))
+        .width(width + 2)
+        .padding(0)
+        .border_style(Style::parse("dim").unwrap());
+    console.print_renderable(&left_panel);
 
     // Center aligned
-    let center = Align::from_str("Centered text", width).center().render();
-    let center_text: String = center.iter().map(|s| s.text.as_ref()).collect();
-    console.print(&format!("|{}|", center_text));
+    let center_segments = Align::from_str("Centered text", width).center().render();
+    let center_panel = Panel::new(split_lines(center_segments.into_iter()))
+        .width(width + 2)
+        .padding(0)
+        .border_style(Style::parse("dim").unwrap());
+    console.print_renderable(&center_panel);
 
     // Right aligned
-    let right = Align::from_str("Right-aligned text", width)
+    let right_segments = Align::from_str("Right-aligned text", width)
         .right()
         .render();
-    let right_text: String = right.iter().map(|s| s.text.as_ref()).collect();
-    console.print(&format!("|{}|", right_text));
+    let right_panel = Panel::new(split_lines(right_segments.into_iter()))
+        .width(width + 2)
+        .padding(0)
+        .border_style(Style::parse("dim").unwrap());
+    console.print_renderable(&right_panel);
 
     console.print("");
 
@@ -167,20 +177,20 @@ fn render_padding_demo(console: &Console) {
     // No padding
     let content_no_pad = vec![vec![Segment::new("No padding", None)]];
     let no_pad = Padding::new(content_no_pad, PaddingDimensions::zero(), 20);
-    let no_pad_lines = no_pad.render();
-    for line in no_pad_lines {
-        let text: String = line.iter().map(|s| s.text.as_ref()).collect();
-        console.print(&format!("[{}]", text));
-    }
+    let no_pad_panel = Panel::new(no_pad.render())
+        .width(22)
+        .padding(0)
+        .border_style(Style::parse("dim").unwrap());
+    console.print_renderable(&no_pad_panel);
 
     // Symmetric padding
     let content_sym = vec![vec![Segment::new("Padding (1, 2)", None)]];
     let sym_pad = Padding::new(content_sym, (1, 2), 24);
-    let sym_lines = sym_pad.render();
-    for line in sym_lines {
-        let text: String = line.iter().map(|s| s.text.as_ref()).collect();
-        console.print(&format!("[{}]", text));
-    }
+    let sym_pad_panel = Panel::new(sym_pad.render())
+        .width(26)
+        .padding(0)
+        .border_style(Style::parse("dim").unwrap());
+    console.print_renderable(&sym_pad_panel);
 
     console.print("");
 
@@ -192,11 +202,11 @@ fn render_padding_demo(console: &Console) {
         vec![Segment::new("to make content stand out.", None)],
     ];
     let card_pad = Padding::new(content_card, (1, 3), 40);
-    let card_lines = card_pad.render();
-    for line in card_lines {
-        let text: String = line.iter().map(|s| s.text.as_ref()).collect();
-        console.print(&format!("|{}|", text));
-    }
+    let card_pad_panel = Panel::new(card_pad.render())
+        .width(42)
+        .padding(0)
+        .border_style(Style::parse("dim").unwrap());
+    console.print_renderable(&card_pad_panel);
 
     console.print("");
     console.print("[hint]Padding creates breathing room around content for a polished look.[/]");

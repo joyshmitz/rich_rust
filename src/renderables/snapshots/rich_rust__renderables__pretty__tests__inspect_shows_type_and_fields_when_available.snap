@@ -7,5 +7,5 @@ Type: rich_rust::renderables::pretty::tests::Inner
 ┃ Field  ┃ Value ┃
 ┡━━━━━━━━╇━━━━━━━┩
 │ name   │ "Zed" │
-│ values │ [     │
+│ values │ [...] │
 └────────┴───────┘
