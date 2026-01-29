@@ -13,7 +13,7 @@ use rich_rust::renderables::align::{Align, AlignMethod};
 use rich_rust::renderables::columns::Columns;
 use rich_rust::renderables::padding::{Padding, PaddingDimensions};
 use rich_rust::renderables::panel::Panel;
-use rich_rust::segment::{split_lines, Segment};
+use rich_rust::segment::{Segment, split_lines};
 use rich_rust::style::Style;
 
 use crate::Config;

@@ -325,8 +325,8 @@ fn extract_simple_struct_fields(repr: &str) -> Option<Vec<(String, String)>> {
 
         // Track nesting for multi-line values
         nesting_depth = value.chars().filter(|&c| c == '[' || c == '{').count();
-        nesting_depth = nesting_depth
-            .saturating_sub(value.chars().filter(|&c| c == ']' || c == '}').count());
+        nesting_depth =
+            nesting_depth.saturating_sub(value.chars().filter(|&c| c == ']' || c == '}').count());
 
         // Simplify nested structures for display
         if (value.starts_with('[') && !value.ends_with(']'))
@@ -771,12 +771,21 @@ mod tests {
         assert!(names.contains(&"count"), "Should have 'count' field");
 
         // Should NOT have nested field names at top level
-        assert!(!names.contains(&"health"), "Should NOT have nested 'health' at top level");
-        assert!(!names.contains(&"latency"), "Should NOT have nested 'latency' at top level");
+        assert!(
+            !names.contains(&"health"),
+            "Should NOT have nested 'health' at top level"
+        );
+        assert!(
+            !names.contains(&"latency"),
+            "Should NOT have nested 'latency' at top level"
+        );
 
         // services value should be collapsed
         let services = fields.iter().find(|(n, _)| n == "services").unwrap();
-        assert_eq!(services.1, "[...]", "Nested array should be collapsed to [...]");
+        assert_eq!(
+            services.1, "[...]",
+            "Nested array should be collapsed to [...]"
+        );
     }
 
     #[test]

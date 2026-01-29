@@ -8,11 +8,11 @@ use std::thread;
 use std::time::Duration;
 
 use rich_rust::cells::cell_len;
-use rich_rust::console::{Console, ConsoleOptions};
+use rich_rust::console::Console;
 use rich_rust::interactive::Status;
+use rich_rust::renderables::Renderable;
 use rich_rust::renderables::panel::Panel;
 use rich_rust::renderables::table::{Column, Table};
-use rich_rust::renderables::Renderable;
 use rich_rust::segment::Segment;
 use rich_rust::style::Style;
 use rich_rust::text::Text;
@@ -88,49 +88,31 @@ fn center_padding(content_visible_width: usize, total_width: usize) -> String {
 
 /// Print a renderable centered within the console width.
 ///
-/// This handles wide terminals (300+ columns) by:
-/// 1. Rendering the component at a reasonable max width
-/// 2. Centering the output in the full terminal width
+/// For very wide terminals (200+ columns), we add left padding to center
+/// the content visually rather than letting it left-align at column 0.
 fn print_centered_renderable<R: Renderable>(console: &Console, renderable: &R) {
     let terminal_width = console.width();
-    let render_width = terminal_width.min(MAX_CONTENT_WIDTH);
 
-    // Render at the constrained width
-    let options = ConsoleOptions::from_terminal(render_width, console.height());
-    let segments = renderable.render(console, &options);
+    // For wide terminals, calculate padding to center content
+    if terminal_width > MAX_CONTENT_WIDTH {
+        let left_pad = (terminal_width - MAX_CONTENT_WIDTH) / 2;
+        let indent = " ".repeat(left_pad);
 
-    // Split into lines and center each one
-    let mut current_line: Vec<Segment> = Vec::new();
-    for seg in segments {
-        if seg.text.contains('\n') {
-            // Handle newlines within segments
-            for (i, part) in seg.text.split('\n').enumerate() {
-                if i > 0 {
-                    // Print previous line centered
-                    print_line_centered(console, &current_line, terminal_width);
-                    current_line.clear();
-                }
-                if !part.is_empty() {
-                    current_line.push(Segment::new(part.to_string(), seg.style.clone()));
-                }
-            }
-        } else {
-            current_line.push(seg.into_owned());
+        // Render at the constrained width
+        let options = console
+            .options()
+            .update_dimensions(MAX_CONTENT_WIDTH, console.height());
+        let segments = renderable.render(console, &options);
+
+        // Convert to string, add indent to each line, print
+        let output: String = segments.iter().map(|s| s.text.as_ref()).collect();
+        for line in output.lines() {
+            console.print_plain(&format!("{indent}{line}\n"));
         }
+    } else {
+        // Normal width - just print directly
+        console.print_renderable(renderable);
     }
-    // Print final line
-    if !current_line.is_empty() {
-        print_line_centered(console, &current_line, terminal_width);
-    }
-}
-
-/// Print a single line of segments centered.
-fn print_line_centered(console: &Console, segments: &[Segment], terminal_width: usize) {
-    let line_width: usize = segments.iter().map(|s| cell_len(&s.text)).sum();
-    let padding = center_padding(line_width, terminal_width);
-    console.print_plain(&padding);
-    console.print_segments(segments);
-    console.print_plain("\n");
 }
 
 /// Render the big branded title with tagline.
@@ -296,7 +278,7 @@ fn render_palette_preview(console: &Console) {
     // Dim/muted
     table.add_row_markup(["Muted", "[dim #94a3b8]████[/] [dim #64748b]████[/]"]);
 
-    console.print_renderable(&table);
+    print_centered_renderable(console, &table);
 }
 
 /// Render call-to-action hyperlinks.

@@ -726,15 +726,24 @@ mod tests {
         let segments_light = syntax_light.render(None).expect("light theme render");
 
         // Collect styles from each render
-        let styles_dark: Vec<_> = segments_dark.iter().filter_map(|s| s.style.as_ref()).collect();
+        let styles_dark: Vec<_> = segments_dark
+            .iter()
+            .filter_map(|s| s.style.as_ref())
+            .collect();
         let styles_light: Vec<_> = segments_light
             .iter()
             .filter_map(|s| s.style.as_ref())
             .collect();
 
         // Both should have styles (non-empty)
-        assert!(!styles_dark.is_empty(), "dark theme should produce styled segments");
-        assert!(!styles_light.is_empty(), "light theme should produce styled segments");
+        assert!(
+            !styles_dark.is_empty(),
+            "dark theme should produce styled segments"
+        );
+        assert!(
+            !styles_light.is_empty(),
+            "light theme should produce styled segments"
+        );
 
         // The themes should produce different background colors
         // (dark themes have dark backgrounds, light themes have light backgrounds)
@@ -842,6 +851,11 @@ mod tests {
         let syntax = Syntax::new("code", "rust").line_number_style(custom_style.clone());
 
         // The line number style should be set with bold attribute
-        assert!(syntax.line_number_style.attributes.contains(Attributes::BOLD));
+        assert!(
+            syntax
+                .line_number_style
+                .attributes
+                .contains(Attributes::BOLD)
+        );
     }
 }
