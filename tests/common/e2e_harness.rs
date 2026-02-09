@@ -118,7 +118,7 @@ impl AnsiSequence {
 pub struct ParsedSegment {
     /// The text content (without ANSI codes).
     pub text: String,
-    /// ANSI sequences that were active when this text was rendered.
+    /// ANSI sequences that immediately preceded this text chunk.
     pub sequences: Vec<AnsiSequence>,
     /// Raw ANSI string that preceded this text.
     pub raw_ansi: String,
@@ -126,10 +126,7 @@ pub struct ParsedSegment {
 
 /// Parser for ANSI escape sequences in terminal output.
 #[derive(Debug, Default)]
-pub struct AnsiParser {
-    /// Current active SGR state.
-    active_sgr: Vec<u8>,
-}
+pub struct AnsiParser {}
 
 impl AnsiParser {
     /// Create a new parser.
@@ -227,7 +224,7 @@ impl AnsiParser {
                 if !current_text.is_empty() {
                     segments.push(ParsedSegment {
                         text: std::mem::take(&mut current_text),
-                        sequences: current_sequences.clone(),
+                        sequences: std::mem::take(&mut current_sequences),
                         raw_ansi: std::mem::take(&mut current_raw_ansi),
                     });
                 }
@@ -235,20 +232,6 @@ impl AnsiParser {
                 // Try to parse the escape sequence
                 if let Some((seq, len)) = Self::parse_sequence(remaining) {
                     current_raw_ansi.push_str(&remaining[..len]);
-
-                    // Update active state for SGR sequences
-                    if let AnsiSequence::Sgr(ref codes) = seq {
-                        if codes.is_empty() || codes == &[0] {
-                            self.active_sgr.clear();
-                        } else {
-                            // Merge codes (simplified - in practice would need smarter merging)
-                            for &code in codes {
-                                if !self.active_sgr.contains(&code) {
-                                    self.active_sgr.push(code);
-                                }
-                            }
-                        }
-                    }
 
                     current_sequences.push(seq);
                     pos += len;
@@ -294,21 +277,15 @@ impl AnsiParser {
         let mut parser = Self::new();
         let segments = parser.parse(output);
 
-        let mut style_depth = 0;
-        let mut has_reset = false;
+        // Track whether a non-default style is currently active.
+        // This is intentionally strict: output should not leak styling past the end.
+        let mut style_active = false;
 
         for segment in &segments {
             for seq in &segment.sequences {
                 match seq {
                     AnsiSequence::Sgr(codes) => {
-                        if codes.is_empty() || codes == &[0] {
-                            has_reset = true;
-                            if style_depth > 0 {
-                                style_depth -= 1;
-                            }
-                        } else {
-                            style_depth += 1;
-                        }
+                        style_active = !(codes.is_empty() || codes == &[0]);
                     }
                     AnsiSequence::Unknown(s) => {
                         errors.push(format!("Unknown ANSI sequence: {s:?}"));
@@ -318,11 +295,8 @@ impl AnsiParser {
             }
         }
 
-        // Check that styles were properly reset
-        if style_depth > 0 && !has_reset {
-            errors.push(format!(
-                "Styles not fully reset: {style_depth} unclosed style(s)"
-            ));
+        if style_active {
+            errors.push("Styles not fully reset at end of output".to_string());
         }
 
         errors
@@ -420,8 +394,8 @@ where
     let result = f();
     let elapsed = start.elapsed();
 
-    // Note: This is a simplified capture. In practice, you'd want to
-    // redirect stdout/stderr to capture actual console output.
+    // This capture records timing + the closure's return value.
+    // It does not intercept process-wide stdout/stderr.
     (
         result,
         CapturedOutput {

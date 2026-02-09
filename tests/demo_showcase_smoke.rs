@@ -44,9 +44,10 @@ fn smoke_hero() {
 fn smoke_dashboard() {
     let result = smoke_runner("dashboard").run().expect("should run");
     assertions::assert_success(&result);
-    // Dashboard is a placeholder, should mention the scene name
     assert!(
-        result.stdout_contains("dashboard") || result.stdout_contains("Dashboard"),
+        result.stdout_contains("Nebula Deploy")
+            || result.stdout_contains("snapshot")
+            || result.stdout_contains("deployment pipeline"),
         "dashboard scene should produce recognizable output:\n{}",
         result.diagnostic_output()
     );

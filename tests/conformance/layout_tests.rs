@@ -36,9 +36,136 @@ impl TestCase for LayoutTest {
     }
 
     fn python_rich_code(&self) -> Option<String> {
-        // Layout Python equivalents would need to be manually specified
-        // since the build_layout function can't be easily translated
-        None
+        let prologue = format!(
+            "from rich.console import Console\nfrom rich.layout import Layout\n\nconsole = Console(force_terminal=True, width={}, height={})\n",
+            self.width, self.height
+        );
+
+        let body = match self.name {
+            "layout_simple_row" => {
+                r#"layout = Layout(name="root")
+layout.split_row(
+    Layout(name="left"),
+    Layout(name="right"),
+)"#
+            }
+            "layout_simple_column" => {
+                r#"layout = Layout(name="root")
+layout.split_column(
+    Layout(name="top"),
+    Layout(name="bottom"),
+)"#
+            }
+            "layout_nested_3_level" => {
+                r#"layout = Layout(name="root")
+
+left = Layout(name="left")
+left.split_column(
+    Layout(name="left-top"),
+    Layout(name="left-bottom"),
+)
+
+right = Layout(name="right")
+right.split_column(
+    Layout(name="right-top"),
+    Layout(name="right-bottom"),
+)
+
+layout.split_row(left, right)"#
+            }
+            "layout_deep_nested_4_level" => {
+                r#"layout = Layout(name="root")
+
+level1 = Layout(name="level1")
+level2 = Layout(name="level2")
+level3 = Layout(name="level3")
+
+level3.split_row(
+    Layout(name="leaf-a"),
+    Layout(name="leaf-b"),
+)
+level2.split_column(level3, Layout(name="leaf-c"))
+level1.split_row(level2, Layout(name="leaf-d"))
+layout.split_column(level1, Layout(name="leaf-e"))"#
+            }
+            "layout_visibility" => {
+                r#"layout = Layout(name="root")
+layout.split_row(
+    Layout(name="visible"),
+    Layout(name="hidden", visible=False),
+    Layout(name="visible2"),
+)"#
+            }
+            "layout_ratio_2_1" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout(name="wide", ratio=2),
+    Layout(name="narrow", ratio=1),
+)"#
+            }
+            "layout_ratio_1_2_1" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout(name="left", ratio=1),
+    Layout(name="center", ratio=2),
+    Layout(name="right", ratio=1),
+)"#
+            }
+            "layout_fixed_size" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout(name="fixed", size=10),
+    Layout(name="flex"),
+)"#
+            }
+            "layout_minimum_size" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout(name="min5", minimum_size=5),
+    Layout(name="min3", minimum_size=3),
+)"#
+            }
+            "layout_mixed_sizing" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout(name="fixed", size=10),
+    Layout(name="flex1", ratio=1),
+    Layout(name="flex2", ratio=2),
+)"#
+            }
+            "layout_single_child" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout(name="only"),
+)"#
+            }
+            "layout_all_hidden" => {
+                r#"layout = Layout(name="root")
+layout.split_row(
+    Layout(name="a", visible=False),
+    Layout(name="b", visible=False),
+)"#
+            }
+            "layout_with_content" => {
+                r#"layout = Layout()
+layout.split_row(
+    Layout("LEFT", name="left"),
+    Layout("RIGHT", name="right"),
+)"#
+            }
+            "layout_column_content" => {
+                r#"layout = Layout()
+layout.split_column(
+    Layout("TOP", name="top"),
+    Layout("BOTTOM", name="bottom"),
+)"#
+            }
+            _ => return None,
+        };
+
+        Some(format!(
+            "{prologue}{body}\n\nconsole.print(layout, end=\"\")\n"
+        ))
     }
 }
 
