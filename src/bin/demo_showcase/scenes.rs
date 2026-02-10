@@ -3,9 +3,6 @@
 //! Provides the `Scene` abstraction for individual showcase segments and a
 //! registry for listing and selecting scenes by name.
 
-// Some variants/methods prepared for future scene implementations
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -152,43 +149,6 @@ impl Default for SceneRegistry {
     }
 }
 
-// ============================================================================
-// Placeholder scenes (to be replaced with real implementations)
-// ============================================================================
-
-/// A placeholder scene that prints a message.
-///
-/// Used during development before real scene implementations are ready.
-pub struct PlaceholderScene {
-    name: &'static str,
-    summary: &'static str,
-}
-
-impl PlaceholderScene {
-    #[must_use]
-    pub const fn new(name: &'static str, summary: &'static str) -> Self {
-        Self { name, summary }
-    }
-}
-
-impl Scene for PlaceholderScene {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn summary(&self) -> &'static str {
-        self.summary
-    }
-
-    fn run(&self, console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
-        console.print(&format!(
-            "[dim](Scene [bold]{}[/bold] not yet implemented)[/]",
-            self.name
-        ));
-        Ok(())
-    }
-}
-
 /// Build the default scene registry with all demo scenes.
 ///
 /// Scene order matches the storyboard from bd-2b0s.
@@ -224,6 +184,11 @@ pub fn print_scene_list(console: &Console) {
     use rich_rust::style::Style;
 
     let registry = build_registry();
+    let _scene_count = registry.len();
+    if registry.is_empty() {
+        console.print("[dim]No scenes registered.[/]");
+        return;
+    }
 
     let mut table = Table::new().title("Available Scenes");
     table.add_column(Column::new("Scene").style(Style::parse("bold cyan").unwrap_or_default()));
@@ -242,12 +207,37 @@ pub fn print_scene_list(console: &Console) {
 mod tests {
     use super::*;
 
+    struct DummyScene {
+        name: &'static str,
+        summary: &'static str,
+    }
+
+    impl DummyScene {
+        const fn new(name: &'static str, summary: &'static str) -> Self {
+            Self { name, summary }
+        }
+    }
+
+    impl Scene for DummyScene {
+        fn name(&self) -> &'static str {
+            self.name
+        }
+
+        fn summary(&self) -> &'static str {
+            self.summary
+        }
+
+        fn run(&self, _console: &Arc<Console>, _cfg: &Config) -> Result<(), SceneError> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn registry_registration_order_preserved() {
         let mut registry = SceneRegistry::new();
-        registry.register(PlaceholderScene::new("first", "First scene"));
-        registry.register(PlaceholderScene::new("second", "Second scene"));
-        registry.register(PlaceholderScene::new("third", "Third scene"));
+        registry.register(DummyScene::new("first", "First scene"));
+        registry.register(DummyScene::new("second", "Second scene"));
+        registry.register(DummyScene::new("third", "Third scene"));
 
         let names: Vec<_> = registry.all().map(|s| s.name()).collect();
         assert_eq!(names, vec!["first", "second", "third"]);
@@ -256,8 +246,8 @@ mod tests {
     #[test]
     fn registry_lookup_by_name() {
         let mut registry = SceneRegistry::new();
-        registry.register(PlaceholderScene::new("hero", "Hero scene"));
-        registry.register(PlaceholderScene::new("outro", "Outro scene"));
+        registry.register(DummyScene::new("hero", "Hero scene"));
+        registry.register(DummyScene::new("outro", "Outro scene"));
 
         assert!(registry.contains("hero"));
         assert!(registry.contains("outro"));
@@ -298,22 +288,6 @@ mod tests {
         }
 
         assert_eq!(registry.len(), expected.len());
-    }
-
-    #[test]
-    fn placeholder_scene_runs_without_error() {
-        let scene = PlaceholderScene::new("test", "Test scene");
-        let console = Console::builder()
-            .force_terminal(false)
-            .markup(true)
-            // Don't spam stdout during tests; we only care that the scene runs.
-            .file(Box::new(Vec::<u8>::new()))
-            .build()
-            .shared();
-        let cfg = Config::with_defaults();
-
-        let result = scene.run(&console, &cfg);
-        assert!(result.is_ok());
     }
 
     #[test]

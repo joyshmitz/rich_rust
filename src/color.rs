@@ -214,6 +214,183 @@ pub enum ColorType {
     Windows = 4,
 }
 
+// ============================================================================
+// TerminalTheme (HTML/SVG export)
+// ============================================================================
+
+/// A terminal color theme used for HTML/SVG export.
+///
+/// Mirrors Python Rich's `TerminalTheme`:
+/// - `background_color` / `foreground_color` define the default terminal colors.
+/// - `ansi_colors` defines the 16-color ANSI palette used when exporting standard colors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TerminalTheme {
+    pub background_color: ColorTriplet,
+    pub foreground_color: ColorTriplet,
+    pub ansi_colors: [ColorTriplet; 16],
+}
+
+impl TerminalTheme {
+    /// Construct a `TerminalTheme` from an explicit 16-color ANSI palette.
+    #[must_use]
+    pub const fn from_ansi_colors(
+        background: ColorTriplet,
+        foreground: ColorTriplet,
+        ansi_colors: [ColorTriplet; 16],
+    ) -> Self {
+        Self {
+            background_color: background,
+            foreground_color: foreground,
+            ansi_colors,
+        }
+    }
+}
+
+/// Blend two RGB colors.
+///
+/// `factor` is the weight of `background` in the blend:
+/// - 0.0 => all foreground
+/// - 1.0 => all background
+#[must_use]
+pub fn blend_rgb(foreground: ColorTriplet, background: ColorTriplet, factor: f64) -> ColorTriplet {
+    let factor = factor.clamp(0.0, 1.0);
+    let inv = 1.0 - factor;
+
+    let blend = |fg: u8, bg: u8| -> u8 {
+        let v = inv * f64::from(fg) + factor * f64::from(bg);
+        #[expect(clippy::cast_sign_loss, reason = "value is clamped to 0..255")]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "value is clamped to 0..255"
+        )]
+        (v.trunc().clamp(0.0, 255.0) as u8)
+    };
+
+    ColorTriplet::new(
+        blend(foreground.red, background.red),
+        blend(foreground.green, background.green),
+        blend(foreground.blue, background.blue),
+    )
+}
+
+// Python Rich export themes (Rich 13.9.4).
+//
+// These exact values are required for feature-for-feature export parity.
+pub const DEFAULT_TERMINAL_THEME: TerminalTheme = TerminalTheme::from_ansi_colors(
+    ColorTriplet::new(255, 255, 255),
+    ColorTriplet::new(0, 0, 0),
+    [
+        ColorTriplet::new(0, 0, 0),
+        ColorTriplet::new(128, 0, 0),
+        ColorTriplet::new(0, 128, 0),
+        ColorTriplet::new(128, 128, 0),
+        ColorTriplet::new(0, 0, 128),
+        ColorTriplet::new(128, 0, 128),
+        ColorTriplet::new(0, 128, 128),
+        ColorTriplet::new(192, 192, 192),
+        ColorTriplet::new(128, 128, 128),
+        ColorTriplet::new(255, 0, 0),
+        ColorTriplet::new(0, 255, 0),
+        ColorTriplet::new(255, 255, 0),
+        ColorTriplet::new(0, 0, 255),
+        ColorTriplet::new(255, 0, 255),
+        ColorTriplet::new(0, 255, 255),
+        ColorTriplet::new(255, 255, 255),
+    ],
+);
+
+pub const MONOKAI: TerminalTheme = TerminalTheme::from_ansi_colors(
+    ColorTriplet::new(12, 12, 12),
+    ColorTriplet::new(217, 217, 217),
+    [
+        ColorTriplet::new(26, 26, 26),
+        ColorTriplet::new(244, 0, 95),
+        ColorTriplet::new(152, 224, 36),
+        ColorTriplet::new(253, 151, 31),
+        ColorTriplet::new(157, 101, 255),
+        ColorTriplet::new(244, 0, 95),
+        ColorTriplet::new(88, 209, 235),
+        ColorTriplet::new(196, 197, 181),
+        ColorTriplet::new(98, 94, 76),
+        ColorTriplet::new(244, 0, 95),
+        ColorTriplet::new(152, 224, 36),
+        ColorTriplet::new(224, 213, 97),
+        ColorTriplet::new(157, 101, 255),
+        ColorTriplet::new(244, 0, 95),
+        ColorTriplet::new(88, 209, 235),
+        ColorTriplet::new(246, 246, 239),
+    ],
+);
+
+pub const DIMMED_MONOKAI: TerminalTheme = TerminalTheme::from_ansi_colors(
+    ColorTriplet::new(25, 25, 25),
+    ColorTriplet::new(185, 188, 186),
+    [
+        ColorTriplet::new(58, 61, 67),
+        ColorTriplet::new(190, 63, 72),
+        ColorTriplet::new(135, 154, 59),
+        ColorTriplet::new(197, 166, 53),
+        ColorTriplet::new(79, 118, 161),
+        ColorTriplet::new(133, 92, 141),
+        ColorTriplet::new(87, 143, 164),
+        ColorTriplet::new(185, 188, 186),
+        ColorTriplet::new(136, 137, 135),
+        ColorTriplet::new(251, 0, 31),
+        ColorTriplet::new(15, 114, 47),
+        ColorTriplet::new(196, 112, 51),
+        ColorTriplet::new(24, 109, 227),
+        ColorTriplet::new(251, 0, 103),
+        ColorTriplet::new(46, 112, 109),
+        ColorTriplet::new(253, 255, 185),
+    ],
+);
+
+pub const NIGHT_OWLISH: TerminalTheme = TerminalTheme::from_ansi_colors(
+    ColorTriplet::new(255, 255, 255),
+    ColorTriplet::new(64, 63, 83),
+    [
+        ColorTriplet::new(1, 22, 39),
+        ColorTriplet::new(211, 66, 62),
+        ColorTriplet::new(42, 162, 152),
+        ColorTriplet::new(218, 170, 1),
+        ColorTriplet::new(72, 118, 214),
+        ColorTriplet::new(64, 63, 83),
+        ColorTriplet::new(8, 145, 106),
+        ColorTriplet::new(122, 129, 129),
+        ColorTriplet::new(122, 129, 129),
+        ColorTriplet::new(247, 110, 110),
+        ColorTriplet::new(73, 208, 197),
+        ColorTriplet::new(218, 194, 107),
+        ColorTriplet::new(92, 167, 228),
+        ColorTriplet::new(105, 112, 152),
+        ColorTriplet::new(0, 201, 144),
+        ColorTriplet::new(152, 159, 177),
+    ],
+);
+
+pub const SVG_EXPORT_THEME: TerminalTheme = TerminalTheme::from_ansi_colors(
+    ColorTriplet::new(41, 41, 41),
+    ColorTriplet::new(197, 200, 198),
+    [
+        ColorTriplet::new(75, 78, 85),
+        ColorTriplet::new(204, 85, 90),
+        ColorTriplet::new(152, 168, 75),
+        ColorTriplet::new(208, 179, 68),
+        ColorTriplet::new(96, 138, 177),
+        ColorTriplet::new(152, 114, 159),
+        ColorTriplet::new(104, 160, 179),
+        ColorTriplet::new(197, 200, 198),
+        ColorTriplet::new(154, 155, 153),
+        ColorTriplet::new(255, 38, 39),
+        ColorTriplet::new(0, 130, 61),
+        ColorTriplet::new(208, 132, 66),
+        ColorTriplet::new(25, 132, 233),
+        ColorTriplet::new(255, 44, 122),
+        ColorTriplet::new(57, 130, 128),
+        ColorTriplet::new(253, 253, 197),
+    ],
+);
+
 /// A terminal color that can be parsed from various formats.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Color {
@@ -323,6 +500,39 @@ impl Color {
                 .and_then(|n| EIGHT_BIT_PALETTE.get(n as usize))
                 .copied()
                 .unwrap_or_default(),
+        }
+    }
+
+    /// Get the RGB triplet for this color within a given export [`TerminalTheme`].
+    ///
+    /// This mirrors Python Rich's `Color.get_truecolor(theme, foreground=...)` behavior
+    /// used by HTML/SVG exporters.
+    #[must_use]
+    pub fn get_truecolor_with_theme(&self, theme: TerminalTheme, foreground: bool) -> ColorTriplet {
+        match self.color_type {
+            ColorType::TrueColor => self.triplet.unwrap_or_default(),
+            ColorType::EightBit => self
+                .number
+                .and_then(|n| EIGHT_BIT_PALETTE.get(n as usize))
+                .copied()
+                .unwrap_or_default(),
+            ColorType::Standard => self
+                .number
+                .and_then(|n| theme.ansi_colors.get(n as usize))
+                .copied()
+                .unwrap_or_default(),
+            ColorType::Windows => self
+                .number
+                .and_then(|n| WINDOWS_PALETTE.get(n as usize))
+                .copied()
+                .unwrap_or_default(),
+            ColorType::Default => {
+                if foreground {
+                    theme.foreground_color
+                } else {
+                    theme.background_color
+                }
+            }
         }
     }
 

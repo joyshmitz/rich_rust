@@ -126,8 +126,7 @@ When parity changes:
 
 ## Export Fixtures (HTML/SVG)
 
-HTML/SVG export output differs significantly between Python Rich and `rich_rust`
-(Python includes a full theme + window chrome; `rich_rust` uses minimal HTML and
-`<foreignObject>` SVG). For manual comparison, see:
+HTML/SVG export output is intended to match Python Rich's export templates (including optional
+window chrome). For a small, human-readable reference sample, see:
 
 - `tests/conformance/fixtures/python_rich_export.md`

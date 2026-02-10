@@ -9,6 +9,22 @@ mod common;
 use common::init_test_logging;
 use rich_rust::prelude::*;
 
+fn export_html_inline(console: &Console, clear: bool) -> String {
+    console.export_html_with_options(&ExportHtmlOptions {
+        clear,
+        inline_styles: true,
+        ..ExportHtmlOptions::default()
+    })
+}
+
+fn export_html_stylesheet(console: &Console, clear: bool) -> String {
+    console.export_html_with_options(&ExportHtmlOptions {
+        clear,
+        inline_styles: false,
+        ..ExportHtmlOptions::default()
+    })
+}
+
 // =============================================================================
 // HTML Export: Basic Structure
 // =============================================================================
@@ -26,7 +42,7 @@ fn test_export_html_document_structure() {
 
     console.begin_capture();
     console.print("Hello, World!");
-    let html = console.export_html(true);
+    let html = export_html_stylesheet(&console, true);
 
     assert!(
         html.starts_with("<!DOCTYPE html>"),
@@ -35,14 +51,12 @@ fn test_export_html_document_structure() {
     assert!(html.contains("<html>"), "Should contain <html> tag");
     assert!(html.contains("<head>"), "Should contain <head> tag");
     assert!(
-        html.contains("<meta charset=\"utf-8\">"),
+        html.contains("<meta charset=\"UTF-8\">"),
         "Should have UTF-8 charset"
     );
     assert!(html.contains("<body>"), "Should contain <body> tag");
-    assert!(
-        html.contains("</body></html>"),
-        "Should close body and html"
-    );
+    assert!(html.contains("</body>"), "Should close body");
+    assert!(html.contains("</html>"), "Should close html");
 }
 
 /// Test: export_html wraps content in monospace pre block.
@@ -58,13 +72,13 @@ fn test_export_html_pre_wrapper() {
 
     console.begin_capture();
     console.print("test content");
-    let html = console.export_html(false);
+    let html = export_html_stylesheet(&console, false);
 
     assert!(
-        html.contains("<pre style=\"margin:0; font-family: monospace;\">"),
-        "Should have monospace pre wrapper"
+        html.contains("<pre style=\"font-family:Menlo"),
+        "Should have Rich monospace pre wrapper"
     );
-    assert!(html.contains("</pre>"), "Should close pre tag");
+    assert!(html.contains("<code style=\"font-family:inherit\">"));
 }
 
 /// Test: export_html contains plain text content.
@@ -80,7 +94,7 @@ fn test_export_html_text_content() {
 
     console.begin_capture();
     console.print("Simple plain text");
-    let html = console.export_html(true);
+    let html = export_html_stylesheet(&console, true);
 
     assert!(
         html.contains("Simple plain text"),
@@ -105,11 +119,11 @@ fn test_export_html_bold_style() {
 
     console.begin_capture();
     console.print("[bold]Bold text[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("font-weight:bold"),
-        "Bold text should produce font-weight:bold CSS, got: {html}"
+        html.contains("font-weight: bold"),
+        "Bold text should produce font-weight: bold CSS, got: {html}"
     );
     assert!(html.contains("Bold text"), "Should contain the text");
 }
@@ -127,11 +141,11 @@ fn test_export_html_italic_style() {
 
     console.begin_capture();
     console.print("[italic]Italic text[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("font-style:italic"),
-        "Italic text should produce font-style:italic CSS"
+        html.contains("font-style: italic"),
+        "Italic text should produce font-style: italic CSS"
     );
 }
 
@@ -148,11 +162,11 @@ fn test_export_html_underline_style() {
 
     console.begin_capture();
     console.print("[underline]Underlined[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("text-decoration:underline"),
-        "Underlined text should produce text-decoration:underline CSS"
+        html.contains("text-decoration: underline"),
+        "Underlined text should produce text-decoration: underline CSS"
     );
 }
 
@@ -169,15 +183,15 @@ fn test_export_html_strike_style() {
 
     console.begin_capture();
     console.print("[strike]Struck out[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("text-decoration:line-through"),
-        "Strikethrough text should produce text-decoration:line-through CSS"
+        html.contains("text-decoration: line-through"),
+        "Strikethrough text should produce text-decoration: line-through CSS"
     );
 }
 
-/// Test: dim text generates opacity CSS.
+/// Test: dim text blends toward background (Rich parity), not opacity hacks.
 #[test]
 fn test_export_html_dim_style() {
     init_test_logging();
@@ -190,11 +204,11 @@ fn test_export_html_dim_style() {
 
     console.begin_capture();
     console.print("[dim]Dimmed text[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("opacity:0.7"),
-        "Dim text should produce opacity:0.7 CSS"
+        html.contains("color: #7f7f7f"),
+        "Dim text should blend toward background (black on white -> #7f7f7f)"
     );
 }
 
@@ -216,11 +230,11 @@ fn test_export_html_foreground_color() {
 
     console.begin_capture();
     console.print("[red]Red text[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("color:#"),
-        "Colored text should produce CSS color property with hex value"
+        html.contains("color: #800000"),
+        "Named ANSI red should map via DEFAULT_TERMINAL_THEME (#800000)"
     );
     assert!(html.contains("Red text"), "Should contain the text content");
 }
@@ -239,11 +253,11 @@ fn test_export_html_background_color() {
 
     console.begin_capture();
     console.print("[on red]Highlighted[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
-        html.contains("background-color:#"),
-        "Background color should produce CSS background-color property"
+        html.contains("background-color: #800000"),
+        "Named ANSI red background should map via DEFAULT_TERMINAL_THEME (#800000)"
     );
 }
 
@@ -261,12 +275,12 @@ fn test_export_html_fg_and_bg_colors() {
 
     console.begin_capture();
     console.print("[white on blue]Colored box[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
-    assert!(html.contains("color:#"), "Should have foreground color");
+    assert!(html.contains("color: #c0c0c0"), "Should have themed white");
     assert!(
-        html.contains("background-color:#"),
-        "Should have background color"
+        html.contains("background-color: #000080"),
+        "Should have themed blue background"
     );
     assert!(html.contains("Colored box"));
 }
@@ -285,12 +299,12 @@ fn test_export_html_reverse_style() {
 
     console.begin_capture();
     console.print("[reverse red]Reversed[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     // When reversed, the foreground color (red) should become background-color
     assert!(
-        html.contains("background-color:#"),
-        "Reverse should swap colors, producing background-color"
+        html.contains("background-color: #800000"),
+        "Reverse should swap colors, producing themed background-color"
     );
 }
 
@@ -311,14 +325,14 @@ fn test_export_html_span_with_inline_css() {
 
     console.begin_capture();
     console.print("[bold italic]Styled[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
         html.contains("<span style=\""),
         "Styled text should be wrapped in <span> with inline style"
     );
-    assert!(html.contains("font-weight:bold"));
-    assert!(html.contains("font-style:italic"));
+    assert!(html.contains("font-weight: bold"));
+    assert!(html.contains("font-style: italic"));
 }
 
 /// Test: unstyled text is not wrapped in span.
@@ -334,16 +348,13 @@ fn test_export_html_no_span_for_unstyled() {
 
     console.begin_capture();
     console.print("Plain text only");
-    let html = console.export_html(true);
+    let html = export_html_stylesheet(&console, true);
 
-    // Plain text should NOT be wrapped in a span (no style needed)
-    // It should appear directly inside the <pre> tag
+    // Plain text should be present, and stylesheet-mode export should not inline styles.
     assert!(html.contains("Plain text only"));
-    // Count spans - should not have span wrapping plain text
-    let span_count = html.matches("<span").count();
-    assert_eq!(
-        span_count, 0,
-        "Plain text should not generate any <span> tags, found {span_count}"
+    assert!(
+        !html.contains("<span style=\""),
+        "Stylesheet-mode export should not generate inline styles"
     );
 }
 
@@ -368,7 +379,7 @@ fn test_export_html_hyperlink() {
 
     console.begin_capture();
     console.print_text(&text);
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
         html.contains("<a href=\"https://example.com\""),
@@ -394,7 +405,7 @@ fn test_export_html_entity_escaping() {
 
     console.begin_capture();
     console.print("<script>alert('xss')</script>");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
         !html.contains("<script>"),
@@ -404,7 +415,10 @@ fn test_export_html_entity_escaping() {
         html.contains("&lt;script&gt;"),
         "< and > should be escaped to &lt; and &gt;"
     );
-    assert!(html.contains("&#x27;"), "Single quotes should be escaped");
+    assert!(
+        html.contains("alert('xss')"),
+        "Single quotes are preserved (Rich parity)"
+    );
 }
 
 /// Test: ampersands are properly escaped.
@@ -420,7 +434,7 @@ fn test_export_html_ampersand_escaping() {
 
     console.begin_capture();
     console.print("AT&T Corporation");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
         html.contains("AT&amp;T Corporation"),
@@ -449,12 +463,12 @@ fn test_export_html_text_renderable() {
 
     console.begin_capture();
     console.print_text(&text);
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(html.contains("Hello"), "Should contain 'Hello'");
     assert!(html.contains("World"), "Should contain 'World'");
     assert!(
-        html.contains("font-weight:bold"),
+        html.contains("font-weight: bold"),
         "Bold span should be in HTML"
     );
 }
@@ -474,7 +488,7 @@ fn test_export_html_multiple_prints() {
     console.print("First line");
     console.print("Second line");
     console.print("Third line");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(html.contains("First line"));
     assert!(html.contains("Second line"));
@@ -498,10 +512,10 @@ fn test_export_html_clear_true() {
 
     console.begin_capture();
     console.print("Content to clear");
-    let html1 = console.export_html(true); // clear=true
+    let html1 = export_html_inline(&console, true); // clear=true
 
     // After clearing, next export should not contain the previous content
-    let html2 = console.export_html(false);
+    let html2 = export_html_inline(&console, false);
 
     assert!(html1.contains("Content to clear"));
     assert!(
@@ -523,8 +537,8 @@ fn test_export_html_clear_false() {
 
     console.begin_capture();
     console.print("Persistent content");
-    let html1 = console.export_html(false); // clear=false
-    let html2 = console.export_html(false); // clear=false again
+    let html1 = export_html_inline(&console, false); // clear=false
+    let html2 = export_html_inline(&console, false); // clear=false again
 
     assert!(html1.contains("Persistent content"));
     assert!(
@@ -553,42 +567,21 @@ fn test_export_svg_document_structure() {
     let svg = console.export_svg(true);
 
     assert!(
-        svg.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"),
-        "Should start with XML declaration"
+        svg.starts_with("<svg class=\"rich-terminal\""),
+        "Should start with Rich SVG wrapper"
     );
     assert!(
-        svg.contains("<svg xmlns=\"http://www.w3.org/2000/svg\""),
+        svg.contains("xmlns=\"http://www.w3.org/2000/svg\""),
         "Should have SVG namespace"
+    );
+    assert!(
+        svg.contains("Generated with Rich"),
+        "Should include Rich generator comment"
     );
     assert!(svg.contains("</svg>"), "Should close SVG tag");
 }
 
-/// Test: SVG uses foreignObject to embed HTML.
-#[test]
-fn test_export_svg_foreign_object() {
-    init_test_logging();
-
-    let console = Console::builder()
-        .width(80)
-        .force_terminal(true)
-        .markup(false)
-        .build();
-
-    console.begin_capture();
-    console.print("Foreign object test");
-    let svg = console.export_svg(true);
-
-    assert!(
-        svg.contains("<foreignObject width=\"100%\" height=\"100%\">"),
-        "Should use foreignObject for HTML embedding"
-    );
-    assert!(
-        svg.contains("</foreignObject>"),
-        "Should close foreignObject"
-    );
-}
-
-/// Test: SVG has dynamic width and height attributes.
+/// Test: SVG uses a viewBox (Rich parity).
 #[test]
 fn test_export_svg_dimensions() {
     init_test_logging();
@@ -603,57 +596,17 @@ fn test_export_svg_dimensions() {
     console.print("Test");
     let svg = console.export_svg(true);
 
-    // SVG should have width and height attributes
-    assert!(svg.contains("width=\""), "SVG should have width attribute");
     assert!(
-        svg.contains("height=\""),
-        "SVG should have height attribute"
+        svg.contains("viewBox=\"0 0 "),
+        "SVG should include a viewBox"
     );
-}
-
-/// Test: SVG dimensions reflect content size (8px/cell width, 16px/cell height).
-#[test]
-fn test_export_svg_dimension_calculation() {
-    init_test_logging();
-
-    let console = Console::builder()
-        .width(80)
-        .force_terminal(true)
-        .markup(false)
-        .build();
-
-    // Print a known string (4 characters = 4 cells wide, 1 line high)
-    console.begin_capture();
-    console.print("ABCD");
-    let svg = console.export_svg(true);
-
-    // Cell width = 8px, so 4 cells (minimum) should give at least 32px
-    // We can't predict the exact width because print may add trailing content,
-    // but we can verify the dimensions are present and reasonable
-    assert!(svg.contains("width=\""));
-    assert!(svg.contains("height=\""));
-
-    // Extract width value
-    if let Some(pos) = svg.find("width=\"") {
-        let rest = &svg[pos + 7..];
-        if let Some(end) = rest.find('"') {
-            let width_str = &rest[..end];
-            // This is the first width= in the svg tag
-            if let Ok(width) = width_str.parse::<usize>() {
-                assert!(
-                    width >= 32,
-                    "Width should be at least 32px for 4 chars (4 * 8px), got {width}"
-                );
-            }
-        }
-    }
 }
 
 // =============================================================================
 // SVG Export: Content and Styles
 // =============================================================================
 
-/// Test: SVG contains styled content via embedded HTML.
+/// Test: SVG contains styled content via `<text>` nodes + CSS classes.
 #[test]
 fn test_export_svg_styled_content() {
     init_test_logging();
@@ -669,39 +622,14 @@ fn test_export_svg_styled_content() {
     let svg = console.export_svg(true);
 
     assert!(
-        svg.contains("Bold in SVG"),
+        svg.contains("Bold") && svg.contains("SVG"),
         "SVG should contain text content"
     );
     assert!(
-        svg.contains("font-weight:bold"),
-        "SVG should contain styled content via embedded HTML"
+        svg.contains("font-weight: bold"),
+        "Bold should be represented in generated CSS"
     );
-}
-
-/// Test: SVG shares the same HTML body rendering as export_html.
-#[test]
-fn test_export_svg_html_body_consistency() {
-    init_test_logging();
-
-    let console = Console::builder()
-        .width(80)
-        .force_terminal(true)
-        .markup(true)
-        .build();
-
-    console.begin_capture();
-    console.print("[italic]Consistent content[/]");
-
-    let html = console.export_html(false);
-    let svg = console.export_svg(true);
-
-    // Both should contain the same <pre> body content
-    assert!(html.contains("<pre style=\"margin:0; font-family: monospace;\">"));
-    assert!(svg.contains("<pre style=\"margin:0; font-family: monospace;\">"));
-
-    // Both should contain the text
-    assert!(html.contains("Consistent content"));
-    assert!(svg.contains("Consistent content"));
+    assert!(svg.contains("<text "), "Should render text nodes");
 }
 
 /// Test: SVG preserves colors from styled content.
@@ -720,14 +648,12 @@ fn test_export_svg_color_preservation() {
     console.print("[red on blue]Colorful[/]");
     let svg = console.export_svg(true);
 
+    assert!(svg.contains("fill: #"), "SVG should include fill CSS rules");
     assert!(
-        svg.contains("color:#"),
-        "SVG should preserve foreground color"
+        svg.contains("<rect fill=\""),
+        "SVG should draw background rects"
     );
-    assert!(
-        svg.contains("background-color:#"),
-        "SVG should preserve background color"
-    );
+    assert!(svg.contains("Colorful"), "SVG should contain text content");
 }
 
 // =============================================================================
@@ -750,9 +676,9 @@ fn test_export_svg_clear_true() {
     let svg1 = console.export_svg(true);
     let svg2 = console.export_svg(false);
 
-    assert!(svg1.contains("SVG clear test"));
+    assert!(svg1.contains("SVG clear test") || svg1.contains("SVG&#160;clear&#160;test"));
     assert!(
-        !svg2.contains("SVG clear test"),
+        !svg2.contains("SVG clear test") && !svg2.contains("SVG&#160;clear&#160;test"),
         "Buffer should be cleared after export_svg(true)"
     );
 }
@@ -817,7 +743,7 @@ fn test_export_html_roundtrip_content_preserved() {
     console.print("Line 2: [italic]Italic text[/]");
     console.print("Line 3: Plain text");
 
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     // Verify all content is present
     assert!(html.contains("Bold text"));
@@ -825,12 +751,13 @@ fn test_export_html_roundtrip_content_preserved() {
     assert!(html.contains("Plain text"));
 
     // Verify styles are preserved
-    assert!(html.contains("font-weight:bold"));
-    assert!(html.contains("font-style:italic"));
+    assert!(html.contains("font-weight: bold"));
+    assert!(html.contains("font-style: italic"));
 
     // Verify document is well-formed
     assert!(html.starts_with("<!DOCTYPE html>"));
-    assert!(html.ends_with("</body></html>"));
+    assert!(html.contains("</body>"));
+    assert!(html.contains("</html>"));
 }
 
 /// Test: HTML and SVG from same session have consistent content.
@@ -847,16 +774,16 @@ fn test_export_html_svg_consistency() {
     console.begin_capture();
     console.print("[bold red]Important message[/]");
 
-    let html = console.export_html(false);
+    let html = export_html_inline(&console, false);
     let svg = console.export_svg(false);
 
     // Both should contain the same text
     assert!(html.contains("Important message"));
-    assert!(svg.contains("Important message"));
+    assert!(svg.contains("Important message") || svg.contains("Important&#160;message"));
 
     // Both should have the same styling
-    assert!(html.contains("font-weight:bold"));
-    assert!(svg.contains("font-weight:bold"));
+    assert!(html.contains("font-weight: bold"));
+    assert!(svg.contains("font-weight: bold"));
 }
 
 // =============================================================================
@@ -885,7 +812,7 @@ fn test_export_html_table() {
 
     console.begin_capture();
     console.print_renderable(&table);
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(html.contains("Alpha"), "Table data should be in HTML");
     assert!(html.contains("Beta"), "Table data should be in HTML");
@@ -908,7 +835,7 @@ fn test_export_html_panel() {
 
     console.begin_capture();
     console.print_renderable(&panel);
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     assert!(
         html.contains("Panel content"),
@@ -932,7 +859,7 @@ fn test_export_html_rule() {
 
     console.begin_capture();
     console.print_renderable(&rule);
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
     // Rule should produce some content (horizontal line characters)
     assert!(
@@ -956,12 +883,12 @@ fn test_export_html_combined_styles() {
 
     console.begin_capture();
     console.print("[bold]Bold[/] [italic]Italic[/] [underline]Underline[/] [dim]Dim[/]");
-    let html = console.export_html(true);
+    let html = export_html_inline(&console, true);
 
-    assert!(html.contains("font-weight:bold"));
-    assert!(html.contains("font-style:italic"));
-    assert!(html.contains("text-decoration:underline"));
-    assert!(html.contains("opacity:0.7"));
+    assert!(html.contains("font-weight: bold"));
+    assert!(html.contains("font-style: italic"));
+    assert!(html.contains("text-decoration: underline"));
+    assert!(html.contains("color: #7f7f7f"));
 }
 
 // =============================================================================
@@ -977,12 +904,12 @@ fn test_export_html_empty_content() {
 
     console.begin_capture();
     // Don't print anything
-    let html = console.export_html(true);
+    let html = export_html_stylesheet(&console, true);
 
     // Should still produce valid HTML structure
     assert!(html.contains("<!DOCTYPE html>"));
-    assert!(html.contains("<pre style=\"margin:0; font-family: monospace;\">"));
-    assert!(html.contains("</pre>"));
+    assert!(html.contains("<pre style=\"font-family:Menlo"));
+    assert!(html.contains("</html>"));
 }
 
 /// Test: export_svg with no content produces minimal SVG.
@@ -995,8 +922,7 @@ fn test_export_svg_empty_content() {
     console.begin_capture();
     let svg = console.export_svg(true);
 
-    assert!(svg.contains("<?xml version=\"1.0\""));
-    assert!(svg.contains("<svg"));
+    assert!(svg.starts_with("<svg"));
     assert!(svg.contains("</svg>"));
 }
 
@@ -1013,12 +939,12 @@ fn test_capture_lifecycle() {
 
     // Before capture, export should be empty
     console.begin_capture();
-    let html_before = console.export_html(false);
+    let html_before = export_html_inline(&console, false);
     assert!(!html_before.contains("should not appear"));
 
     // Print during capture
     console.print("Captured content");
-    let html_during = console.export_html(false);
+    let html_during = export_html_inline(&console, false);
     assert!(html_during.contains("Captured content"));
 
     // End capture returns segments
@@ -1095,7 +1021,7 @@ fn test_export_svg_file_roundtrip() {
     let read_back = std::fs::read_to_string(&temp_path).expect("read SVG file");
 
     assert_eq!(svg, read_back, "File content should match export output");
-    assert!(read_back.contains("SVG file test"));
+    assert!(read_back.contains("SVG file test") || read_back.contains("SVG&#160;file&#160;test"));
     assert!(read_back.contains("<svg"));
 
     let _ = std::fs::remove_file(&temp_path);

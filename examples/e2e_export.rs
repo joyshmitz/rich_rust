@@ -205,7 +205,7 @@ fn main() -> std::io::Result<()> {
     export_with_external_css(&out_dir)?;
 
     warn!(
-        "SVG export uses foreignObject without window chrome; title bar is simulated via content"
+        "SVG export uses SVG primitives (text/rect/clip paths) with optional terminal-window chrome"
     );
 
     Ok(())

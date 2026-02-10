@@ -1,10 +1,10 @@
 # Python Rich Export Fixtures (HTML/SVG)
 
 These fixtures capture **Python Rich** export output for manual comparison
-against `rich_rust`'s minimal exporters.
+against `rich_rust`'s HTML/SVG exporters.
 
 Generated on: 2026-01-25  
-Source: `legacy_rich` snapshot (repo-local)  
+Python Rich: 13.9.4  
 Console config: `width=40`, `color_system=truecolor`, `force_terminal=True`, `record=True`
 
 Input sequence:
@@ -16,8 +16,10 @@ console.print("[link=https://example.com]Link[/]")
 ```
 
 Notes:
-- Python Rich SVG output includes a `terminal-<id>` prefix. This may vary by run.
-- HTML output is inline-styles mode (`export_html(inline_styles=True)`).
+- Python Rich exporters clear the record buffer by default; these fixtures use `clear=False` so
+  HTML and SVG are generated from the same recorded output.
+- Python Rich SVG output uses a `terminal-<id>` / `<unique_id>` prefix in CSS class names and ids.
+- HTML output below is inline-styles mode (`export_html(clear=False, inline_styles=True)`).
 
 ## HTML (inline styles)
 
@@ -46,7 +48,7 @@ body {
 ## SVG
 
 ```svg
-<svg class="rich-terminal" viewBox="0 0 506 74.4" xmlns="http://www.w3.org/2000/svg">
+<svg class="rich-terminal" viewBox="0 0 506 123.19999999999999" xmlns="http://www.w3.org/2000/svg">
     <!-- Generated with Rich https://www.textualize.io -->
     <style>
 
@@ -67,40 +69,49 @@ body {
         font-weight: 700;
     }
 
-    .terminal-62194055-matrix {
+    .py-fixture-matrix {
         font-family: Fira Code, monospace;
         font-size: 20px;
         line-height: 24.4px;
         font-variant-east-asian: full-width;
     }
 
-    .terminal-62194055-title {
+    .py-fixture-title {
         font-size: 18px;
         font-weight: bold;
         font-family: arial;
     }
 
-    
+    .py-fixture-r1 { fill: #c5c8c6 }
+.py-fixture-r2 { fill: #cc555a;font-weight: bold }
     </style>
 
     <defs>
-    <clipPath id="terminal-62194055-clip-terminal">
-      <rect x="0" y="0" width="487.0" height="23.4" />
+    <clipPath id="py-fixture-clip-terminal">
+      <rect x="0" y="0" width="487.0" height="72.19999999999999" />
     </clipPath>
-    
+    <clipPath id="py-fixture-line-0">
+    <rect x="0" y="1.5" width="488" height="24.65"/>
+            </clipPath>
+<clipPath id="py-fixture-line-1">
+    <rect x="0" y="25.9" width="488" height="24.65"/>
+            </clipPath>
     </defs>
 
-    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="504" height="72.4" rx="8"/><text class="terminal-62194055-title" fill="#c5c8c6" text-anchor="middle" x="252" y="27">Rich</text>
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="504" height="121.2" rx="8"/><text class="py-fixture-title" fill="#c5c8c6" text-anchor="middle" x="252" y="27">Rich</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
             <circle cx="44" cy="0" r="7" fill="#28c840"/>
             </g>
         
-    <g transform="translate(9, 41)" clip-path="url(#terminal-62194055-clip-terminal)">
+    <g transform="translate(9, 41)" clip-path="url(#py-fixture-clip-terminal)">
     
-    <g class="terminal-62194055-matrix">
-    
+    <g class="py-fixture-matrix">
+    <text class="py-fixture-r1" x="0" y="20" textLength="61" clip-path="url(#py-fixture-line-0)">Plain</text><text class="py-fixture-r1" x="488" y="20" textLength="12.2" clip-path="url(#py-fixture-line-0)">
+</text><text class="py-fixture-r2" x="0" y="44.4" textLength="61" clip-path="url(#py-fixture-line-1)">Error</text><text class="py-fixture-r1" x="488" y="44.4" textLength="12.2" clip-path="url(#py-fixture-line-1)">
+</text><text class="py-fixture-r1" x="0" y="68.8" textLength="48.8" clip-path="url(#py-fixture-line-2)">Link</text><text class="py-fixture-r1" x="488" y="68.8" textLength="12.2" clip-path="url(#py-fixture-line-2)">
+</text>
     </g>
     </g>
 </svg>

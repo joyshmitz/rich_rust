@@ -189,8 +189,14 @@ pub mod theme;
 /// Re-exports for convenient usage
 pub mod prelude {
     pub use crate::r#box::BoxChars;
-    pub use crate::color::{Color, ColorSystem, ColorTriplet, ColorType};
-    pub use crate::console::{Console, ConsoleOptions, LogLevel, LogOptions};
+    pub use crate::color::{
+        Color, ColorSystem, ColorTriplet, ColorType, DEFAULT_TERMINAL_THEME, DIMMED_MONOKAI,
+        MONOKAI, NIGHT_OWLISH, SVG_EXPORT_THEME, TerminalTheme,
+    };
+    pub use crate::console::{
+        CONSOLE_HTML_FORMAT, CONSOLE_SVG_FORMAT, Console, ConsoleOptions, ExportHtmlOptions,
+        ExportSvgOptions, LogLevel, LogOptions,
+    };
     pub use crate::emoji::EmojiVariant;
     pub use crate::filesize::{
         SizeUnit, binary, binary_speed, binary_with_precision, decimal, decimal_speed,
@@ -225,8 +231,12 @@ pub mod prelude {
 }
 
 // Re-export key types at crate root
-pub use color::{Color, ColorSystem, ColorTriplet, ColorType};
+pub use color::{
+    Color, ColorSystem, ColorTriplet, ColorType, DEFAULT_TERMINAL_THEME, DIMMED_MONOKAI, MONOKAI,
+    NIGHT_OWLISH, SVG_EXPORT_THEME, TerminalTheme,
+};
 pub use console::Console;
+pub use console::{CONSOLE_HTML_FORMAT, CONSOLE_SVG_FORMAT, ExportHtmlOptions, ExportSvgOptions};
 pub use live::{Live, LiveOptions, VerticalOverflowMethod};
 pub use logging::RichLogger;
 #[cfg(feature = "tracing")]

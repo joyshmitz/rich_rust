@@ -103,8 +103,9 @@ fn render_export_formats(console: &Console, cfg: &Config) {
          Generates a scalable vector graphic with embedded fonts.\n\
          - Perfect for documentation\n\
          - Scales to any size without pixelation\n\
-         - Uses `<foreignObject>` for text rendering\n\n\
-         [dim]Note: Best viewed in modern browsers (Chrome, Firefox, Safari)[/]",
+         - Rendered with SVG primitives (text, rects, clip paths)\n\
+         - Optional terminal-window chrome (Rich-style)\n\n\
+         [dim]Note: View in a browser or any SVG-capable viewer[/]",
     );
     let svg_title = render_or_plain("[magenta]demo_showcase.svg[/]");
 

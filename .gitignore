@@ -16,6 +16,8 @@ a.out
 
 # Test output artifacts
 golden_outputs/
+*.snap.new
+*.snap.old
 
 # Python caches (conformance tooling)
 __pycache__/

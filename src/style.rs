@@ -64,7 +64,7 @@ use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::{Arc, LazyLock, Mutex};
 
-use crate::color::{Color, ColorParseError, ColorSystem, ColorTriplet};
+use crate::color::{Color, ColorParseError, ColorSystem, ColorTriplet, TerminalTheme, blend_rgb};
 use crate::sync::lock_recover;
 
 bitflags! {
@@ -188,6 +188,108 @@ impl Style {
     #[must_use]
     pub const fn is_null(&self) -> bool {
         self.null
+    }
+
+    /// Convert this style to a CSS rule string for HTML export.
+    ///
+    /// Mirrors Python Rich's `Style.get_html_style(theme)`.
+    #[must_use]
+    pub fn get_html_style(&self, theme: TerminalTheme) -> String {
+        let mut css: Vec<String> = Vec::new();
+
+        let mut color = self.color.clone();
+        let mut bgcolor = self.bgcolor.clone();
+
+        if self.attributes.contains(Attributes::REVERSE) {
+            std::mem::swap(&mut color, &mut bgcolor);
+        }
+
+        if self.attributes.contains(Attributes::DIM) {
+            let foreground_color = match &color {
+                None => theme.foreground_color,
+                Some(c) => c.get_truecolor_with_theme(theme, true),
+            };
+            color = Some(Color::from_triplet(blend_rgb(
+                foreground_color,
+                theme.background_color,
+                0.5,
+            )));
+        }
+
+        if let Some(c) = &color {
+            let theme_color = c.get_truecolor_with_theme(theme, true).hex();
+            css.push(format!("color: {theme_color}"));
+            css.push(format!("text-decoration-color: {theme_color}"));
+        }
+        if let Some(c) = &bgcolor {
+            let theme_color = c.get_truecolor_with_theme(theme, false).hex();
+            css.push(format!("background-color: {theme_color}"));
+        }
+        if self.attributes.contains(Attributes::BOLD) {
+            css.push("font-weight: bold".to_string());
+        }
+        if self.attributes.contains(Attributes::ITALIC) {
+            css.push("font-style: italic".to_string());
+        }
+        if self.attributes.contains(Attributes::UNDERLINE)
+            || self.attributes.contains(Attributes::UNDERLINE2)
+        {
+            css.push("text-decoration: underline".to_string());
+        }
+        if self.attributes.contains(Attributes::STRIKE) {
+            css.push("text-decoration: line-through".to_string());
+        }
+        if self.attributes.contains(Attributes::OVERLINE) {
+            css.push("text-decoration: overline".to_string());
+        }
+
+        css.join("; ")
+    }
+
+    /// Convert this style to a CSS rule string for SVG export.
+    ///
+    /// Mirrors the `get_svg_style(style)` helper inside Python Rich's `Console.export_svg`.
+    #[must_use]
+    pub fn get_svg_style(&self, theme: TerminalTheme) -> String {
+        let mut css_rules: Vec<String> = Vec::new();
+
+        let mut color = match &self.color {
+            None => theme.foreground_color,
+            Some(c) if c.is_default() => theme.foreground_color,
+            Some(c) => c.get_truecolor_with_theme(theme, true),
+        };
+
+        let mut bgcolor = match &self.bgcolor {
+            None => theme.background_color,
+            Some(c) if c.is_default() => theme.background_color,
+            Some(c) => c.get_truecolor_with_theme(theme, false),
+        };
+
+        if self.attributes.contains(Attributes::REVERSE) {
+            std::mem::swap(&mut color, &mut bgcolor);
+        }
+
+        if self.attributes.contains(Attributes::DIM) {
+            color = blend_rgb(color, bgcolor, 0.4);
+        }
+
+        css_rules.push(format!("fill: {}", color.hex()));
+        if self.attributes.contains(Attributes::BOLD) {
+            css_rules.push("font-weight: bold".to_string());
+        }
+        if self.attributes.contains(Attributes::ITALIC) {
+            css_rules.push("font-style: italic;".to_string());
+        }
+        if self.attributes.contains(Attributes::UNDERLINE)
+            || self.attributes.contains(Attributes::UNDERLINE2)
+        {
+            css_rules.push("text-decoration: underline;".to_string());
+        }
+        if self.attributes.contains(Attributes::STRIKE) {
+            css_rules.push("text-decoration: line-through;".to_string());
+        }
+
+        css_rules.join(";")
     }
 
     /// Set the foreground color.

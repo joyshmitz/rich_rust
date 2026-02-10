@@ -64,7 +64,7 @@ This document is the source of truth. If code or docs change, update this file, 
 | Align | Alignment | Implemented | `src/renderables/align.rs` | Golden tests |
 | Pretty / Inspect | Debug-based pretty printing + type inspection | Implemented | `src/renderables/pretty.rs` | Unit tests + snapshots in `src/renderables/snapshots/` |
 | Traceback | Traceback rendering + `Console::print_exception` | Implemented | `src/renderables/traceback.rs` | Deterministic explicit frames + Python fixture conformance (`traceback/basic`). Code context via `extra_lines` + `source_context` (from file or embedded). Automatic Rust backtrace capture via `Traceback::capture()` (requires `backtrace` feature). Locals rendering supported when provided explicitly (`TracebackFrame::locals`, `Traceback::show_locals`). |
-| Syntax | Syntax highlighting | Implemented | `src/renderables/syntax.rs` (feature `syntax`) | Python fixture conformance (`syntax/basic`, `syntax/no_terminal`). ANSI output differs (syntect vs Pygments); plain text parity verified. |
+| Syntax | Syntax highlighting | Implemented | `src/renderables/syntax.rs` (feature `syntax`) | Python fixture conformance (`syntax/basic`, `syntax/no_terminal`). ANSI output differs (syntect vs Pygments); plain text parity verified. Line numbers, indent guides, and whitespace-preserving wrap are supported. |
 | Markdown | Markdown rendering | Implemented | `src/renderables/markdown.rs` (feature `markdown`) | Python fixture conformance (`markdown/plain`, `markdown/emphasis_no_terminal`). Both plain and ANSI parity verified. |
 | JSON | JSON pretty-print | Implemented | `src/renderables/json.rs` (feature `json`) | Python fixture conformance (`json/basic`, `json/nested`). Both plain and ANSI parity verified. |
 
@@ -75,8 +75,8 @@ This document is the source of truth. If code or docs change, update this file, 
 | Area | Python Rich Feature | Status | Rust Location / Flags | Evidence / Notes |
 |---|---|---|---|---|
 | ANSI output | Styled ANSI rendering | Implemented | `Style::render_ansi` + `Console::write_segments` | Unit/regression tests |
-| HTML export | Console export to HTML | Implemented | `Console::export_html` | Minimal HTML export (pre + inline styles). |
-| SVG export | Console export to SVG | Implemented | `Console::export_svg` | SVG uses `<foreignObject>` + HTML body. |
+| HTML export | Console export to HTML | Implemented | `Console::export_html`, `Console::export_html_with_options` | Mirrors Python Rich's HTML export templates (stylesheet mode by default; optional inline styles). |
+| SVG export | Console export to SVG | Implemented | `Console::export_svg`, `Console::export_svg_with_options` | Mirrors Python Rich's SVG export template (SVG primitives: `<text>`, `<rect>`, clip paths) with optional terminal-window chrome. |
 
 ---
 

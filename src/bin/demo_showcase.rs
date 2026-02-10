@@ -128,7 +128,9 @@ fn main() {
                 write_export_files(&cfg, &demo_console.console);
             }
         } else {
-            eprintln!("Unknown scene: {scene_name}");
+            // Defensive: parse_args already validates scene names, but keep a clear error here too.
+            let err = scenes::SceneError::Failed(format!("Unknown scene: {scene_name}"));
+            eprintln!("{err}");
             std::process::exit(2);
         }
         return;
@@ -874,7 +876,7 @@ mod tests {
 
         for (input, expected) in cases {
             let cfg = parse(&["demo_showcase", "--color-system", input])
-                .unwrap_or_else(|e| panic!("Failed to parse color-system {input}: {e}"));
+                .expect("parse color-system variant");
             assert_eq!(cfg.color_system, expected, "color-system {input}");
         }
     }
@@ -1002,8 +1004,7 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let cfg = parse(&["demo_showcase", "--log-level", input])
-                .unwrap_or_else(|e| panic!("Failed to parse log-level {input}: {e}"));
+            let cfg = parse(&["demo_showcase", "--log-level", input]).expect("parse log-level");
             assert_eq!(cfg.log_level, expected, "log-level {input}");
         }
     }

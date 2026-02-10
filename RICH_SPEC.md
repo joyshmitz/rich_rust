@@ -2780,7 +2780,7 @@ features (not planned) from **planned-but-not-yet-implemented** features.
 | Live display (`Live`) | Implemented (process-wide stdout/stderr redirection in interactive terminals; no Jupyter integration) |
 | Layout engine (`Layout`) | Implemented (ratio splits + named lookup; no render-map caching) |
 | Logging handler integration | Implemented (`RichLogger` for `log` crate; optional Rich-style tracebacks for error logs) |
-| Console export (HTML/SVG) | Implemented (minimal HTML/SVG export; no full theme templates) |
+| Console export (HTML/SVG) | Implemented (Rich-style templates + optional window chrome; `export_html_with_options` / `export_svg_with_options` for advanced knobs) |
 
 ### 15.3 Implemented (No Longer Excluded)
 
@@ -4242,9 +4242,10 @@ Note how:
 
 Rich can export recorded console output to HTML and SVG formats, preserving colors, styles, and formatting. This enables sharing Rich output as static documents, embedding in web pages, or generating terminal screenshots.
 
-**Implementation note (Rust):** `Console::export_html` and `Console::export_svg` provide
-minimal exports using inline CSS and an SVG `<foreignObject>` wrapper. Full Rich theme
-templates and window chrome are not implemented.
+**Implementation note (Rust):** `Console::export_html` / `Console::export_svg` mirror Python Rich's
+HTML/SVG exporters, including the Rich template formats and optional terminal-window chrome.
+Advanced knobs are exposed via `Console::export_html_with_options(...)` and
+`Console::export_svg_with_options(...)`.
 
 **Requirements:**
 - Console must be created with `record=True` to capture output

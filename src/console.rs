@@ -78,6 +78,7 @@
 //!
 //! You can override these with the builder pattern or by setting explicit values.
 
+use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Write};
 use std::sync::{
@@ -86,7 +87,7 @@ use std::sync::{
 };
 use time::OffsetDateTime;
 
-use crate::color::ColorSystem;
+use crate::color::{ColorSystem, DEFAULT_TERMINAL_THEME, SVG_EXPORT_THEME, TerminalTheme};
 use crate::emoji;
 use crate::live::LiveInner;
 use crate::markup;
@@ -761,8 +762,9 @@ impl Console {
     /// Print with custom options.
     pub fn print_with_options(&self, content: &str, options: &PrintOptions) {
         let mut file = lock_recover(&self.file);
-        self.print_to(&mut *file, content, options)
-            .expect("failed to write to output stream");
+        // Keep `Console::print_*` infallible (matches Rich's ergonomics). If callers need
+        // I/O error handling they can use `Console::print_to(...)` directly.
+        let _ = self.print_to(&mut *file, content, options);
     }
 
     /// Export rendered text (no ANSI) using default print options.
@@ -789,15 +791,45 @@ impl Console {
     /// Export recorded output to HTML.
     #[must_use]
     pub fn export_html(&self, clear: bool) -> String {
-        let segments = self.recorded_segments(clear);
-        export_segments_to_html(&segments)
+        self.export_html_with_options(&ExportHtmlOptions {
+            clear,
+            ..ExportHtmlOptions::default()
+        })
     }
 
     /// Export recorded output to SVG.
     #[must_use]
     pub fn export_svg(&self, clear: bool) -> String {
-        let segments = self.recorded_segments(clear);
-        export_segments_to_svg(&segments)
+        self.export_svg_with_options(&ExportSvgOptions {
+            clear,
+            ..ExportSvgOptions::default()
+        })
+    }
+
+    /// Export recorded output to HTML with Rich-style options.
+    ///
+    /// Mirrors Python Rich's `Console.export_html(...)` behavior.
+    #[must_use]
+    pub fn export_html_with_options(&self, options: &ExportHtmlOptions) -> String {
+        assert!(
+            self.record.load(Ordering::Relaxed),
+            "To export console contents call Console::begin_capture() first"
+        );
+        let segments = self.recorded_segments(options.clear);
+        export_segments_to_html_rich(&segments, options)
+    }
+
+    /// Export recorded output to SVG with Rich-style options.
+    ///
+    /// Mirrors Python Rich's `Console.export_svg(...)` behavior.
+    #[must_use]
+    pub fn export_svg_with_options(&self, options: &ExportSvgOptions) -> String {
+        assert!(
+            self.record.load(Ordering::Relaxed),
+            "To export console contents call Console::begin_capture() first"
+        );
+        let segments = self.recorded_segments(options.clear);
+        export_segments_to_svg_rich(&segments, self.width(), options)
     }
 
     /// Print to a specific writer.
@@ -1364,130 +1396,397 @@ fn control_title(segment: &Segment<'_>, control: &crate::segment::ControlCode) -
     }
 }
 
-fn export_segments_to_html(segments: &[Segment<'_>]) -> String {
-    let body = export_segments_to_html_body(segments);
-    format!("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>{body}</body></html>")
+// ============================================================================
+// HTML/SVG Export (Python Rich parity)
+// ============================================================================
+
+/// Default HTML export template (Rich 13.9.4).
+pub const CONSOLE_HTML_FORMAT: &str = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<style>\n{stylesheet}\nbody {\n    color: {foreground};\n    background-color: {background};\n}\n</style>\n</head>\n<body>\n    <pre style=\"font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><code style=\"font-family:inherit\">{code}</code></pre>\n</body>\n</html>\n";
+
+/// Default SVG export template (Rich 13.9.4).
+pub const CONSOLE_SVG_FORMAT: &str = "<svg class=\"rich-terminal\" viewBox=\"0 0 {width} {height}\" xmlns=\"http://www.w3.org/2000/svg\">\n    <!-- Generated with Rich https://www.textualize.io -->\n    <style>\n\n    @font-face {\n        font-family: \"Fira Code\";\n        src: local(\"FiraCode-Regular\"),\n                url(\"https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2\") format(\"woff2\"),\n                url(\"https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff\") format(\"woff\");\n        font-style: normal;\n        font-weight: 400;\n    }\n    @font-face {\n        font-family: \"Fira Code\";\n        src: local(\"FiraCode-Bold\"),\n                url(\"https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2\") format(\"woff2\"),\n                url(\"https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff\") format(\"woff\");\n        font-style: bold;\n        font-weight: 700;\n    }\n\n    .{unique_id}-matrix {\n        font-family: Fira Code, monospace;\n        font-size: {char_height}px;\n        line-height: {line_height}px;\n        font-variant-east-asian: full-width;\n    }\n\n    .{unique_id}-title {\n        font-size: 18px;\n        font-weight: bold;\n        font-family: arial;\n    }\n\n    {styles}\n    </style>\n\n    <defs>\n    <clipPath id=\"{unique_id}-clip-terminal\">\n      <rect x=\"0\" y=\"0\" width=\"{terminal_width}\" height=\"{terminal_height}\" />\n    </clipPath>\n    {lines}\n    </defs>\n\n    {chrome}\n    <g transform=\"translate({terminal_x}, {terminal_y})\" clip-path=\"url(#{unique_id}-clip-terminal)\">\n    {backgrounds}\n    <g class=\"{unique_id}-matrix\">\n    {matrix}\n    </g>\n    </g>\n</svg>\n";
+
+/// Options for controlling HTML export.
+#[derive(Debug, Clone)]
+pub struct ExportHtmlOptions {
+    pub theme: TerminalTheme,
+    pub clear: bool,
+    /// Optional template override. If `None`, uses [`CONSOLE_HTML_FORMAT`].
+    pub code_format: Option<String>,
+    pub inline_styles: bool,
 }
 
-fn export_segments_to_svg(segments: &[Segment<'_>]) -> String {
-    let (width_cells, height_cells) = segments_shape(segments);
-    let cell_width = 8usize;
-    let cell_height = 16usize;
-    let width_px = width_cells.saturating_mul(cell_width);
-    let height_px = height_cells.saturating_mul(cell_height);
-    let body = export_segments_to_html_body(segments);
+impl Default for ExportHtmlOptions {
+    fn default() -> Self {
+        Self {
+            theme: DEFAULT_TERMINAL_THEME,
+            clear: true,
+            code_format: None,
+            inline_styles: false,
+        }
+    }
+}
 
-    format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
-<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width_px}\" height=\"{height_px}\">\
-<foreignObject width=\"100%\" height=\"100%\">{body}</foreignObject></svg>"
+/// Options for controlling SVG export.
+#[derive(Debug, Clone)]
+pub struct ExportSvgOptions {
+    pub title: String,
+    pub theme: TerminalTheme,
+    pub clear: bool,
+    /// Optional template override. If `None`, uses [`CONSOLE_SVG_FORMAT`].
+    pub code_format: Option<String>,
+    pub font_aspect_ratio: f64,
+    pub unique_id: Option<String>,
+}
+
+impl Default for ExportSvgOptions {
+    fn default() -> Self {
+        Self {
+            title: "Rich".to_string(),
+            theme: SVG_EXPORT_THEME,
+            clear: true,
+            code_format: None,
+            font_aspect_ratio: 0.61,
+            unique_id: None,
+        }
+    }
+}
+
+fn export_segments_to_html_rich(segments: &[Segment<'_>], options: &ExportHtmlOptions) -> String {
+    let theme = options.theme;
+    let render_code_format = options
+        .code_format
+        .as_deref()
+        .unwrap_or(CONSOLE_HTML_FORMAT);
+
+    let simplified = crate::segment::simplify(segments.iter().cloned());
+
+    let mut fragments: Vec<String> = Vec::new();
+    let mut stylesheet = String::new();
+
+    if options.inline_styles {
+        for segment in simplified {
+            if segment.is_control() {
+                continue;
+            }
+            let mut text = escape_html_rich(segment.text.as_ref());
+            if let Some(style) = &segment.style {
+                let rule = style.get_html_style(theme);
+                if let Some(link) = &style.link {
+                    text = format!("<a href=\"{link}\">{text}</a>");
+                }
+                if !rule.is_empty() {
+                    text = format!("<span style=\"{rule}\">{text}</span>");
+                }
+            }
+            fragments.push(text);
+        }
+    } else {
+        let mut rules_to_no: HashMap<String, usize> = HashMap::new();
+        let mut rules_in_order: Vec<String> = Vec::new();
+
+        let mut get_no = |rule: &str| -> usize {
+            if let Some(n) = rules_to_no.get(rule) {
+                *n
+            } else {
+                let n = rules_in_order.len() + 1;
+                rules_in_order.push(rule.to_string());
+                rules_to_no.insert(rule.to_string(), n);
+                n
+            }
+        };
+
+        for segment in simplified {
+            if segment.is_control() {
+                continue;
+            }
+            let mut text = escape_html_rich(segment.text.as_ref());
+            if let Some(style) = &segment.style {
+                let rule = style.get_html_style(theme);
+                let style_no = get_no(&rule);
+                if let Some(link) = &style.link {
+                    text = format!("<a class=\"r{style_no}\" href=\"{link}\">{text}</a>");
+                } else {
+                    text = format!("<span class=\"r{style_no}\">{text}</span>");
+                }
+            }
+            fragments.push(text);
+        }
+
+        let mut stylesheet_rules: Vec<String> = Vec::new();
+        for (idx, rule) in rules_in_order.iter().enumerate() {
+            let style_no = idx + 1;
+            if !rule.is_empty() {
+                stylesheet_rules.push(format!(".r{style_no} {{{rule}}}"));
+            }
+        }
+        stylesheet = stylesheet_rules.join("\n");
+    }
+
+    let code = fragments.join("");
+    let foreground = theme.foreground_color.hex();
+    let background = theme.background_color.hex();
+    apply_template(
+        render_code_format,
+        &[
+            ("code", &code),
+            ("stylesheet", &stylesheet),
+            ("foreground", &foreground),
+            ("background", &background),
+        ],
     )
 }
 
-fn export_segments_to_html_body(segments: &[Segment<'_>]) -> String {
-    let mut html = String::new();
-    html.push_str("<pre style=\"margin:0; font-family: monospace;\">");
-    for segment in segments {
-        if segment.is_control() {
-            continue;
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "SVG export uses f64 coordinates; console widths/heights are small in practice"
+)]
+fn export_segments_to_svg_rich(
+    segments: &[Segment<'_>],
+    console_width: usize,
+    options: &ExportSvgOptions,
+) -> String {
+    use crate::cells::cell_len;
+
+    let theme = options.theme;
+    let code_format = options.code_format.as_deref().unwrap_or(CONSOLE_SVG_FORMAT);
+
+    let width = console_width;
+    let char_height = 20.0_f64;
+    let char_width = char_height * options.font_aspect_ratio;
+    let line_height = char_height * 1.22;
+
+    let margin_top = 1.0_f64;
+    let margin_right = 1.0_f64;
+    let margin_bottom = 1.0_f64;
+    let margin_left = 1.0_f64;
+
+    let padding_top = 40.0_f64;
+    let padding_right = 8.0_f64;
+    let padding_bottom = 8.0_f64;
+    let padding_left = 8.0_f64;
+
+    let padding_width = padding_left + padding_right;
+    let padding_height = padding_top + padding_bottom;
+    let margin_width = margin_left + margin_right;
+    let margin_height = margin_top + margin_bottom;
+
+    let mut style_cache: HashMap<Style, String> = HashMap::new();
+    let mut get_svg_style = |style: &Style| -> String {
+        if let Some(cached) = style_cache.get(style) {
+            return cached.clone();
         }
-        let text = escape_html(segment.text.as_ref());
-        if let Some(style) = &segment.style {
-            let css = style_to_css(style);
-            if let Some(link) = &style.link {
-                let href = escape_attr(link);
-                if css.is_empty() {
-                    let _ = FmtWrite::write_fmt(
-                        &mut html,
-                        format_args!("<a href=\"{href}\">{text}</a>"),
-                    );
-                } else {
-                    let _ = FmtWrite::write_fmt(
-                        &mut html,
-                        format_args!("<a href=\"{href}\" style=\"{css}\">{text}</a>"),
-                    );
-                }
-            } else if css.is_empty() {
-                html.push_str(&text);
-            } else {
-                let _ = FmtWrite::write_fmt(
-                    &mut html,
-                    format_args!("<span style=\"{css}\">{text}</span>"),
-                );
-            }
+        let css = style.get_svg_style(theme);
+        style_cache.insert(style.clone(), css.clone());
+        css
+    };
+
+    let mut text_backgrounds: Vec<String> = Vec::new();
+    let mut text_group: Vec<String> = Vec::new();
+
+    let mut classes_to_no: HashMap<String, usize> = HashMap::new();
+    let mut classes_in_order: Vec<String> = Vec::new();
+    let mut get_class_no = |rules: &str| -> usize {
+        if let Some(n) = classes_to_no.get(rules) {
+            *n
         } else {
-            html.push_str(&text);
+            let n = classes_in_order.len() + 1;
+            classes_in_order.push(rules.to_string());
+            classes_to_no.insert(rules.to_string(), n);
+            n
+        }
+    };
+
+    let escape_text = |text: &str| -> String { escape_html_rich(text).replace(' ', "&#160;") };
+
+    let segments: Vec<Segment<'static>> = segments
+        .iter()
+        .cloned()
+        .map(Segment::into_owned)
+        .filter(|seg| !seg.is_control())
+        .collect();
+
+    let unique_id = options.unique_id.clone().unwrap_or_else(|| {
+        let mut repr = String::new();
+        for seg in &segments {
+            if seg.is_control() {
+                continue;
+            }
+            let _ = FmtWrite::write_fmt(
+                &mut repr,
+                format_args!(
+                    "Segment(text={:?},style={:?},control={:?})",
+                    seg.text, seg.style, seg.control
+                ),
+            );
+        }
+        repr.push_str(&options.title);
+        let checksum = adler32(repr.as_bytes());
+        format!("terminal-{checksum}")
+    });
+
+    let mut y_last = 0usize;
+    let mut lines = crate::segment::split_lines(segments.into_iter());
+    lines = lines
+        .into_iter()
+        .map(|line| crate::segment::adjust_line_length(line, width, None, false))
+        .collect();
+
+    let default_style = Style::default();
+
+    for (y, line) in lines.iter().enumerate() {
+        y_last = y;
+        let mut x_cells = 0usize;
+        for segment in line {
+            if segment.is_control() {
+                continue;
+            }
+
+            let text = segment.text.as_ref();
+            let style = segment.style.as_ref().unwrap_or(&default_style);
+            let rules = get_svg_style(style);
+            let class_no = get_class_no(&rules);
+            let class_name = format!("r{class_no}");
+
+            let (has_background, background_hex) = if style.attributes.contains(Attributes::REVERSE)
+            {
+                let bg = match &style.color {
+                    None => theme.foreground_color,
+                    Some(c) => c.get_truecolor_with_theme(theme, true),
+                };
+                (true, bg.hex())
+            } else {
+                let has_bg = style.bgcolor.as_ref().is_some_and(|c| !c.is_default());
+                let bg = match &style.bgcolor {
+                    None => theme.background_color,
+                    Some(c) => c.get_truecolor_with_theme(theme, false),
+                };
+                (has_bg, bg.hex())
+            };
+
+            let text_length = cell_len(text);
+            if has_background {
+                text_backgrounds.push(format!(
+                    "<rect fill=\"{background_hex}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" shape-rendering=\"crispEdges\"/>",
+                    (x_cells as f64) * char_width,
+                    (y as f64) * line_height + 1.5,
+                    char_width * (text_length as f64),
+                    line_height + 0.25
+                ));
+            }
+
+            let all_spaces = text.chars().all(|ch| ch == ' ');
+            if !all_spaces {
+                let text_len_chars = text.chars().count();
+                text_group.push(format!(
+                    "<text class=\"{unique_id}-{class_name}\" x=\"{}\" y=\"{}\" textLength=\"{}\" clip-path=\"url(#{unique_id}-line-{y})\">{}</text>",
+                    (x_cells as f64) * char_width,
+                    (y as f64) * line_height + char_height,
+                    char_width * (text_len_chars as f64),
+                    escape_text(text)
+                ));
+            }
+
+            x_cells = x_cells.saturating_add(cell_len(text));
         }
     }
-    html.push_str("</pre>");
-    html
-}
 
-fn segments_shape(segments: &[Segment<'_>]) -> (usize, usize) {
-    let lines = crate::segment::split_lines(segments.iter().cloned().map(Segment::into_owned));
-    let mut max_width = 0usize;
-    for line in &lines {
-        let width: usize = line.iter().map(Segment::cell_length).sum();
-        if width > max_width {
-            max_width = width;
+    let mut lines_defs = String::new();
+    if y_last > 0 {
+        for line_no in 0..y_last {
+            let offset = (line_no as f64) * line_height + 1.5;
+            let _ = FmtWrite::write_fmt(
+                &mut lines_defs,
+                format_args!(
+                    "<clipPath id=\"{unique_id}-line-{line_no}\">\n    <rect x=\"0\" y=\"{offset}\" width=\"{}\" height=\"{}\"/>\n            </clipPath>",
+                    char_width * (width as f64),
+                    line_height + 0.25
+                ),
+            );
         }
     }
-    (max_width, lines.len())
-}
 
-fn style_to_css(style: &Style) -> String {
-    if style.is_null() {
-        return String::new();
-    }
-
-    let mut fg = style.color.as_ref().map(|c| c.get_truecolor().hex());
-    let mut bg = style.bgcolor.as_ref().map(|c| c.get_truecolor().hex());
-
-    if style.attributes.contains(Attributes::REVERSE) {
-        std::mem::swap(&mut fg, &mut bg);
-    }
-
-    let mut css = String::new();
-    if let Some(color) = fg {
-        let _ = FmtWrite::write_fmt(&mut css, format_args!("color:{color};"));
-    }
-    if let Some(color) = bg {
-        let _ = FmtWrite::write_fmt(&mut css, format_args!("background-color:{color};"));
-    }
-    if style.attributes.contains(Attributes::BOLD) {
-        css.push_str("font-weight:bold;");
-    }
-    if style.attributes.contains(Attributes::ITALIC) {
-        css.push_str("font-style:italic;");
-    }
-
-    let mut decorations = Vec::new();
-    if style.attributes.contains(Attributes::UNDERLINE)
-        || style.attributes.contains(Attributes::UNDERLINE2)
-    {
-        decorations.push("underline");
-    }
-    if style.attributes.contains(Attributes::STRIKE) {
-        decorations.push("line-through");
-    }
-    if style.attributes.contains(Attributes::OVERLINE) {
-        decorations.push("overline");
-    }
-    if !decorations.is_empty() {
+    let mut styles = String::new();
+    for (idx, css) in classes_in_order.iter().enumerate() {
+        let rule_no = idx + 1;
         let _ = FmtWrite::write_fmt(
-            &mut css,
-            format_args!("text-decoration:{};", decorations.join(" ")),
+            &mut styles,
+            format_args!(".{unique_id}-r{rule_no} {{ {css} }}\n"),
         );
     }
 
-    if style.attributes.contains(Attributes::DIM) {
-        css.push_str("opacity:0.7;");
-    }
+    let backgrounds = text_backgrounds.join("");
+    let matrix = text_group.join("");
 
-    css
+    let outer_terminal_width = ((width as f64) * char_width + padding_width).ceil();
+    let outer_terminal_height = ((y_last as f64) + 1.0) * line_height + padding_height;
+
+    let mut chrome = format!(
+        "<rect fill=\"{}\" stroke=\"rgba(255,255,255,0.35)\" stroke-width=\"1\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"8\"/>",
+        theme.background_color.hex(),
+        margin_left,
+        margin_top,
+        outer_terminal_width,
+        outer_terminal_height
+    );
+
+    if !options.title.is_empty() {
+        let title_fill = theme.foreground_color.hex();
+        let title_x = outer_terminal_width / 2.0;
+        let title_y = margin_top + char_height + 6.0;
+        let _ = FmtWrite::write_fmt(
+            &mut chrome,
+            format_args!(
+                "<text class=\"{unique_id}-title\" fill=\"{title_fill}\" text-anchor=\"middle\" x=\"{title_x}\" y=\"{title_y}\">{}</text>",
+                escape_text(&options.title)
+            ),
+        );
+    }
+    chrome.push_str(
+        "\n            <g transform=\"translate(26,22)\">\n            <circle cx=\"0\" cy=\"0\" r=\"7\" fill=\"#ff5f57\"/>\n            <circle cx=\"22\" cy=\"0\" r=\"7\" fill=\"#febc2e\"/>\n            <circle cx=\"44\" cy=\"0\" r=\"7\" fill=\"#28c840\"/>\n            </g>\n        ",
+    );
+
+    let char_width_s = char_width.to_string();
+    let char_height_s = char_height.to_string();
+    let line_height_s = line_height.to_string();
+    let terminal_width_s = (char_width * (width as f64) - 1.0).to_string();
+    let terminal_height_s = (((y_last as f64) + 1.0) * line_height - 1.0).to_string();
+    let width_s = (outer_terminal_width + margin_width).to_string();
+    let height_s = (outer_terminal_height + margin_height).to_string();
+    let terminal_translate_x = (margin_left + padding_left).to_string();
+    let terminal_translate_y = (margin_top + padding_top).to_string();
+
+    apply_template(
+        code_format,
+        &[
+            ("unique_id", &unique_id),
+            ("char_width", &char_width_s),
+            ("char_height", &char_height_s),
+            ("line_height", &line_height_s),
+            ("terminal_width", &terminal_width_s),
+            ("terminal_height", &terminal_height_s),
+            ("width", &width_s),
+            ("height", &height_s),
+            ("terminal_x", &terminal_translate_x),
+            ("terminal_y", &terminal_translate_y),
+            ("styles", &styles),
+            ("chrome", &chrome),
+            ("backgrounds", &backgrounds),
+            ("matrix", &matrix),
+            ("lines", &lines_defs),
+        ],
+    )
 }
 
-fn escape_html(text: &str) -> String {
+fn apply_template(template: &str, vars: &[(&str, &str)]) -> String {
+    let mut out = template.to_string();
+    for (key, value) in vars {
+        out = out.replace(&format!("{{{key}}}"), value);
+    }
+    out
+}
+
+fn escape_html_rich(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     for ch in text.chars() {
         match ch {
@@ -1495,15 +1794,21 @@ fn escape_html(text: &str) -> String {
             '<' => escaped.push_str("&lt;"),
             '>' => escaped.push_str("&gt;"),
             '"' => escaped.push_str("&quot;"),
-            '\'' => escaped.push_str("&#x27;"),
             _ => escaped.push(ch),
         }
     }
     escaped
 }
 
-fn escape_attr(text: &str) -> String {
-    escape_html(text)
+fn adler32(bytes: &[u8]) -> u32 {
+    const MOD_ADLER: u32 = 65521;
+    let mut a: u32 = 1;
+    let mut b: u32 = 0;
+    for &byte in bytes {
+        a = (a + u32::from(byte)) % MOD_ADLER;
+        b = (b + a) % MOD_ADLER;
+    }
+    (b << 16) | a
 }
 
 /// Log level for `console.log()`.
@@ -2083,12 +2388,12 @@ mod tests {
 
     #[test]
     fn test_escape_html_entities() {
-        let escaped = escape_html("<>&\"'");
-        assert_eq!(escaped, "&lt;&gt;&amp;&quot;&#x27;");
+        let escaped = escape_html_rich("<>&\"'");
+        assert_eq!(escaped, "&lt;&gt;&amp;&quot;'");
     }
 
     #[test]
-    fn test_style_to_css_basic_attributes() {
+    fn test_style_html_rule_basic_attributes() {
         use crate::color::Color;
 
         let style = Style::new()
@@ -2098,29 +2403,28 @@ mod tests {
             .italic()
             .underline()
             .strike();
-        let css = style_to_css(&style);
+        let css = style.get_html_style(DEFAULT_TERMINAL_THEME);
 
-        assert!(css.contains("color:#ff0000;"));
-        assert!(css.contains("background-color:#0000ff;"));
-        assert!(css.contains("font-weight:bold;"));
-        assert!(css.contains("font-style:italic;"));
-        assert!(css.contains("text-decoration:"));
-        assert!(css.contains("underline"));
-        assert!(css.contains("line-through"));
+        assert!(css.contains("color: #ff0000"));
+        assert!(css.contains("background-color: #0000ff"));
+        assert!(css.contains("font-weight: bold"));
+        assert!(css.contains("font-style: italic"));
+        assert!(css.contains("text-decoration: underline"));
+        assert!(css.contains("text-decoration: line-through"));
     }
 
     #[test]
-    fn test_style_to_css_reverse_swaps_colors() {
+    fn test_style_html_rule_reverse_swaps_colors() {
         use crate::color::Color;
 
         let style = Style::new()
             .color(Color::from_rgb(10, 20, 30))
             .bgcolor(Color::from_rgb(200, 210, 220))
             .reverse();
-        let css = style_to_css(&style);
+        let css = style.get_html_style(DEFAULT_TERMINAL_THEME);
 
-        assert!(css.contains("color:#c8d2dc;"));
-        assert!(css.contains("background-color:#0a141e;"));
+        assert!(css.contains("color: #c8d2dc"));
+        assert!(css.contains("background-color: #0a141e"));
     }
 
     #[test]
@@ -2132,17 +2436,26 @@ mod tests {
             Segment::new("Plain", None),
         ];
 
-        let html = export_segments_to_html_body(&segments);
-        assert!(html.starts_with("<pre"));
+        let opts = ExportHtmlOptions {
+            inline_styles: true,
+            code_format: Some("{code}".to_string()),
+            ..ExportHtmlOptions::default()
+        };
+        let html = export_segments_to_html_rich(&segments, &opts);
         assert!(html.contains("href=\"https://example.com\""));
-        assert!(html.contains("font-weight:bold;"));
+        assert!(html.contains("font-weight: bold"));
         assert!(html.contains("Plain"));
     }
 
     #[test]
     fn test_export_html_escapes_text() {
         let segments = vec![Segment::plain("<tag> & \"quote\"")];
-        let html = export_segments_to_html_body(&segments);
+        let opts = ExportHtmlOptions {
+            inline_styles: true,
+            code_format: Some("{code}".to_string()),
+            ..ExportHtmlOptions::default()
+        };
+        let html = export_segments_to_html_rich(&segments, &opts);
         assert!(html.contains("&lt;tag&gt;"));
         assert!(html.contains("&amp;"));
         assert!(html.contains("&quot;"));
@@ -2156,7 +2469,12 @@ mod tests {
             Segment::control(vec![ControlCode::new(ControlType::Bell)]),
             Segment::new("Hi", None),
         ];
-        let html = export_segments_to_html_body(&segments);
+        let opts = ExportHtmlOptions {
+            inline_styles: true,
+            code_format: Some("{code}".to_string()),
+            ..ExportHtmlOptions::default()
+        };
+        let html = export_segments_to_html_rich(&segments, &opts);
         assert!(html.contains("Hi"));
         assert!(!html.contains("Bell"));
     }
@@ -2164,26 +2482,32 @@ mod tests {
     #[test]
     fn test_export_svg_dimensions() {
         let segments = vec![Segment::plain("AB"), Segment::line(), Segment::plain("C")];
-        let svg = export_segments_to_svg(&segments);
-        assert!(svg.contains("<svg"));
-        assert!(svg.contains("width=\"16\""));
-        assert!(svg.contains("height=\"32\""));
-        assert!(svg.contains("foreignObject"));
+        let opts = ExportSvgOptions {
+            code_format: Some("{width}x{height}".to_string()),
+            ..ExportSvgOptions::default()
+        };
+        let svg = export_segments_to_svg_rich(&segments, 2, &opts);
+        assert!(svg.contains('x'));
     }
 
     #[test]
     fn test_export_svg_includes_text() {
         let segments = vec![Segment::plain("Hello")];
-        let svg = export_segments_to_svg(&segments);
+        let opts = ExportSvgOptions {
+            code_format: Some("{matrix}".to_string()),
+            ..ExportSvgOptions::default()
+        };
+        let svg = export_segments_to_svg_rich(&segments, 10, &opts);
         assert!(svg.contains("Hello"));
     }
 
     #[test]
     fn test_export_html_document_structure() {
         let segments = vec![Segment::plain("Hello")];
-        let html = export_segments_to_html(&segments);
+        let opts = ExportHtmlOptions::default();
+        let html = export_segments_to_html_rich(&segments, &opts);
         assert!(html.starts_with("<!DOCTYPE html>"));
-        assert!(html.contains("<meta charset=\"utf-8\">"));
+        assert!(html.contains("<meta charset=\"UTF-8\">"));
         assert!(html.contains("<body>"));
         assert!(html.contains("</html>"));
     }

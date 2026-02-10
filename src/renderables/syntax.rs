@@ -81,12 +81,14 @@
 //! - **Syntax definitions**: Only default syntect syntax definitions are available. Custom
 //!   `.sublime-syntax` files are not currently supported.
 //! - **Large files**: Rendering very large files may be slow due to per-line highlighting.
-//! - **Word wrap**: The `word_wrap` option is defined but not yet fully implemented.
+//! - **Word wrap**: Wrap is supported (use `word_wrap(Some(width))`), and is whitespace-preserving
+//!   (tuned for code rather than prose reflow).
 
 use crate::cells;
 use crate::color::Color;
 use crate::segment::Segment;
 use crate::style::Style;
+use crate::text::Text;
 
 use std::fs;
 use std::path::Path;
@@ -354,48 +356,78 @@ impl Syntax {
             .ok_or_else(|| SyntaxError::UnknownTheme(self.theme_name.clone()))?;
 
         let mut highlighter = HighlightLines::new(syntax, theme);
-        let mut segments = Vec::new();
+        let mut segments: Vec<Segment<'static>> = Vec::new();
 
-        // Calculate line number width
+        // Background used for padding/fill and for styling indent guides.
+        let bg = if let Some(ref override_bg) = self.background_color {
+            override_bg.clone()
+        } else {
+            let bg_color = theme
+                .settings
+                .background
+                .unwrap_or(syntect::highlighting::Color::BLACK);
+            Color::from_rgb(bg_color.r, bg_color.g, bg_color.b)
+        };
+        let base_bg_style = Style::new().bgcolor(bg);
+        let guide_style = base_bg_style.combine(&Style::new().dim());
+
+        // Calculate line number width (digits only).
         let line_count = self.code.lines().count();
         let last_line = self.start_line.saturating_add(line_count.saturating_sub(1));
         let line_num_width = last_line.to_string().len();
+        let line_number_padding = 2usize; // Rich-style line number gutter
+        let line_prefix_width = if self.line_numbers {
+            line_number_padding + line_num_width + 1 // +1 for trailing space after number
+        } else {
+            0
+        };
+        let line_number_style = base_bg_style.combine(&self.line_number_style);
+
+        // If enabled, wrap the *code content* to this cell width (excluding gutter + padding).
+        // Wrapping is whitespace-preserving (tuned for code rather than prose reflow).
+        let wrap_width = self.word_wrap.and_then(|w| {
+            if w == 0 {
+                return None;
+            }
+            let cap = max_width.unwrap_or(usize::MAX);
+            let available =
+                cap.saturating_sub(self.padding.1.saturating_mul(2) + line_prefix_width);
+            if available == 0 {
+                None
+            } else {
+                Some(w.min(available))
+            }
+        });
 
         // Add top padding
         for _ in 0..self.padding.0 {
-            segments.push(Segment::new("\n", None));
+            segments.push(Segment::line());
         }
 
-        // Process each line
+        // Process each physical line (including an optional trailing newline per line).
         for (idx, line) in LinesWithEndings::from(&self.code).enumerate() {
             let line_num = self.start_line + idx;
 
-            // Add horizontal padding
-            if self.padding.1 > 0 {
-                segments.push(Segment::new(" ".repeat(self.padding.1), None));
+            let normalized = line.replace("\r\n", "\n");
+            let had_newline = normalized.ends_with('\n');
+            let mut line_no_nl = normalized.as_str();
+            if had_newline {
+                line_no_nl = &line_no_nl[..line_no_nl.len().saturating_sub(1)];
             }
 
-            // Add line number if enabled
-            if self.line_numbers {
-                let num_str = format!("{line_num:>line_num_width$} │ ");
-                segments.push(Segment::new(num_str, Some(self.line_number_style.clone())));
-            }
+            // Expand tabs for stable display + wrapping.
+            let tab_expanded = line_no_nl.replace('\t', &" ".repeat(self.tab_size));
 
-            // Expand tabs
-            let line_expanded = line
-                .replace('\t', &" ".repeat(self.tab_size))
-                .replace("\r\n", "\n");
-
-            // Indentation guides: inject guide characters into leading whitespace, then post-style
-            // them as dim during segment construction.
-            let leading_spaces = line_expanded.len() - line_expanded.trim_start().len();
+            // Indentation guides: inject guide characters into leading whitespace, then style them
+            // as dim while preserving the background.
+            let leading_spaces = tab_expanded.chars().take_while(|c| *c == ' ').count();
             let line_for_highlight = if self.indent_guides && leading_spaces > 0 {
-                apply_indent_guides(&line_expanded, self.tab_size)
+                apply_indent_guides(&tab_expanded, self.tab_size)
             } else {
-                line_expanded.clone()
+                tab_expanded
             };
 
-            // Highlight the line
+            // Highlight the line (no trailing newline).
             let ranges = highlighter
                 .highlight_line(&line_for_highlight, ps)
                 .unwrap_or_else(|_| {
@@ -405,49 +437,79 @@ impl Syntax {
                     )]
                 });
 
+            let mut line_text = Text::new("");
             let mut col = 0usize;
-            let mut saw_newline = false;
             for (style, text) in ranges {
-                let rich_style = self.syntect_style_to_rich(style, theme);
-                if text.contains('\n') {
-                    let mut parts = text.split('\n').peekable();
-                    while let Some(part) = parts.next() {
-                        if !part.is_empty() {
-                            push_syntax_text(
-                                &mut segments,
-                                part,
-                                &rich_style,
-                                leading_spaces,
-                                &mut col,
-                            );
-                        }
-                        if parts.peek().is_some() {
-                            if self.padding.1 > 0 {
-                                segments.push(Segment::new(" ".repeat(self.padding.1), None));
-                            }
-                            segments.push(Segment::new("\n", None));
-                            saw_newline = true;
-                            col = 0;
-                        }
-                    }
-                } else if !text.is_empty() {
-                    push_syntax_text(&mut segments, text, &rich_style, leading_spaces, &mut col);
+                if text.is_empty() {
+                    continue;
                 }
+                let rich_style = self.syntect_style_to_rich(style, theme);
+                append_syntax_text(
+                    &mut line_text,
+                    text,
+                    &rich_style,
+                    leading_spaces,
+                    &mut col,
+                    &guide_style,
+                );
             }
 
-            // Add horizontal padding at end
-            if self.padding.1 > 0 && !saw_newline {
-                segments.push(Segment::new(" ".repeat(self.padding.1), None));
+            let visual_lines: Vec<Text> = if let Some(wrap_width) = wrap_width {
+                wrap_text_preserving_whitespace(&line_text, wrap_width)
+            } else {
+                vec![line_text]
+            };
+
+            for (visual_idx, visual_line) in visual_lines.iter().cloned().enumerate() {
+                // Left padding (styled with background so the block background is continuous).
+                if self.padding.1 > 0 {
+                    segments.push(Segment::new(
+                        " ".repeat(self.padding.1),
+                        Some(base_bg_style.clone()),
+                    ));
+                }
+
+                // Line number gutter (Rich-style: two-space gutter, number, trailing space).
+                if self.line_numbers {
+                    let gutter = if visual_idx == 0 {
+                        format!(
+                            "{}{:>width$} ",
+                            " ".repeat(line_number_padding),
+                            line_num,
+                            width = line_num_width
+                        )
+                    } else {
+                        " ".repeat(line_number_padding + line_num_width + 1)
+                    };
+                    segments.push(Segment::new(gutter, Some(line_number_style.clone())));
+                }
+
+                // Highlighted code for this visual line.
+                segments.extend(visual_line.render("").into_iter().map(Segment::into_owned));
+
+                // Right padding
+                if self.padding.1 > 0 {
+                    segments.push(Segment::new(
+                        " ".repeat(self.padding.1),
+                        Some(base_bg_style.clone()),
+                    ));
+                }
+
+                // Newline between wrapped visual lines; preserve the original newline if present.
+                let is_last_visual = visual_idx + 1 == visual_lines.len();
+                if !is_last_visual || had_newline {
+                    segments.push(Segment::line());
+                }
             }
         }
 
         // Add bottom padding
         for _ in 0..self.padding.0 {
-            segments.push(Segment::new("\n", None));
+            segments.push(Segment::line());
         }
 
         if let Some(width) = max_width.filter(|value| *value > 0) {
-            Ok(pad_segments_to_width(segments, width))
+            Ok(pad_segments_to_width(segments, width, Some(&base_bg_style)))
         } else {
             Ok(segments)
         }
@@ -504,39 +566,36 @@ fn apply_indent_guides(line: &str, tab_size: usize) -> String {
         return line.to_string();
     }
 
-    let leading_spaces = line.len() - line.trim_start().len();
+    let leading_spaces = line.chars().take_while(|c| *c == ' ').count();
     if leading_spaces < tab_size {
         return line.to_string();
     }
 
     let mut out = String::with_capacity(line.len());
-    let mut col = 0usize;
-    for ch in line.chars() {
+    for (col, ch) in line.chars().enumerate() {
         if col < leading_spaces && ch == ' ' {
-            col += 1;
+            // Rich-style indent guides: show a guide at the start of each indent level:
+            // 4 spaces -> "│   ", 8 spaces -> "│   │   ", etc.
             if col.is_multiple_of(tab_size) {
                 out.push('│');
             } else {
                 out.push(' ');
             }
-            continue;
+        } else {
+            out.push(ch);
         }
-
-        out.push(ch);
-        col += 1;
     }
     out
 }
 
-fn push_syntax_text(
-    segments: &mut Vec<Segment<'static>>,
+fn append_syntax_text(
+    out: &mut Text,
     text: &str,
-    style: &Style,
+    token_style: &Style,
     leading_spaces: usize,
     col: &mut usize,
+    guide_style: &Style,
 ) {
-    let guide_style = Style::new().dim();
-
     let mut buf = String::new();
     let mut buf_is_guide = false;
     let mut started = false;
@@ -546,11 +605,11 @@ fn push_syntax_text(
 
         if started && is_guide != buf_is_guide {
             let seg_style = if buf_is_guide {
-                Some(guide_style.clone())
+                guide_style
             } else {
-                Some(style.clone())
+                token_style
             };
-            segments.push(Segment::new(std::mem::take(&mut buf), seg_style));
+            out.append_styled(&std::mem::take(&mut buf), seg_style.clone());
         }
 
         if !started {
@@ -564,17 +623,83 @@ fn push_syntax_text(
 
     if !buf.is_empty() {
         let seg_style = if buf_is_guide {
-            Some(guide_style)
+            guide_style
         } else {
-            Some(style.clone())
+            token_style
         };
-        segments.push(Segment::new(buf, seg_style));
+        out.append_styled(&buf, seg_style.clone());
     }
 }
 
-fn pad_segments_to_width(segments: Vec<Segment<'_>>, width: usize) -> Vec<Segment<'_>> {
+fn wrap_text_preserving_whitespace(line: &Text, width: usize) -> Vec<Text> {
+    if width == 0 {
+        return vec![Text::new("")];
+    }
+
+    if line.cell_len() <= width {
+        return vec![line.clone()];
+    }
+
+    let chars: Vec<char> = line.plain().chars().collect();
+    let mut out = Vec::new();
+    let mut start = 0usize;
+
+    while start < chars.len() {
+        let mut cell_width = 0usize;
+        let mut i = start;
+        let mut last_whitespace: Option<usize> = None;
+
+        while i < chars.len() {
+            let w = cells::get_character_cell_size(chars[i]);
+            if cell_width + w > width {
+                break;
+            }
+            cell_width += w;
+            if chars[i].is_whitespace() {
+                last_whitespace = Some(i);
+            }
+            i += 1;
+        }
+
+        if i == start {
+            // Can't fit even a single character in the width (e.g. width=1, wide char),
+            // so we force progress by taking 1 char.
+            out.push(line.slice(start, (start + 1).min(chars.len())));
+            start = (start + 1).min(chars.len());
+            continue;
+        }
+
+        if i >= chars.len() {
+            out.push(line.slice(start, chars.len()));
+            break;
+        }
+
+        if let Some(ws) = last_whitespace.filter(|ws| *ws >= start) {
+            // Wrap after whitespace, keeping the whitespace at the end of the previous line.
+            let end = (ws + 1).min(chars.len());
+            out.push(line.slice(start, end));
+            start = end;
+        } else {
+            out.push(line.slice(start, i));
+            start = i;
+        }
+    }
+
+    if out.is_empty() {
+        out.push(Text::new(""));
+    }
+
+    out
+}
+
+fn pad_segments_to_width(
+    segments: Vec<Segment<'static>>,
+    width: usize,
+    fill_style: Option<&Style>,
+) -> Vec<Segment<'static>> {
     let mut padded = Vec::new();
     let mut line_width = 0usize;
+    let fill_style = fill_style.cloned();
 
     for segment in segments {
         if segment.is_control() {
@@ -595,7 +720,10 @@ fn pad_segments_to_width(segments: Vec<Segment<'_>>, width: usize) -> Vec<Segmen
                     line_width += cells::cell_len(part);
                 }
                 if line_width < width {
-                    padded.push(Segment::new(" ".repeat(width - line_width), None));
+                    padded.push(Segment::new(
+                        " ".repeat(width - line_width),
+                        fill_style.clone(),
+                    ));
                 }
                 padded.push(Segment::line());
                 line_width = 0;
@@ -612,7 +740,7 @@ fn pad_segments_to_width(segments: Vec<Segment<'_>>, width: usize) -> Vec<Segmen
 
     if line_width > 0 {
         if line_width < width {
-            padded.push(Segment::new(" ".repeat(width - line_width), None));
+            padded.push(Segment::new(" ".repeat(width - line_width), fill_style));
         }
         padded.push(Segment::line());
     }
@@ -909,6 +1037,60 @@ mod tests {
 
         let syntax2 = Syntax::new("code", "rust").word_wrap(None);
         assert_eq!(syntax2.word_wrap, None);
+    }
+
+    #[test]
+    fn test_indent_guides_place_guide_at_indent_start() {
+        let syntax = Syntax::new("    x\n", "python")
+            .line_numbers(true)
+            .indent_guides(true)
+            .tab_size(4);
+
+        let text: String = syntax
+            .render(None)
+            .expect("render should succeed")
+            .iter()
+            .map(|s| s.text.as_ref())
+            .collect();
+
+        // Rich-style: 4 spaces of indent become "│   ".
+        assert!(
+            text.contains("│   x"),
+            "expected indent guide to render as '│   x', got: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_word_wrap_preserves_whitespace_and_continuation_gutter() {
+        let code = "def long():\n    x = 'this is a very long string that should wrap'\n";
+        let syntax = Syntax::new(code, "python")
+            .line_numbers(true)
+            .indent_guides(true)
+            .tab_size(4)
+            // Wrap to a narrow width so the string literal is forced to wrap.
+            .word_wrap(Some(36))
+            .padding(0, 0);
+
+        let text: String = syntax
+            .render(None)
+            .expect("render should succeed")
+            .iter()
+            .map(|s| s.text.as_ref())
+            .collect();
+
+        // Ensure we wrapped across a whitespace boundary without deleting the whitespace:
+        // we should see a space immediately before a newline.
+        assert!(
+            text.contains("string \n"),
+            "expected trailing whitespace to be preserved before wrap, got: {text:?}"
+        );
+
+        // Wrapped continuation lines should be aligned under the code column (spaces where the
+        // line number gutter was).
+        assert!(
+            text.contains("\n    that should"),
+            "expected wrapped continuation line to start with the gutter width, got: {text:?}"
+        );
     }
 
     #[test]

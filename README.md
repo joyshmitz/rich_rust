@@ -513,7 +513,9 @@ let html = console.export_html(false);  // false = don't clear buffer
 let svg = console.export_svg(true);     // true = clear buffer after
 ```
 
-**Note:** The SVG export uses `<foreignObject>` for text rendering. This produces clean, scalable output but requires a modern browser (Chrome, Firefox, Safari) for correct display. Some image viewers may not render text.
+**Note:** The HTML/SVG exports follow Python Rich's export templates (including optional
+terminal-window chrome). SVG is rendered with SVG primitives (`<text>`, `<rect>`, clip paths),
+so it works in browsers and in many SVG-capable viewers (no `<foreignObject>` required).
 
 For a quick demo of export capabilities, run:
 ```bash
@@ -771,7 +773,7 @@ OPTIONS:
 
 Export captures the full demo output and writes two files:
 - `demo_showcase.html` — Standalone HTML with inline CSS. Opens in any browser.
-- `demo_showcase.svg` — Scalable vector graphic using `<foreignObject>` for text.
+- `demo_showcase.svg` — Scalable vector graphic rendered with SVG text and shapes.
 
 ```bash
 # Quick export to temp directory (prints path)
@@ -791,7 +793,8 @@ cargo run --bin demo_showcase --features showcase -- \
 
 **Viewing exported files:**
 - **HTML:** Open directly in any browser. Colors and styles are preserved.
-- **SVG:** Open in Chrome, Firefox, or Safari. The SVG uses `<foreignObject>` for text rendering, which requires a modern browser. Some image viewers and older browsers may not render text correctly.
+- **SVG:** Open in any modern browser (Chrome, Firefox, Safari). The SVG uses only standard
+  SVG primitives (text, rects, clip paths), so it is broadly compatible.
 
 **Defaults ("auto")**
 
@@ -871,7 +874,7 @@ cargo run --bin demo_showcase --features showcase -- \
 - **Limited input:** rich_rust includes prompts/pager/status helpers, but it is not a full TUI/input widget framework. For complex input, use crates like `dialoguer`, `rustyline`, or `inquire`.
 - **No async:** Rendering is synchronous; wrap in `spawn_blocking` if needed
 - **Live redirection:** `Live` can redirect process-wide stdout/stderr in interactive terminals (TTY-only). In piped/non-interactive contexts it stays disabled; use `live.stdout_proxy()` / `live.stderr_proxy()` for external writers.
-- **HTML/SVG export:** Export is minimal (pre + inline CSS, SVG via `<foreignObject>`), not a full Rich theme engine
+- **HTML/SVG export:** Export is intended to match Python Rich's HTML/SVG export behavior and templates.
 
 ---
 
@@ -879,7 +882,7 @@ cargo run --bin demo_showcase --features showcase -- \
 
 **Q: How does this compare to Python Rich?**
 
-A: rich_rust aims for API compatibility where it makes sense. The markup syntax, renderables, and color system are nearly identical. Differences exist where Rust's type system or performance characteristics warrant them.
+A: rich_rust targets feature-for-feature parity with Python Rich. When behavior differs, treat it as a bug (or an explicitly documented, test-covered deviation) and track it until resolved.
 
 **Q: Is this production-ready?**
 

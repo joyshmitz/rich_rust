@@ -1332,15 +1332,24 @@ fn test_export_svg_contains_expected_content() {
         "SVG should have xmlns attribute"
     );
 
-    // SVG should use foreignObject for text (as documented)
+    // SVG should include Rich export markers / structure
     assert!(
-        svg_content.contains("foreignObject"),
-        "SVG should use foreignObject for text rendering"
+        svg_content.contains("class=\"rich-terminal\""),
+        "SVG should include Rich terminal wrapper class"
+    );
+    assert!(
+        svg_content.contains("Generated with Rich"),
+        "SVG should include generator comment"
+    );
+    assert!(
+        svg_content.contains("<text"),
+        "SVG should render <text> nodes"
     );
 
     // SVG should contain demo title (spaced letters in hero scene)
     assert!(
         svg_content.contains("N E B U L A")
+            || svg_content.contains("N&#160;E&#160;B&#160;U&#160;L&#160;A")
             || svg_content.contains("NEBULA")
             || svg_content.contains("Nebula"),
         "SVG should contain demo title 'Nebula' (possibly with spaced letters)"
