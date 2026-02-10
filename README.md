@@ -678,6 +678,7 @@ See `FEATURE_PARITY.md` for the authoritative matrix and `RICH_SPEC.md` for deta
 **Implemented**
 - Markup (`[bold red]text[/]`), styles, colors, hyperlinks
 - Tables, panels, rules, trees, columns, padding, alignment
+- Terminal control renderable (`Control`) + control-code helpers
 - Progress bars & spinners
 - Live updating / dynamic refresh (`Live`)
 - Layout engine (`Layout`)

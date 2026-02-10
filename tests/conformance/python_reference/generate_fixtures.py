@@ -29,6 +29,7 @@ try:
     from rich.columns import Columns  # type: ignore
     from rich.padding import Padding  # type: ignore
     from rich.align import Align  # type: ignore
+    from rich.control import Control  # type: ignore
     from rich.progress_bar import ProgressBar  # type: ignore
     from rich.text import Text  # type: ignore
     from rich.markdown import Markdown  # type: ignore
@@ -103,6 +104,24 @@ CASES = [
             "ansi": "\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\"
         },
         "notes": "Exercise Text.from_ansi OSC 8 hyperlink set + clear.",
+    },
+    {
+        "id": "control/clear",
+        "kind": "control",
+        "input": {"operation": "clear"},
+        "notes": "Exercise rich.control.Control.clear() ANSI emission.",
+    },
+    {
+        "id": "control/move_to_column_offset",
+        "kind": "control",
+        "input": {"operation": "move_to_column", "x": 0, "y": 2},
+        "notes": "Exercise 0-based column conversion (+1 in ANSI) plus vertical offset.",
+    },
+    {
+        "id": "control/title",
+        "kind": "control",
+        "input": {"operation": "title", "title": "rich_rust"},
+        "notes": "Exercise OSC window title emission.",
     },
     {
         "id": "protocol/rich_cast",
@@ -523,6 +542,26 @@ def build_renderable(case: Dict[str, Any]):
         align = inp.get("align", "left")
         width = inp.get("width", None)
         return Align(text, align=align, width=width)
+
+    if kind == "control":
+        operation = inp.get("operation", "clear")
+        if operation == "bell":
+            return Control.bell()
+        if operation == "home":
+            return Control.home()
+        if operation == "move":
+            return Control.move(inp.get("x", 0), inp.get("y", 0))
+        if operation == "move_to_column":
+            return Control.move_to_column(inp.get("x", 0), inp.get("y", 0))
+        if operation == "move_to":
+            return Control.move_to(inp.get("x", 0), inp.get("y", 0))
+        if operation == "show_cursor":
+            return Control.show_cursor(inp.get("show", True))
+        if operation == "alt_screen":
+            return Control.alt_screen(inp.get("enable", True))
+        if operation == "title":
+            return Control.title(inp.get("title", ""))
+        raise ValueError(f"Unknown control operation: {operation}")
 
     if kind == "markdown":
         text = inp.get("text", "")

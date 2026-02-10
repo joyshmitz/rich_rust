@@ -1,6 +1,6 @@
 {
   "rich_version": "13.9.4",
-  "generated_at": "2026-02-10T17:48:13.168767+00:00",
+  "generated_at": "2026-02-10T19:27:42.578442+00:00",
   "defaults": {
     "width": 40,
     "color_system": "truecolor",
@@ -145,6 +145,57 @@
         "ansi": "\u001b]8;;https://example.com\u001b\\link\u001b]8;;\u001b\\\n"
       },
       "notes": "Exercise Text.from_ansi OSC 8 hyperlink set + clear."
+    },
+    {
+      "id": "control/clear",
+      "kind": "control",
+      "compare_ansi": true,
+      "render_options": null,
+      "env": null,
+      "theme": null,
+      "input": {
+        "operation": "clear"
+      },
+      "expected": {
+        "plain": "",
+        "ansi": "\u001b[2J"
+      },
+      "notes": "Exercise rich.control.Control.clear() ANSI emission."
+    },
+    {
+      "id": "control/move_to_column_offset",
+      "kind": "control",
+      "compare_ansi": true,
+      "render_options": null,
+      "env": null,
+      "theme": null,
+      "input": {
+        "operation": "move_to_column",
+        "x": 0,
+        "y": 2
+      },
+      "expected": {
+        "plain": "",
+        "ansi": "\u001b[1G\u001b[2B"
+      },
+      "notes": "Exercise 0-based column conversion (+1 in ANSI) plus vertical offset."
+    },
+    {
+      "id": "control/title",
+      "kind": "control",
+      "compare_ansi": true,
+      "render_options": null,
+      "env": null,
+      "theme": null,
+      "input": {
+        "operation": "title",
+        "title": "rich_rust"
+      },
+      "expected": {
+        "plain": "",
+        "ansi": "\u001b]0;rich_rust\u0007"
+      },
+      "notes": "Exercise OSC window title emission."
     },
     {
       "id": "protocol/rich_cast",

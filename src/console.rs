@@ -1217,9 +1217,8 @@ impl Console {
                     write!(writer, "\x1b[{mode}K")?;
                 }
                 crate::segment::ControlType::SetWindowTitle => {
-                    if let Some(title) = control_title(segment, control) {
-                        write!(writer, "\x1b]0;{title}\x07")?;
-                    }
+                    let title = control_title(segment, control);
+                    write!(writer, "\x1b]0;{title}\x07")?;
                 }
             }
         }
@@ -1490,12 +1489,10 @@ fn erase_in_line_mode(params: &[i32]) -> i32 {
     2
 }
 
-fn control_title(segment: &Segment<'_>, control: &crate::segment::ControlCode) -> Option<String> {
+fn control_title(segment: &Segment<'_>, control: &crate::segment::ControlCode) -> String {
     let raw_title = if !segment.text.is_empty() {
         segment.text.to_string()
-    } else if control.params.is_empty() {
-        return None;
-    } else {
+    } else if !control.params.is_empty() {
         let mut title = String::with_capacity(control.params.len());
         for param in &control.params {
             if let Ok(byte) = u8::try_from(*param) {
@@ -1503,28 +1500,20 @@ fn control_title(segment: &Segment<'_>, control: &crate::segment::ControlCode) -
             }
         }
         title
+    } else {
+        String::new()
     };
-
-    if raw_title.is_empty() {
-        return None;
-    }
 
     // Sanitize title to prevent terminal injection:
     // Remove control characters that could break or escape the OSC sequence
-    let sanitized: String = raw_title
+    raw_title
         .chars()
         .filter(|c| {
             // Allow printable characters only, excluding control chars
             // BEL (\x07) terminates OSC, ESC (\x1b) starts new sequences
             !c.is_control()
         })
-        .collect();
-
-    if sanitized.is_empty() {
-        None
-    } else {
-        Some(sanitized)
-    }
+        .collect()
 }
 
 // ============================================================================
@@ -4077,6 +4066,67 @@ mod tests {
         // in non-terminal mode, or fail gracefully)
         // The important thing is no panic
         let _ = result;
+    }
+
+    #[test]
+    fn test_control_cursor_move_to_column_is_zero_based() {
+        let console = Console::builder()
+            .width(80)
+            .markup(false)
+            .force_terminal(true)
+            .build();
+        let segments = vec![Segment::control(vec![ControlCode::with_params_vec(
+            ControlType::CursorMoveToColumn,
+            vec![0],
+        )])];
+        let mut output = Vec::new();
+        console
+            .print_segments_to(&mut output, &segments)
+            .expect("print_segments_to");
+
+        assert_eq!(String::from_utf8(output).expect("utf8 output"), "\x1b[1G");
+    }
+
+    #[test]
+    fn test_control_cursor_move_to_is_zero_based_xy() {
+        let console = Console::builder()
+            .width(80)
+            .markup(false)
+            .force_terminal(true)
+            .build();
+        let segments = vec![Segment::control(vec![ControlCode::with_params_vec(
+            ControlType::CursorMoveTo,
+            vec![3, 4],
+        )])];
+        let mut output = Vec::new();
+        console
+            .print_segments_to(&mut output, &segments)
+            .expect("print_segments_to");
+
+        assert_eq!(String::from_utf8(output).expect("utf8 output"), "\x1b[5;4H");
+    }
+
+    #[test]
+    fn test_control_set_window_title_emits_empty_title_sequence() {
+        let console = Console::builder()
+            .width(80)
+            .markup(false)
+            .force_terminal(true)
+            .build();
+        let segments = vec![Segment {
+            text: std::borrow::Cow::Borrowed(""),
+            style: None,
+            control: Some(vec![ControlCode::new(ControlType::SetWindowTitle)]),
+        }];
+        let mut output = Vec::new();
+        console
+            .print_segments_to(&mut output, &segments)
+            .expect("print_segments_to");
+
+        assert_eq!(
+            String::from_utf8(output).expect("utf8 output"),
+            "\x1b]0;\x07"
+        );
     }
 
     #[test]

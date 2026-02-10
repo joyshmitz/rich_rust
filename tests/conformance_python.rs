@@ -327,6 +327,14 @@ fn value_usize(value: &Value, key: &str) -> Option<usize> {
     value.get(key).and_then(|v| v.as_u64()).map(|v| v as usize)
 }
 
+fn value_i32(value: &Value, key: &str, default: i32) -> i32 {
+    value
+        .get(key)
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+        .unwrap_or(default)
+}
+
 fn build_table(input: &Value) -> Table {
     let show_header = value_bool(input, "show_header", true);
     let show_lines = value_bool(input, "show_lines", false);
@@ -528,6 +536,36 @@ fn build_renderable(
 
             let child = build_renderable(&child_kind, child_input, options);
             Box::new(rich_rust::renderables::Constrain::new_boxed(child, width))
+        }
+        "control" => {
+            let operation = value_string(input, "operation").unwrap_or_else(|| "clear".to_string());
+            let control = match operation.as_str() {
+                "bell" => Control::bell(),
+                "home" => Control::home(),
+                "move" => Control::r#move(value_i32(input, "x", 0), value_i32(input, "y", 0)),
+                "move_to_column" => {
+                    Control::move_to_column(value_i32(input, "x", 0), value_i32(input, "y", 0))
+                }
+                "move_to" => Control::move_to(value_i32(input, "x", 0), value_i32(input, "y", 0)),
+                "clear" => Control::clear(),
+                "show_cursor" => {
+                    let show = input.get("show").and_then(|v| v.as_bool()).unwrap_or(true);
+                    Control::show_cursor(show)
+                }
+                "alt_screen" => {
+                    let enable = input
+                        .get("enable")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    Control::alt_screen(enable)
+                }
+                "title" => Control::title(value_string(input, "title").unwrap_or_default()),
+                other => {
+                    assert!(false, "unsupported control operation: {other}");
+                    Control::clear()
+                }
+            };
+            Box::new(control)
         }
         "markdown" => {
             #[cfg(feature = "markdown")]

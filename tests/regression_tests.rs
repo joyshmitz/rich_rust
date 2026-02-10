@@ -1610,7 +1610,7 @@ fn regression_console_control_segments_emit_sequences() {
 
     let output = String::from_utf8(buffer.lock().expect("buffer lock poisoned").clone())
         .expect("output should be valid UTF-8");
-    let expected = "\x07\x1b[2A\x1b[3;4H\x1b[2K";
+    let expected = "\x07\x1b[2A\x1b[5;4H\x1b[2K";
     assert_eq!(
         output, expected,
         "Control sequence output should match expected ANSI codes"

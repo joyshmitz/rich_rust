@@ -4,6 +4,7 @@
 //! movements, clear-screen, alt-screen toggles, and window title updates.
 
 use smallvec::smallvec;
+use std::borrow::Cow;
 
 use crate::console::{Console, ConsoleOptions};
 use crate::renderables::Renderable;
@@ -35,7 +36,7 @@ impl Control {
 
     /// Move cursor relative to current position.
     #[must_use]
-    pub fn move_cursor(x: i32, y: i32) -> Self {
+    pub fn r#move(x: i32, y: i32) -> Self {
         let mut codes: Vec<ControlCode> = Vec::new();
         if x != 0 {
             let control_type = if x > 0 {
@@ -62,11 +63,19 @@ impl Control {
         Self::new(codes)
     }
 
+    /// Move cursor relative to current position.
+    #[must_use]
+    pub fn move_cursor(x: i32, y: i32) -> Self {
+        Self::r#move(x, y)
+    }
+
     /// Move to the given 0-based column, optionally add a relative row offset.
     #[must_use]
     pub fn move_to_column(x: i32, y: i32) -> Self {
-        let mut codes: Vec<ControlCode> =
-            vec![ControlCode::with_params(ControlType::CursorMoveToColumn, smallvec![x])];
+        let mut codes: Vec<ControlCode> = vec![ControlCode::with_params(
+            ControlType::CursorMoveToColumn,
+            smallvec![x],
+        )];
         if y != 0 {
             let control_type = if y > 0 {
                 ControlType::CursorDown
@@ -126,13 +135,68 @@ impl Control {
 
 impl Renderable for Control {
     fn render<'a>(&'a self, _console: &Console, _options: &ConsoleOptions) -> Vec<Segment<'a>> {
+        let text = match self.title.as_deref() {
+            Some(title) => Cow::Borrowed(title),
+            None => Cow::Borrowed(""),
+        };
         vec![Segment {
-            text: self
-                .title
-                .as_deref()
-                .map_or(std::borrow::Cow::Borrowed(""), std::borrow::Cow::Borrowed),
+            text,
             style: None,
             control: Some(self.codes.clone()),
         }]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::console::Console;
+
+    #[test]
+    fn move_alias_matches_move_cursor() {
+        let via_keyword = Control::r#move(3, -2);
+        let via_alias = Control::move_cursor(3, -2);
+
+        let console = Console::new();
+        let options = console.options();
+        let kw_segments = via_keyword.render(&console, &options);
+        let alias_segments = via_alias.render(&console, &options);
+        assert_eq!(kw_segments, alias_segments);
+    }
+
+    #[test]
+    fn move_to_column_includes_optional_vertical_offset() {
+        let control = Control::move_to_column(0, 2);
+        let console = Console::new();
+        let options = console.options();
+        let segments = control.render(&console, &options);
+        assert_eq!(segments.len(), 1);
+
+        let codes = segments[0]
+            .control
+            .as_ref()
+            .expect("control codes should be present");
+        assert_eq!(codes.len(), 2);
+        assert_eq!(codes[0].control_type, ControlType::CursorMoveToColumn);
+        assert_eq!(codes[0].params.as_slice(), &[0]);
+        assert_eq!(codes[1].control_type, ControlType::CursorDown);
+        assert_eq!(codes[1].params.as_slice(), &[2]);
+    }
+
+    #[test]
+    fn title_renders_title_text_for_window_title_control() {
+        let control = Control::title("Example");
+        let console = Console::new();
+        let options = console.options();
+        let segments = control.render(&console, &options);
+
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].text.as_ref(), "Example");
+        let codes = segments[0]
+            .control
+            .as_ref()
+            .expect("control codes should be present");
+        assert_eq!(codes.len(), 1);
+        assert_eq!(codes[0].control_type, ControlType::SetWindowTitle);
     }
 }

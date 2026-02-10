@@ -218,11 +218,13 @@ pub mod prelude {
         Align, AlignLines, AlignMethod, BarStyle, Cell, Column, Columns, Constrain, Control,
         DownloadColumn, Emoji, FileSizeColumn, Inspect, InspectOptions, Layout, LayoutSplitter,
         PaddingDimensions, Panel, Pretty, PrettyOptions, ProgressBar, Region, Row, Rule, Spinner,
-        Table,
-        TotalFileSizeColumn, Traceback, TracebackFrame, TransferSpeedColumn, Tree, TreeGuides,
-        TreeNode, VerticalAlign, VerticalAlignMethod, align_text, inspect, print_exception,
+        Table, TotalFileSizeColumn, Traceback, TracebackFrame, TransferSpeedColumn, Tree,
+        TreeGuides, TreeNode, VerticalAlign, VerticalAlignMethod, align_text, inspect,
+        print_exception,
     };
-    pub use crate::segment::{ControlCode, ControlType, Segment, escape_control_codes, strip_control_codes};
+    pub use crate::segment::{
+        ControlCode, ControlType, Segment, escape_control_codes, strip_control_codes,
+    };
     pub use crate::style::{Attributes, Style};
     pub use crate::text::{JustifyMethod, OverflowMethod, Span, Text};
     pub use crate::theme::{Theme, ThemeError, ThemeStackError};
