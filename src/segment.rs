@@ -31,6 +31,44 @@ pub enum ControlType {
     SetWindowTitle = 16,
 }
 
+/// Remove ASCII control codepoints used by Rich control helpers.
+///
+/// Python reference: `rich.control.strip_control_codes`.
+#[must_use]
+pub fn strip_control_codes(text: &str) -> String {
+    text.chars()
+        .filter(|c| {
+            !matches!(
+                *c,
+                '\x07' // Bell
+                | '\x08' // Backspace
+                | '\x0b' // Vertical tab
+                | '\x0c' // Form feed
+                | '\x0d' // Carriage return
+            )
+        })
+        .collect()
+}
+
+/// Escape ASCII control codepoints used by Rich control helpers.
+///
+/// Python reference: `rich.control.escape_control_codes`.
+#[must_use]
+pub fn escape_control_codes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '\x07' => out.push_str("\\a"),
+            '\x08' => out.push_str("\\b"),
+            '\x0b' => out.push_str("\\v"),
+            '\x0c' => out.push_str("\\f"),
+            '\x0d' => out.push_str("\\r"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 /// A control code with optional parameters.
 /// Uses `SmallVec` to avoid heap allocation for typical 0-2 parameter cases.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -611,6 +649,18 @@ mod tests {
         let seg = Segment::control(vec![ControlCode::new(ControlType::Bell)]);
         assert_eq!(seg.cell_length(), 0);
         assert!(seg.is_control());
+    }
+
+    #[test]
+    fn test_strip_control_codes_removes_expected_codepoints() {
+        let input = "a\x07b\x08c\x0bd\x0ce\rf";
+        assert_eq!(strip_control_codes(input), "abcdef");
+    }
+
+    #[test]
+    fn test_escape_control_codes_replaces_expected_codepoints() {
+        let input = "a\x07b\x08c\x0bd\x0ce\rf";
+        assert_eq!(escape_control_codes(input), "a\\ab\\bc\\vd\\fe\\rf");
     }
 
     #[test]

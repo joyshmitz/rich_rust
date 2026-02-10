@@ -215,13 +215,14 @@ pub mod prelude {
     pub use crate::measure::Measurement;
     pub use crate::protocol::{RichCast, RichCastOutput, rich_cast};
     pub use crate::renderables::{
-        Align, AlignLines, AlignMethod, BarStyle, Cell, Column, Columns, Constrain, DownloadColumn,
-        Emoji, FileSizeColumn, Inspect, InspectOptions, Layout, LayoutSplitter, PaddingDimensions,
-        Panel, Pretty, PrettyOptions, ProgressBar, Region, Row, Rule, Spinner, Table,
+        Align, AlignLines, AlignMethod, BarStyle, Cell, Column, Columns, Constrain, Control,
+        DownloadColumn, Emoji, FileSizeColumn, Inspect, InspectOptions, Layout, LayoutSplitter,
+        PaddingDimensions, Panel, Pretty, PrettyOptions, ProgressBar, Region, Row, Rule, Spinner,
+        Table,
         TotalFileSizeColumn, Traceback, TracebackFrame, TransferSpeedColumn, Tree, TreeGuides,
         TreeNode, VerticalAlign, VerticalAlignMethod, align_text, inspect, print_exception,
     };
-    pub use crate::segment::Segment;
+    pub use crate::segment::{ControlCode, ControlType, Segment, escape_control_codes, strip_control_codes};
     pub use crate::style::{Attributes, Style};
     pub use crate::text::{JustifyMethod, OverflowMethod, Span, Text};
     pub use crate::theme::{Theme, ThemeError, ThemeStackError};
