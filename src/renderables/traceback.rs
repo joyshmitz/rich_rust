@@ -1,8 +1,11 @@
 //! Traceback rendering.
 //!
-//! This is a Rust-idiomatic approximation of Python Rich's `rich.traceback`.
-//! For deterministic testing and conformance fixtures, this implementation
-//! supports rendering from **synthetic frames** (function name + line number).
+//! This provides Rich-style tracebacks comparable to Python Rich's `rich.traceback`.
+//!
+//! For deterministic tests and Python fixture conformance, you can construct
+//! a [`Traceback`] from explicit frames (function name + line number, with
+//! optional embedded source context). When the optional `backtrace` feature is
+//! enabled, you can also capture real runtime frames via [`Traceback::capture`].
 //!
 //! # Automatic Capture (requires `backtrace` feature)
 //!
@@ -253,7 +256,6 @@ impl Traceback {
             "rust_begin_unwind",
             "__rust_",
             "_start",
-            "main",
             "__libc_",
             "clone",
         ];
@@ -361,7 +363,7 @@ impl Renderable for Traceback {
                     for line_no in start..=end {
                         let source_idx = line_no.saturating_sub(first_line);
                         if source_idx < source_lines.len() {
-                            let code = source_lines[source_idx].trim_start();
+                            let code = source_lines[source_idx];
                             let is_error_line = line_no == frame.line;
                             let indicator = if is_error_line { "❱" } else { " " };
                             let line_style = if is_error_line {
@@ -970,7 +972,7 @@ mod tests {
             assert!(Traceback::is_internal_frame("std::rt::lang_start"));
             assert!(Traceback::is_internal_frame("core::ops::function::FnOnce"));
             assert!(Traceback::is_internal_frame("__libc_start_main"));
-            assert!(Traceback::is_internal_frame("main"));
+            assert!(!Traceback::is_internal_frame("main"));
             assert!(!Traceback::is_internal_frame("my_crate::my_function"));
             assert!(!Traceback::is_internal_frame("app::handler::process"));
         }
