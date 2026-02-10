@@ -495,7 +495,7 @@ fn test_live_drop_cleanup() {
         tracing::debug!(state = "dropped", "Live has been dropped");
     }
 
-    // Verify cursor is restored (would show cursor show sequence in output)
+    // Verify cursor is restored (cursor show sequence appears in output if broken)
     let output = buffer.contents();
     tracing::info!(output_len = output.len(), "Scoped test completed");
 }

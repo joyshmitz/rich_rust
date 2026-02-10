@@ -113,7 +113,7 @@ fn test_collapse_widths_proportional_shrink() {
     init_test_logging();
     tracing::info!("Test Vector 2: collapse_widths proportional shrinking");
 
-    // Create a table with three columns that would naturally be 50 wide each
+    // Create a table with three columns that are naturally ~50 wide each
     // but constrain to 100 total, forcing collapse
     let padding_content = "X".repeat(45); // Large content to force wide columns
 

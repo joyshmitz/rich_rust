@@ -642,7 +642,7 @@ mod tests {
     #[test]
     fn test_handler_syntax_malformed_parens() {
         // Malformed handler with reversed parens should not panic (bd-panic-fix)
-        // Previously this would cause a slice panic: paren_start + 1 > paren_end
+        // Previously this caused a slice panic: paren_start + 1 > paren_end
         let tag = parse_tag("@)(");
         // Falls through to plain tag parsing since parens are reversed
         assert_eq!(tag.name, "@)(");

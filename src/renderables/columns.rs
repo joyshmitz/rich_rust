@@ -681,7 +681,7 @@ mod tests {
 
     #[test]
     fn test_columns_max_width_limits_expansion() {
-        // Without max_width, columns would expand to fill 400 columns
+        // Without max_width, columns expand to fill 400 columns
         let cols = Columns::from_strings(&["A", "B", "C"])
             .column_count(3)
             .gutter(2)
@@ -731,7 +731,7 @@ mod tests {
         let text: String = lines[0].iter().map(|s| s.text.as_ref()).collect();
 
         // Without max_width, output fills the 400 column width
-        // This would contain excessive whitespace (30+ consecutive spaces)
+        // This contains excessive whitespace (30+ consecutive spaces)
         let has_excessive_whitespace = text.contains(&" ".repeat(30));
         assert!(
             has_excessive_whitespace,

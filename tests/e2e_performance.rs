@@ -78,7 +78,7 @@ fn assert_perf_within_threshold(name: &str, elapsed_ms: u128) {
         tracing::info!(
             metric = name,
             new_value = elapsed_ms,
-            "Would update baseline (UPDATE_PERF_BASELINE=1)"
+            "Baseline update requested (UPDATE_PERF_BASELINE=1)"
         );
         return;
     }

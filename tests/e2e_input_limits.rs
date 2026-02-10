@@ -198,7 +198,7 @@ fn test_utf8_crossing_limit() {
     info!("{}", separator());
 
     let console = interactive_console();
-    // "世界\n" = 7 bytes, limit at 6 would cut into character
+    // "世界\n" = 7 bytes, limit at 6 cuts into a character
     let utf8_input = "世界\n";
     let limit = 6;
 

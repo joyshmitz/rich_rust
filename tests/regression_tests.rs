@@ -466,7 +466,7 @@ fn regression_layout_table_width_sum_exactness() {
 
     let _phase = test_phase("width_sum");
 
-    // Use ratios that would cause rounding issues (7:13:23)
+    // Use ratios that trigger rounding edge cases (7:13:23)
     let mut table = Table::new()
         .expand(true)
         .box_style(&SQUARE)
@@ -650,7 +650,7 @@ fn regression_layout_tree_deep_nesting() {
 ///
 /// Bug: Style::render() returned early when ANSI codes were empty,
 ///      skipping OSC 8 hyperlink output. Styles with only a hyperlink
-///      (no colors or attributes) would not render the link.
+///      (no colors or attributes) does not render the link.
 /// Fixed: 2026-01-18 in commit ca4bd56
 ///
 /// This test ensures hyperlink-only styles render correctly.

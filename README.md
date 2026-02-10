@@ -683,9 +683,9 @@ See `FEATURE_PARITY.md` for the authoritative matrix and `RICH_SPEC.md` for deta
 - Layout engine (`Layout`)
 - Logging handler integration (`RichLogger`)
 - HTML/SVG export (`Console::export_html` / `Console::export_svg`)
-- Syntax highlighting (feature `syntax`)
-- Markdown rendering (feature `markdown`)
-- JSON pretty-print (feature `json`)
+- Syntax highlighting (feature `syntax`) (see `FEATURE_PARITY.md` for remaining parity gaps)
+- Markdown rendering (feature `markdown`) (see `FEATURE_PARITY.md` for remaining parity gaps)
+- JSON pretty-print (feature `json`) (see `FEATURE_PARITY.md` for remaining parity gaps)
 - Traceback rendering (`Traceback`, `Console::print_exception`) (explicit frames for deterministic tests; optional `Traceback::capture` via feature `backtrace`)
 - Unicode width handling + auto color downgrade
 

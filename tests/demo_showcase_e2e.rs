@@ -306,7 +306,7 @@ fn test_width_override() {
 // Non-interactive safety tests (bd-zzss)
 // ============================================================================
 
-/// Guards against regressions that would cause piped output to hang.
+/// Guards against regressions that cause piped output to hang.
 /// Uses deterministic, bounded settings: --quick --seed 0 --color-system none
 #[test]
 fn test_non_interactive_full_demo_completes() {
@@ -853,7 +853,7 @@ fn test_links_enabled_contains_osc8() {
 
     // Note: This test may not find hyperlinks if the hero scene doesn't generate any.
     // The key thing is that it runs successfully with the flag.
-    // If the scene has hyperlinks, they would use OSC8 format: \x1b]8;;URL
+    // If the scene has hyperlinks, they use OSC8 format: \x1b]8;;URL
 }
 
 /// Verifies --color-system none produces no ANSI SGR sequences.

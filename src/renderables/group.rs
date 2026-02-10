@@ -73,7 +73,7 @@ impl<'a> Group<'a> {
 
     /// Set whether to fit items inline when possible.
     ///
-    /// When `fit` is true, items that would fit on the same line are
+    /// When `fit` is true, items that fit on the same line are
     /// rendered together. When false (default), each item gets its own line.
     #[must_use]
     pub fn fit(mut self, fit: bool) -> Self {

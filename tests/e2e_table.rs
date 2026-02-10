@@ -429,7 +429,7 @@ fn e2e_table_cell_wrapping() {
     // but let's test that long content at least renders without panic
     let mut table = Table::new().with_column(Column::new("Description").width(15));
 
-    table.add_row_cells(["This is a very long piece of text that would need wrapping"]);
+    table.add_row_cells(["This is a very long piece of text that needs wrapping"]);
 
     let output = table.render_plain(30);
     tracing::debug!(output = %output, "Wrapped cell table");
