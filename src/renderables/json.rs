@@ -114,8 +114,11 @@
 //!   per-token segment creation
 //! - **Streaming**: Does not support streaming JSON parsing; the entire document
 //!   must fit in memory
-//! - **Compact output**: No option for compact (non-pretty-printed) output
+//! - **Compact output**: Python Rich supports compact output via `indent=None`.
+//!   rich_rust currently only supports pretty output; tracked in `bd-2zpy`.
 //! - **Trailing commas**: Standard JSON only; no trailing comma support
+//! - **Python Rich option parity**: Python Rich `JSON` supports options such as
+//!   `indent: None|int|str`, `ensure_ascii`, and `from_data(...)`. Tracked in `bd-2zpy`.
 
 use std::fmt::Write as _;
 

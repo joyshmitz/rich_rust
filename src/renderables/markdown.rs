@@ -93,12 +93,16 @@
 //!
 //! # Known Limitations
 //!
-//! - **Images**: Image references are parsed but not rendered (terminals can't display images)
+//! - **Images**: rich_rust currently does not render images. Python Rich renders images as
+//!   an emoji + alt text with an OSC8 hyperlink to the image URL. Tracked in `bd-3d0j`.
 //! - **HTML**: Inline HTML is ignored
-//! - **Footnotes**: Supported by the parser but rendering may be basic
+//! - **Footnotes**: Supported by the parser; rendering is minimal and may differ from Python Rich
 //! - **Task lists**: GitHub-style task lists (`- [ ]` / `- [x]`) render as checkboxes
-//! - **Code block languages**: Language hints in fenced code blocks are parsed but not
-//!   used for syntax highlighting (use the `syntax` feature for that)
+//! - **Fenced code blocks**: Language hints are parsed, but rich_rust currently renders fenced
+//!   blocks as styled text. Python Rich uses syntax highlighting for fenced code blocks.
+//!   Tracked in `bd-3nr3`.
+//! - **Hyperlinks**: rich_rust currently appends ` (url)` for links when `show_links=true`.
+//!   Python Rich uses OSC8 hyperlinks without appending the URL. Tracked in `bd-3d0j`.
 
 use std::fmt::Write;
 

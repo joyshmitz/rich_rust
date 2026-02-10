@@ -76,10 +76,10 @@
 //!
 //! # Known Limitations
 //!
-//! - **Theme loading**: Only the default syntect themes are available. Custom `.tmTheme` files
-//!   are not currently supported.
-//! - **Syntax definitions**: Only default syntect syntax definitions are available. Custom
-//!   `.sublime-syntax` files are not currently supported.
+//! - **Theme loading**: Only the default syntect themes are available. Loading custom `.tmTheme`
+//!   files is tracked in `bd-2tch`.
+//! - **Syntax definitions**: Only default syntect syntax definitions are available. Loading custom
+//!   `.sublime-syntax` files is tracked in `bd-2tch`.
 //! - **Large files**: Rendering very large files may be slow due to per-line highlighting.
 //! - **Word wrap**: Wrap is supported (use `word_wrap(Some(width))`), and is whitespace-preserving
 //!   (tuned for code rather than prose reflow).
