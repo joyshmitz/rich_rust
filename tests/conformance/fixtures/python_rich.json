@@ -882,7 +882,7 @@
     {
       "id": "traceback/basic",
       "kind": "traceback",
-      "compare_ansi": false,
+      "compare_ansi": true,
       "render_options": {
         "width": 60
       },

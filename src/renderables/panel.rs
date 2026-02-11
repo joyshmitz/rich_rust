@@ -447,15 +447,9 @@ impl<'a> Panel<'a> {
 
     /// Render the top border with optional title.
     fn render_top_border(&self, box_chars: &BoxChars, inner_width: usize) -> Vec<Segment<'a>> {
-        let mut segments = Vec::new();
-
-        // Left corner
-        segments.push(Segment::new(
-            box_chars.top[0].to_string(),
-            Some(self.border_style.clone()),
-        ));
-
+        let border_style = Some(self.border_style.clone());
         if let Some(title) = &self.title {
+            let mut segments = Vec::new();
             let max_text_width = if inner_width >= 4 {
                 inner_width.saturating_sub(4)
             } else {
@@ -473,6 +467,10 @@ impl<'a> Panel<'a> {
 
             let title_width = title_text.cell_len();
             if inner_width < 2 {
+                segments.push(Segment::new(
+                    box_chars.top[0].to_string(),
+                    border_style.clone(),
+                ));
                 segments.extend(
                     title_text
                         .render("")
@@ -483,78 +481,92 @@ impl<'a> Panel<'a> {
                 if remaining > 0 {
                     segments.push(Segment::new(
                         box_chars.top[1].to_string().repeat(remaining),
-                        Some(self.border_style.clone()),
+                        border_style.clone(),
                     ));
                 }
-            } else {
-                let title_total_width = title_width.saturating_add(2);
-                let available = inner_width.saturating_sub(title_total_width);
-                let (left_rule, right_rule) = if available == 0 {
-                    (0, 0)
-                } else {
-                    match self.title_align {
-                        JustifyMethod::Left | JustifyMethod::Default => {
-                            (1, available.saturating_sub(1))
-                        }
-                        JustifyMethod::Right => (available.saturating_sub(1), 1),
-                        JustifyMethod::Center | JustifyMethod::Full => {
-                            let left = available / 2;
-                            (left, available - left)
-                        }
-                    }
-                };
-
-                if left_rule > 0 {
-                    segments.push(Segment::new(
-                        box_chars.top[1].to_string().repeat(left_rule),
-                        Some(self.border_style.clone()),
-                    ));
-                }
-
-                segments.push(Segment::new(" ", Some(title_text.style().clone())));
-                segments.extend(
-                    title_text
-                        .render("")
-                        .into_iter()
-                        .map(super::super::segment::Segment::into_owned),
-                );
-                segments.push(Segment::new(" ", Some(title_text.style().clone())));
-
-                if right_rule > 0 {
-                    segments.push(Segment::new(
-                        box_chars.top[1].to_string().repeat(right_rule),
-                        Some(self.border_style.clone()),
-                    ));
-                }
+                segments.push(Segment::new(
+                    box_chars.top[3].to_string(),
+                    border_style.clone(),
+                ));
+                return segments;
             }
-        } else {
-            // No title, just a line
-            segments.push(Segment::new(
-                box_chars.top[1].to_string().repeat(inner_width),
-                Some(self.border_style.clone()),
-            ));
+
+            let title_total_width = title_width.saturating_add(2);
+            let available = inner_width.saturating_sub(title_total_width);
+            let (left_rule, right_rule) = if available == 0 {
+                (0, 0)
+            } else {
+                match self.title_align {
+                    JustifyMethod::Left | JustifyMethod::Default => {
+                        (1, available.saturating_sub(1))
+                    }
+                    JustifyMethod::Right => (available.saturating_sub(1), 1),
+                    JustifyMethod::Center | JustifyMethod::Full => {
+                        let left = available / 2;
+                        (left, available - left)
+                    }
+                }
+            };
+
+            let left_border = if left_rule > 0 {
+                format!("{}{}", box_chars.top[0], box_chars.top[1])
+            } else {
+                box_chars.top[0].to_string()
+            };
+            segments.push(Segment::new(left_border, border_style.clone()));
+            if left_rule > 1 {
+                segments.push(Segment::new(
+                    box_chars.top[1].to_string().repeat(left_rule - 1),
+                    border_style.clone(),
+                ));
+            }
+
+            // Keep title padding colored like the border to match Rich's ANSI output.
+            segments.push(Segment::new(" ", border_style.clone()));
+            segments.extend(
+                title_text
+                    .render("")
+                    .into_iter()
+                    .map(super::super::segment::Segment::into_owned),
+            );
+            segments.push(Segment::new(" ", border_style.clone()));
+
+            if right_rule > 1 {
+                segments.push(Segment::new(
+                    box_chars.top[1].to_string().repeat(right_rule - 1),
+                    border_style.clone(),
+                ));
+            }
+            let right_border = if right_rule > 0 {
+                format!("{}{}", box_chars.top[1], box_chars.top[3])
+            } else {
+                box_chars.top[3].to_string()
+            };
+            segments.push(Segment::new(right_border, border_style));
+            return segments;
         }
 
-        // Right corner
-        segments.push(Segment::new(
-            box_chars.top[3].to_string(),
-            Some(self.border_style.clone()),
-        ));
-
-        segments
+        vec![Segment::new(
+            format!(
+                "{}{}{}",
+                box_chars.top[0],
+                box_chars.top[1].to_string().repeat(inner_width),
+                box_chars.top[3]
+            ),
+            border_style,
+        )]
     }
 
     /// Render the bottom border with optional subtitle.
     fn render_bottom_border(&self, box_chars: &BoxChars, inner_width: usize) -> Vec<Segment<'a>> {
         let mut segments = Vec::new();
 
-        // Left corner
-        segments.push(Segment::new(
-            box_chars.bottom[0].to_string(),
-            Some(self.border_style.clone()),
-        ));
-
         if let Some(subtitle) = &self.subtitle {
+            // Left corner
+            segments.push(Segment::new(
+                box_chars.bottom[0].to_string(),
+                Some(self.border_style.clone()),
+            ));
             let max_text_width = if inner_width >= 4 {
                 inner_width.saturating_sub(4)
             } else {
@@ -627,14 +639,19 @@ impl<'a> Panel<'a> {
                 }
             }
         } else {
-            // No subtitle, just a line
-            segments.push(Segment::new(
-                box_chars.bottom[1].to_string().repeat(inner_width),
+            // No subtitle: render as one border segment to preserve ANSI continuity.
+            return vec![Segment::new(
+                format!(
+                    "{}{}{}",
+                    box_chars.bottom[0],
+                    box_chars.bottom[1].to_string().repeat(inner_width),
+                    box_chars.bottom[3]
+                ),
                 Some(self.border_style.clone()),
-            ));
+            )];
         }
 
-        // Right corner
+        // Right corner (subtitle case)
         segments.push(Segment::new(
             box_chars.bottom[3].to_string(),
             Some(self.border_style.clone()),

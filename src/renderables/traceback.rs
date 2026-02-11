@@ -21,6 +21,7 @@
 //! ```
 
 use crate::console::{Console, ConsoleOptions};
+use crate::markup;
 use crate::renderables::Renderable;
 use crate::segment::Segment;
 use crate::style::Style;
@@ -131,7 +132,9 @@ impl Traceback {
             frames: frames.into(),
             exception_type: exception_type.into(),
             exception_message: exception_message.into(),
-            title: Text::new("Traceback (most recent call last)"),
+            title: markup::render_or_plain(
+                "[bold red]Traceback [bold dim red](most recent call last)[/]",
+            ),
             extra_lines: 0,
             show_locals: false,
         }
@@ -343,12 +346,13 @@ impl Renderable for Traceback {
 
         // Define styles for traceback components
         let file_style = Style::parse("cyan").ok();
-        let lineno_style = Style::parse("yellow").ok();
-        let func_style = Style::parse("green").ok();
+        let lineno_style = Style::parse("bright_blue").ok();
+        let func_style = Style::parse("bright_green").ok();
+        let separator_style = None;
         let dim_style = Style::parse("dim").ok();
         let error_line_style = Style::parse("bold").ok();
-        let exception_type_style = Style::parse("bold red").ok();
-        let exception_msg_style = Style::parse("red").ok();
+        let exception_type_style = Style::parse("bold bright_red").ok();
+        let exception_msg_style = None;
 
         let mut content_lines: Vec<Vec<Segment<'static>>> = Vec::new();
         for frame in &self.frames {
@@ -360,16 +364,16 @@ impl Renderable for Traceback {
                 if let Some(filename) = frame.filename.as_deref() {
                     content_lines.push(vec![
                         Segment::new(filename.to_string(), file_style.clone()),
-                        Segment::new(":", dim_style.clone()),
+                        Segment::new(":", separator_style.clone()),
                         Segment::new(frame.line.to_string(), lineno_style.clone()),
-                        Segment::new(" in ", dim_style.clone()),
+                        Segment::new(" in ", separator_style.clone()),
                         Segment::new(frame.name.clone(), func_style.clone()),
                     ]);
                 } else {
                     content_lines.push(vec![
-                        Segment::new("in ", dim_style.clone()),
+                        Segment::new("in ", separator_style.clone()),
                         Segment::new(frame.name.clone(), func_style.clone()),
-                        Segment::new(":", dim_style.clone()),
+                        Segment::new(":", separator_style.clone()),
                         Segment::new(frame.line.to_string(), lineno_style.clone()),
                     ]);
                 }
@@ -440,9 +444,9 @@ impl Renderable for Traceback {
 
             // Fallback: no source available, just show frame info
             content_lines.push(vec![
-                Segment::new("in ", dim_style.clone()),
+                Segment::new("in ", separator_style.clone()),
                 Segment::new(frame.name.clone(), func_style.clone()),
-                Segment::new(":", dim_style.clone()),
+                Segment::new(":", separator_style.clone()),
                 Segment::new(frame.line.to_string(), lineno_style.clone()),
             ]);
 
@@ -472,10 +476,9 @@ impl Renderable for Traceback {
 
         // Exception info with styling
         segments.push(Segment::new(
-            self.exception_type.clone(),
+            format!("{}: ", self.exception_type),
             exception_type_style.clone(),
         ));
-        segments.push(Segment::new(": ".to_string(), None));
         segments.push(Segment::new(
             self.exception_message.clone(),
             exception_msg_style.clone(),

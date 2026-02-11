@@ -397,7 +397,7 @@ CASES = [
     {
         "id": "traceback/basic",
         "kind": "traceback",
-        "compare_ansi": False,
+        "compare_ansi": True,
         "render_options": {"width": 60},
         "input": {
             "frames": [
