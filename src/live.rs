@@ -117,6 +117,10 @@ impl LiveWriter {
             decoder: AnsiDecoder::new(),
         }
     }
+
+    fn normalize_trailing_cr(line: &str) -> &str {
+        line.strip_suffix('\r').unwrap_or(line)
+    }
 }
 
 impl io::Write for LiveWriter {
@@ -131,7 +135,10 @@ impl io::Write for LiveWriter {
             // Drain the newline itself.
             let _ = self.buffer.drain(..1);
             let line = String::from_utf8_lossy(&line_bytes);
-            lines.push(self.decoder.decode_line(&line));
+            lines.push(
+                self.decoder
+                    .decode_line(Self::normalize_trailing_cr(line.as_ref())),
+            );
         }
 
         if !lines.is_empty() {
@@ -148,7 +155,9 @@ impl io::Write for LiveWriter {
         if !self.buffer.is_empty() {
             let remainder = String::from_utf8_lossy(&self.buffer).to_string();
             self.buffer.clear();
-            let mut decoded = self.decoder.decode_line(&remainder);
+            let mut decoded = self
+                .decoder
+                .decode_line(Self::normalize_trailing_cr(&remainder));
             decoded.end = "\n".to_string();
             self.console.print_text(&decoded);
         }
@@ -1367,6 +1376,37 @@ mod tests {
         let data = b"test data";
         let written = writer.write(data).expect("write");
         assert_eq!(written, data.len());
+    }
+
+    #[test]
+    fn test_live_writer_crlf_newline_preserves_text() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer.clone());
+        let live = Live::new(console);
+        let mut writer = live.stdout_proxy();
+
+        writer
+            .write_all(b"crlf content\r\n")
+            .expect("write_all should succeed");
+
+        let text = buffer.text();
+        assert!(text.contains("crlf content"));
+    }
+
+    #[test]
+    fn test_live_writer_flush_with_trailing_cr_preserves_text() {
+        let buffer = SharedBuffer::new();
+        let console = make_test_console(buffer.clone());
+        let live = Live::new(console);
+        let mut writer = live.stdout_proxy();
+
+        writer
+            .write_all(b"flush content\r")
+            .expect("write_all should succeed");
+        writer.flush().expect("flush should succeed");
+
+        let text = buffer.text();
+        assert!(text.contains("flush content"));
     }
 
     // =========================================================================
