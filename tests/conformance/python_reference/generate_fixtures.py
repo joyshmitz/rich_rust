@@ -380,6 +380,13 @@ CASES = [
         "notes": "Default Rust syntax ANSI now matches Python Rich for this conformance fixture.",
     },
     {
+        "id": "syntax/python_assign",
+        "kind": "syntax",
+        "compare_ansi": True,
+        "input": {"code": "x = \"hi\"", "language": "python"},
+        "notes": "Non-Rust syntax ANSI parity case using Python assignment and string tokens.",
+    },
+    {
         "id": "syntax/no_terminal",
         "kind": "syntax",
         "compare_ansi": True,

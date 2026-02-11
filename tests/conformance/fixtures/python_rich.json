@@ -843,6 +843,23 @@
       "notes": "Default Rust syntax ANSI now matches Python Rich for this conformance fixture."
     },
     {
+      "id": "syntax/python_assign",
+      "kind": "syntax",
+      "compare_ansi": true,
+      "render_options": null,
+      "env": null,
+      "theme": null,
+      "input": {
+        "code": "x = \"hi\"",
+        "language": "python"
+      },
+      "expected": {
+        "plain": "x = \"hi\"                                \n",
+        "ansi": "\u001b[38;2;248;248;242;48;2;39;40;34mx\u001b[0m\u001b[38;2;248;248;242;48;2;39;40;34m \u001b[0m\u001b[38;2;255;70;137;48;2;39;40;34m=\u001b[0m\u001b[38;2;248;248;242;48;2;39;40;34m \u001b[0m\u001b[38;2;230;219;116;48;2;39;40;34m\"\u001b[0m\u001b[38;2;230;219;116;48;2;39;40;34mhi\u001b[0m\u001b[38;2;230;219;116;48;2;39;40;34m\"\u001b[0m\u001b[48;2;39;40;34m                                \u001b[0m\n"
+      },
+      "notes": "Non-Rust syntax ANSI parity case using Python assignment and string tokens."
+    },
+    {
       "id": "syntax/no_terminal",
       "kind": "syntax",
       "compare_ansi": true,

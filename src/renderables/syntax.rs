@@ -523,7 +523,11 @@ impl Syntax {
                     if text.is_empty() {
                         continue;
                     }
-                    let rich_style = self.syntect_style_to_rich(style, theme);
+                    let rich_style = if use_python_rich_theme {
+                        self.syntect_style_to_python_rich_compat(style, text, &bg, theme)
+                    } else {
+                        self.syntect_style_to_rich(style, theme)
+                    };
                     append_syntax_text(
                         &mut line_text,
                         text,
@@ -655,6 +659,23 @@ impl Syntax {
         }
 
         rich_style
+    }
+
+    fn syntect_style_to_python_rich_compat(
+        &self,
+        style: syntect::highlighting::Style,
+        text: &str,
+        background: &Color,
+        theme: &Theme,
+    ) -> Style {
+        let mut rich_style = self.syntect_style_to_rich(style, theme);
+
+        if self.background_color.is_none() {
+            rich_style = rich_style.bgcolor(background.clone());
+        }
+
+        let mapped_color = python_rich_mapped_foreground(style.foreground, text);
+        rich_style.color(mapped_color)
     }
 
     fn uses_python_rich_theme(&self) -> bool {
@@ -909,6 +930,39 @@ fn is_rust_keyword(token: &str) -> bool {
             | "where"
             | "while"
     )
+}
+
+fn python_rich_mapped_foreground(fg: syntect::highlighting::Color, text: &str) -> Color {
+    if token_is_operator(text) {
+        return Color::from_rgb(255, 70, 137);
+    }
+    if token_is_quote_literal(text) {
+        return Color::from_rgb(230, 219, 116);
+    }
+
+    match (fg.r, fg.g, fg.b) {
+        // base16-ocean.dark -> Python Rich default syntax palette remap
+        (180, 142, 173) => Color::from_rgb(102, 217, 239), // keyword
+        (143, 161, 179) => Color::from_rgb(166, 226, 46),  // function/name
+        (192, 197, 206) => Color::from_rgb(248, 248, 242), // plain/punctuation
+        (163, 190, 140) => Color::from_rgb(230, 219, 116), // string
+        (208, 135, 112) => Color::from_rgb(174, 129, 255), // number
+        (191, 97, 106) => Color::from_rgb(255, 70, 137),   // operator-ish
+        (96, 129, 139) => Color::from_rgb(117, 113, 94),   // comment-ish
+        _ => Color::from_rgb(fg.r, fg.g, fg.b),
+    }
+}
+
+fn token_is_operator(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|c| "=+-*/%<>!&|^~".contains(c) || c.is_whitespace())
+        && text.chars().any(|c| "=+-*/%<>!&|^~".contains(c))
+}
+
+fn token_is_quote_literal(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|c| c == '"' || c == '\'')
 }
 
 fn apply_indent_guides(line: &str, tab_size: usize) -> String {
@@ -1411,6 +1465,28 @@ mod tests {
             .expect("number token should exist");
         assert_eq!(number_style.color, Some(Color::from_rgb(174, 129, 255)));
         assert_eq!(number_style.bgcolor, Some(background));
+    }
+
+    #[test]
+    fn test_python_rich_non_rust_operator_and_quote_styles() {
+        let syntax = Syntax::new("x = \"hi\"", "python");
+        let segments = syntax.render(Some(40)).expect("render should succeed");
+
+        let eq_style = segments
+            .iter()
+            .find(|segment| segment.text == "=")
+            .and_then(|segment| segment.style.clone())
+            .expect("operator segment style should exist");
+        assert_eq!(eq_style.color, Some(Color::from_rgb(255, 70, 137)));
+        assert_eq!(eq_style.bgcolor, Some(Color::from_rgb(39, 40, 34)));
+
+        let quote_style = segments
+            .iter()
+            .find(|segment| segment.text == "\"")
+            .and_then(|segment| segment.style.clone())
+            .expect("quote segment style should exist");
+        assert_eq!(quote_style.color, Some(Color::from_rgb(230, 219, 116)));
+        assert_eq!(quote_style.bgcolor, Some(Color::from_rgb(39, 40, 34)));
     }
 
     #[test]
