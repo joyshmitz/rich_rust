@@ -364,7 +364,14 @@ impl<'a> Columns<'a> {
                 }
             }
 
-            result.push(row_segments);
+            // Keep each row within the requested width, even when explicit
+            // gutters are wider than the available width budget.
+            result.push(crate::segment::adjust_line_length(
+                row_segments,
+                effective_width,
+                None,
+                false,
+            ));
         }
 
         result
@@ -583,6 +590,47 @@ mod tests {
         for line in lines {
             let width: usize = line.iter().map(Segment::cell_length).sum();
             assert!(width <= total_width);
+        }
+    }
+
+    #[test]
+    fn test_columns_tiny_width_with_gutter_does_not_overflow() {
+        let cols = Columns::from_strings(&["A", "B"])
+            .column_count(2)
+            .gutter(3)
+            .equal_width(true)
+            .expand(false);
+
+        let total_width = 1;
+        let lines = cols.render(total_width);
+
+        assert_eq!(lines.len(), 1);
+        for line in lines {
+            let width: usize = line.iter().map(Segment::cell_length).sum();
+            assert!(
+                width <= total_width,
+                "line width {width} exceeds total_width {total_width}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_columns_tiny_width_with_many_columns_does_not_overflow() {
+        let cols = Columns::from_strings(&["A", "B", "C"])
+            .column_count(3)
+            .gutter(2)
+            .equal_width(true);
+
+        let total_width = 2;
+        let lines = cols.render(total_width);
+
+        assert_eq!(lines.len(), 1);
+        for line in lines {
+            let width: usize = line.iter().map(Segment::cell_length).sum();
+            assert!(
+                width <= total_width,
+                "line width {width} exceeds total_width {total_width}"
+            );
         }
     }
 
