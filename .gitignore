@@ -26,3 +26,6 @@ __pycache__/
 # Profiling artifacts
 perf.data
 perf.data.*
+
+# macOS metadata
+.DS_Store
