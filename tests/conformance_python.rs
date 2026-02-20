@@ -561,8 +561,7 @@ fn build_renderable(
                 }
                 "title" => Control::title(value_string(input, "title").unwrap_or_default()),
                 other => {
-                    assert!(false, "unsupported control operation: {other}");
-                    Control::clear()
+                    panic!("unsupported control operation: {other}");
                 }
             };
             Box::new(control)
@@ -665,8 +664,7 @@ fn build_renderable(
             )
         }
         other => {
-            assert!(false, "unsupported kind: {other}");
-            Box::new(Text::new(""))
+            panic!("unsupported kind: {other}");
         }
     }
 }
