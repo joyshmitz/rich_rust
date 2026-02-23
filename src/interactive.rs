@@ -596,7 +596,8 @@ impl Prompt {
             &prompt,
             &PrintOptions::new()
                 .with_markup(self.markup)
-                .with_no_newline(true),
+                .with_no_newline(true)
+                .with_highlight(self.markup),
         );
     }
 
@@ -1013,7 +1014,8 @@ impl Select {
             &prompt,
             &PrintOptions::new()
                 .with_markup(self.markup)
-                .with_no_newline(true),
+                .with_no_newline(true)
+                .with_highlight(self.markup),
         );
     }
 
@@ -1138,7 +1140,8 @@ impl Confirm {
             &prompt,
             &PrintOptions::new()
                 .with_markup(self.markup)
-                .with_no_newline(true),
+                .with_no_newline(true)
+                .with_highlight(self.markup),
         );
     }
 
